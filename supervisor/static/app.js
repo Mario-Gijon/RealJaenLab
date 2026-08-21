@@ -37,7 +37,10 @@ let fieldUndoStack = [];
 let selectedFieldItem = null;
 let fieldDragState = null;
 let lineDraft = null;
+let assistedDraft = null;
 let annotationSequence = 0;
+let reviewIsDirty = false;
+let videoLoadSequence = 0;
 
 workArea.classList.add("field-editing");
 
@@ -50,14 +53,16 @@ modeTabs.forEach((tab) => {
     workArea.classList.toggle("field-editing", activeMode === "field");
     selectedFieldItem = null;
     lineDraft = null;
+    assistedDraft = null;
     drawOverlay();
   });
 });
 
-saveButton.addEventListener("click", () => {
-  saveStatus.classList.add("is-saved");
-  saveStatusLabel.textContent = "SAVED";
-});
+function setReviewDirty(isDirty) {
+  reviewIsDirty = isDirty;
+  saveStatus.classList.toggle("is-saved", !isDirty);
+  saveStatusLabel.textContent = isDirty ? "UNSAVED" : "SAVED";
+}
 
 // These helpers are the shared mapping boundary for future FIELD and PEOPLE overlays.
 // They use the actual contained video image, rather than the larger workspace/video element.
@@ -114,6 +119,7 @@ function cloneAnnotations() {
 
 function rememberFieldEdit() {
   fieldUndoStack.push(cloneAnnotations());
+  setReviewDirty(true);
 }
 
 function clampToVideo({ x, y }) {
@@ -123,9 +129,9 @@ function clampToVideo({ x, y }) {
   };
 }
 
-function createFieldAnnotation(type, coordinates) {
+function createFieldAnnotation(type, coordinates, fit = null) {
   annotationSequence += 1;
-  return {
+  const annotation = {
     id: `field-${Date.now()}-${annotationSequence}`,
     video: selectedVideo.name,
     frame: currentFrameNumber(),
@@ -133,6 +139,8 @@ function createFieldAnnotation(type, coordinates) {
     coordinates,
     source: "manual",
   };
+  if (fit) annotation.fit = fit;
+  return annotation;
 }
 
 function findFieldAnnotation(id) {
@@ -168,14 +176,151 @@ function hitTestFieldAnnotation(coordinates) {
         return { id: annotation.id, handle: "line" };
       }
     }
+    if (annotation.type === "ellipse") {
+      const { center, radiusX, radiusY, rotation } = annotation.coordinates;
+      const cos = Math.cos(rotation);
+      const sin = Math.sin(rotation);
+      const xHandle = { x: center.x + radiusX * cos, y: center.y + radiusX * sin };
+      const yHandle = { x: center.x - radiusY * sin, y: center.y + radiusY * cos };
+      if (distanceBetween(coordinates, center) <= hitRadius) return { id: annotation.id, handle: "ellipse-center" };
+      if (distanceBetween(coordinates, xHandle) <= hitRadius) return { id: annotation.id, handle: "ellipse-radius-x" };
+      if (distanceBetween(coordinates, yHandle) <= hitRadius) return { id: annotation.id, handle: "ellipse-radius-y" };
+
+      const relativeX = coordinates.x - center.x;
+      const relativeY = coordinates.y - center.y;
+      const localX = relativeX * cos + relativeY * sin;
+      const localY = -relativeX * sin + relativeY * cos;
+      const normalizedRadius = Math.hypot(localX / radiusX, localY / radiusY);
+      if (Math.abs(normalizedRadius - 1) * Math.min(radiusX, radiusY) <= hitRadius) {
+        return { id: annotation.id, handle: "ellipse" };
+      }
+    }
   }
   return null;
+}
+
+function fitSmartLine(samples) {
+  const center = samples.reduce((total, point) => ({ x: total.x + point.x, y: total.y + point.y }), { x: 0, y: 0 });
+  center.x /= samples.length;
+  center.y /= samples.length;
+  let covarianceXX = 0;
+  let covarianceXY = 0;
+  let covarianceYY = 0;
+  samples.forEach((point) => {
+    const x = point.x - center.x;
+    const y = point.y - center.y;
+    covarianceXX += x * x;
+    covarianceXY += x * y;
+    covarianceYY += y * y;
+  });
+  const rotation = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY);
+  const direction = { x: Math.cos(rotation), y: Math.sin(rotation) };
+  const projections = samples.map((point) => (
+    (point.x - center.x) * direction.x + (point.y - center.y) * direction.y
+  ));
+  return {
+    start: clampToVideo({ x: center.x + Math.min(...projections) * direction.x, y: center.y + Math.min(...projections) * direction.y }),
+    end: clampToVideo({ x: center.x + Math.max(...projections) * direction.x, y: center.y + Math.max(...projections) * direction.y }),
+  };
+}
+
+function ellipseResidual(parameters, samples) {
+  const [centerX, centerY, radiusX, radiusY, rotation] = parameters;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  return samples.reduce((error, point) => {
+    const relativeX = point.x - centerX;
+    const relativeY = point.y - centerY;
+    const localX = relativeX * cos + relativeY * sin;
+    const localY = -relativeX * sin + relativeY * cos;
+    const radialError = Math.hypot(localX / radiusX, localY / radiusY) - 1;
+    return error + radialError * radialError;
+  }, 0) / samples.length;
+}
+
+function fitEllipse(samples) {
+  const center = samples.reduce((total, point) => ({ x: total.x + point.x, y: total.y + point.y }), { x: 0, y: 0 });
+  center.x /= samples.length;
+  center.y /= samples.length;
+  let covarianceXX = 0;
+  let covarianceXY = 0;
+  let covarianceYY = 0;
+  samples.forEach((point) => {
+    const x = point.x - center.x;
+    const y = point.y - center.y;
+    covarianceXX += x * x;
+    covarianceXY += x * y;
+    covarianceYY += y * y;
+  });
+  const rotation = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY);
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const localPoints = samples.map((point) => ({
+    x: (point.x - center.x) * cos + (point.y - center.y) * sin,
+    y: -(point.x - center.x) * sin + (point.y - center.y) * cos,
+  }));
+  const xValues = localPoints.map((point) => point.x);
+  const yValues = localPoints.map((point) => point.y);
+  const localCenter = { x: (Math.min(...xValues) + Math.max(...xValues)) / 2, y: (Math.min(...yValues) + Math.max(...yValues)) / 2 };
+  let parameters = [
+    center.x + localCenter.x * cos - localCenter.y * sin,
+    center.y + localCenter.x * sin + localCenter.y * cos,
+    Math.max((Math.max(...xValues) - Math.min(...xValues)) / 2, 8),
+    Math.max((Math.max(...yValues) - Math.min(...yValues)) / 2, 8),
+    rotation,
+  ];
+  let steps = [Math.max(parameters[2] * 0.08, 4), Math.max(parameters[3] * 0.08, 4), Math.max(parameters[2] * 0.08, 3), Math.max(parameters[3] * 0.08, 3), 0.04];
+  let bestError = ellipseResidual(parameters, samples);
+
+  for (let iteration = 0; iteration < 55; iteration += 1) {
+    let improved = false;
+    for (let index = 0; index < parameters.length; index += 1) {
+      let bestParameters = parameters;
+      for (const direction of [-1, 1]) {
+        const candidate = [...parameters];
+        candidate[index] += direction * steps[index];
+        candidate[0] = Math.min(Math.max(candidate[0], -video.videoWidth), video.videoWidth * 2);
+        candidate[1] = Math.min(Math.max(candidate[1], -video.videoHeight), video.videoHeight * 2);
+        candidate[2] = Math.min(Math.max(candidate[2], 6), video.videoWidth * 2);
+        candidate[3] = Math.min(Math.max(candidate[3], 6), video.videoHeight * 2);
+        const error = ellipseResidual(candidate, samples);
+        if (error < bestError) {
+          bestError = error;
+          bestParameters = candidate;
+          improved = true;
+        }
+      }
+      parameters = bestParameters;
+    }
+    if (!improved) steps = steps.map((step) => step * 0.82);
+  }
+
+  const [centerX, centerY, radiusX, radiusY, fittedRotation] = parameters;
+  let previousAngle = null;
+  const unwrappedAngles = samples.map((point) => {
+    const relativeX = point.x - centerX;
+    const relativeY = point.y - centerY;
+    let angle = Math.atan2(
+      (-relativeX * Math.sin(fittedRotation) + relativeY * Math.cos(fittedRotation)) / radiusY,
+      (relativeX * Math.cos(fittedRotation) + relativeY * Math.sin(fittedRotation)) / radiusX,
+    );
+    if (previousAngle !== null) angle += Math.round((previousAngle - angle) / (Math.PI * 2)) * Math.PI * 2;
+    previousAngle = angle;
+    return angle;
+  });
+  const arc = {
+    startAngle: unwrappedAngles[0],
+    endAngle: unwrappedAngles[unwrappedAngles.length - 1],
+    counterclockwise: unwrappedAngles[unwrappedAngles.length - 1] < unwrappedAngles[0],
+  };
+  return { center: { x: centerX, y: centerY }, radiusX, radiusY, rotation: fittedRotation, arc };
 }
 
 function setActiveFieldTool(tool) {
   activeFieldTool = tool;
   fieldToolButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.fieldTool === tool));
   lineDraft = null;
+  assistedDraft = null;
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) video.pause();
   drawOverlay();
 }
@@ -186,6 +331,8 @@ function undoFieldEdit() {
   fieldAnnotations = previousAnnotations;
   selectedFieldItem = null;
   lineDraft = null;
+  assistedDraft = null;
+  setReviewDirty(true);
   drawOverlay();
 }
 
@@ -210,6 +357,57 @@ function drawFieldHandle({ x, y }, selected, displayScale) {
   overlayContext.stroke();
 }
 
+function drawEllipse(annotation, selected, displayScale) {
+  const { center, radiusX, radiusY, rotation, arc } = annotation.coordinates;
+  const arcSpan = arc ? Math.abs(arc.endAngle - arc.startAngle) : Math.PI * 2;
+  const isPartialArc = arcSpan < Math.PI * 1.85;
+  overlayContext.strokeStyle = selected ? "#f0f2f4" : "#2ec4b6";
+  overlayContext.lineWidth = (selected ? 3 : 2.5) / displayScale;
+  overlayContext.beginPath();
+  overlayContext.ellipse(
+    center.x,
+    center.y,
+    radiusX,
+    radiusY,
+    rotation,
+    isPartialArc ? arc.startAngle : 0,
+    isPartialArc ? arc.endAngle : Math.PI * 2,
+    isPartialArc ? arc.counterclockwise : false,
+  );
+  overlayContext.stroke();
+
+  if (selected) {
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    overlayContext.setLineDash([5 / displayScale, 4 / displayScale]);
+    overlayContext.beginPath();
+    overlayContext.moveTo(center.x, center.y);
+    overlayContext.lineTo(center.x + radiusX * cos, center.y + radiusX * sin);
+    overlayContext.moveTo(center.x, center.y);
+    overlayContext.lineTo(center.x - radiusY * sin, center.y + radiusY * cos);
+    overlayContext.stroke();
+    overlayContext.setLineDash([]);
+    drawFieldHandle(center, true, displayScale);
+    drawFieldHandle({ x: center.x + radiusX * cos, y: center.y + radiusX * sin }, true, displayScale);
+    drawFieldHandle({ x: center.x - radiusY * sin, y: center.y + radiusY * cos }, true, displayScale);
+  }
+}
+
+function drawRawAssistedStroke(displayScale) {
+  if (!assistedDraft || assistedDraft.samples.length < 2) return;
+  overlayContext.save();
+  overlayContext.strokeStyle = "rgba(240, 242, 244, .55)";
+  overlayContext.lineWidth = 2 / displayScale;
+  overlayContext.setLineDash([6 / displayScale, 5 / displayScale]);
+  overlayContext.beginPath();
+  assistedDraft.samples.forEach((point, index) => {
+    if (index === 0) overlayContext.moveTo(point.x, point.y);
+    else overlayContext.lineTo(point.x, point.y);
+  });
+  overlayContext.stroke();
+  overlayContext.restore();
+}
+
 function drawFieldAnnotations() {
   if (!displayedVideoRect || !video.videoWidth || !video.videoHeight) return;
   const displayScale = displayedVideoRect.width / video.videoWidth;
@@ -223,6 +421,11 @@ function drawFieldAnnotations() {
     const color = selected ? "#f0f2f4" : "#2ec4b6";
     if (annotation.type === "point") {
       drawFieldHandle(annotation.coordinates, selected, displayScale);
+      return;
+    }
+
+    if (annotation.type === "ellipse") {
+      drawEllipse(annotation, selected, displayScale);
       return;
     }
 
@@ -251,6 +454,7 @@ function drawFieldAnnotations() {
     drawFieldHandle(lineDraft.start, true, displayScale);
     drawFieldHandle(lineDraft.end, true, displayScale);
   }
+  drawRawAssistedStroke(displayScale);
   overlayContext.restore();
 }
 
@@ -374,8 +578,15 @@ function resetPlaybackState() {
   overlay.classList.remove("is-loaded");
 }
 
-function loadVideo(videoInfo) {
+async function loadVideo(videoInfo) {
+  const loadSequence = ++videoLoadSequence;
   selectedVideo = videoInfo;
+  fieldAnnotations = [];
+  fieldUndoStack = [];
+  selectedFieldItem = null;
+  lineDraft = null;
+  assistedDraft = null;
+  setReviewDirty(false);
   resetPlaybackState();
   setControlsEnabled(false);
   video.classList.remove("is-loaded");
@@ -384,6 +595,49 @@ function loadVideo(videoInfo) {
   workspaceDescription.textContent = videoInfo.name;
   video.src = `/videos/${encodeURIComponent(videoInfo.name)}`;
   video.load();
+
+  try {
+    const response = await fetch(`/api/reviews/${encodeURIComponent(videoInfo.name)}`);
+    if (!response.ok) throw new Error("Unable to load review");
+    const { review } = await response.json();
+    if (loadSequence !== videoLoadSequence) return;
+    fieldAnnotations = Array.isArray(review?.field?.annotations) ? review.field.annotations : [];
+    annotationSequence = fieldAnnotations.length;
+    setReviewDirty(false);
+    drawOverlay();
+  } catch (error) {
+    if (loadSequence !== videoLoadSequence) return;
+    setReviewDirty(true);
+    workspaceDescription.textContent = "Review could not be loaded. You can still create and save one.";
+  }
+}
+
+async function saveCurrentReview() {
+  if (!selectedVideo) return;
+  saveButton.disabled = true;
+  const review = {
+    format_version: 1,
+    video: { filename: selectedVideo.name },
+    field: {
+      annotations: fieldAnnotations.filter((annotation) => annotation.video === selectedVideo.name),
+    },
+    people: {},
+  };
+
+  try {
+    const response = await fetch(`/api/reviews/${encodeURIComponent(selectedVideo.name)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(review),
+    });
+    if (!response.ok) throw new Error("Unable to save review");
+    setReviewDirty(false);
+  } catch (error) {
+    setReviewDirty(true);
+    saveStatusLabel.textContent = "SAVE FAILED";
+  } finally {
+    saveButton.disabled = false;
+  }
 }
 
 function stepFrame(direction) {
@@ -442,8 +696,15 @@ video.addEventListener("error", () => {
 
 videoSelect.addEventListener("change", () => {
   const videoInfo = videoSelect.videos.find((item) => item.name === videoSelect.value);
-  if (videoInfo) loadVideo(videoInfo);
+  if (!videoInfo || videoInfo.name === selectedVideo?.name) return;
+  if (reviewIsDirty && !window.confirm("Discard unsaved changes for this video?")) {
+    videoSelect.value = selectedVideo.name;
+    return;
+  }
+  loadVideo(videoInfo);
 });
+
+saveButton.addEventListener("click", saveCurrentReview);
 
 debugToggle.addEventListener("click", () => {
   debugOverlayEnabled = !debugOverlayEnabled;
@@ -458,6 +719,11 @@ workArea.addEventListener("pointermove", (event) => {
   if (activeMode === "field" && pointerVideoCoordinates) {
     if (lineDraft) {
       lineDraft.end = clampToVideo(pointerVideoCoordinates);
+    } else if (assistedDraft) {
+      const coordinates = clampToVideo(pointerVideoCoordinates);
+      const previousSample = assistedDraft.samples[assistedDraft.samples.length - 1];
+      const sampleSpacing = 3 / (displayedVideoRect.width / video.videoWidth);
+      if (distanceBetween(coordinates, previousSample) >= sampleSpacing) assistedDraft.samples.push(coordinates);
     } else if (fieldDragState) {
       const annotation = findFieldAnnotation(fieldDragState.id);
       if (annotation) {
@@ -475,6 +741,25 @@ workArea.addEventListener("pointermove", (event) => {
           annotation.coordinates.end = clampToVideo({
             x: fieldDragState.coordinates.end.x + deltaX,
             y: fieldDragState.coordinates.end.y + deltaY,
+          });
+        }
+        if (fieldDragState.handle === "ellipse-center") annotation.coordinates.center = coordinates;
+        if (fieldDragState.handle === "ellipse-radius-x" || fieldDragState.handle === "ellipse-radius-y") {
+          const { center, rotation } = annotation.coordinates;
+          const relativeX = coordinates.x - center.x;
+          const relativeY = coordinates.y - center.y;
+          if (fieldDragState.handle === "ellipse-radius-x") {
+            annotation.coordinates.radiusX = Math.max(6, Math.abs(relativeX * Math.cos(rotation) + relativeY * Math.sin(rotation)));
+          } else {
+            annotation.coordinates.radiusY = Math.max(6, Math.abs(-relativeX * Math.sin(rotation) + relativeY * Math.cos(rotation)));
+          }
+        }
+        if (fieldDragState.handle === "ellipse") {
+          const deltaX = coordinates.x - fieldDragState.origin.x;
+          const deltaY = coordinates.y - fieldDragState.origin.y;
+          annotation.coordinates.center = clampToVideo({
+            x: fieldDragState.coordinates.center.x + deltaX,
+            y: fieldDragState.coordinates.center.y + deltaY,
           });
         }
         fieldDragState.didMove = true;
@@ -513,6 +798,13 @@ workArea.addEventListener("pointerdown", (event) => {
     return;
   }
 
+  if (activeFieldTool === "smart-line" || activeFieldTool === "ellipse") {
+    assistedDraft = { type: activeFieldTool, samples: [coordinates], pointerId: event.pointerId };
+    workArea.setPointerCapture(event.pointerId);
+    drawOverlay();
+    return;
+  }
+
   const hit = hitTestFieldAnnotation(coordinates);
   selectedFieldItem = hit;
   if (hit) {
@@ -529,6 +821,32 @@ workArea.addEventListener("pointerdown", (event) => {
 });
 
 workArea.addEventListener("pointerup", (event) => {
+  if (assistedDraft?.pointerId === event.pointerId) {
+    const draft = assistedDraft;
+    const pointerCoordinates = browserToVideoCoordinates(event);
+    if (pointerCoordinates && distanceBetween(draft.samples[draft.samples.length - 1], pointerCoordinates) > 0) {
+      draft.samples.push(clampToVideo(pointerCoordinates));
+    }
+    assistedDraft = null;
+    if (draft.type === "smart-line" && draft.samples.length >= 2) {
+      rememberFieldEdit();
+      const annotation = createFieldAnnotation("line", fitSmartLine(draft.samples), {
+        method: "pca_stroke_line",
+        samples: draft.samples,
+      });
+      fieldAnnotations.push(annotation);
+      selectedFieldItem = { id: annotation.id, handle: "line" };
+    }
+    if (draft.type === "ellipse" && draft.samples.length >= 6) {
+      rememberFieldEdit();
+      const annotation = createFieldAnnotation("ellipse", fitEllipse(draft.samples), {
+        method: "radial_least_squares_ellipse",
+        samples: draft.samples,
+      });
+      fieldAnnotations.push(annotation);
+      selectedFieldItem = { id: annotation.id, handle: "ellipse" };
+    }
+  }
   if (lineDraft?.pointerId === event.pointerId) {
     const draft = lineDraft;
     const pointerCoordinates = browserToVideoCoordinates(event);
@@ -542,7 +860,10 @@ workArea.addEventListener("pointerup", (event) => {
     }
   }
   if (fieldDragState) {
-    if (fieldDragState.didMove) fieldUndoStack.push(fieldDragState.before);
+    if (fieldDragState.didMove) {
+      fieldUndoStack.push(fieldDragState.before);
+      setReviewDirty(true);
+    }
     fieldDragState = null;
   }
   if (workArea.hasPointerCapture(event.pointerId)) workArea.releasePointerCapture(event.pointerId);

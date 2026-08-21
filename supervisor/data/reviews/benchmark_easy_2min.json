@@ -1,0 +1,45 @@
+{
+  "format_version": 1,
+  "video": {
+    "filename": "benchmark_easy_2min.mp4",
+    "size_bytes": 139975610,
+    "fps": 29.97002997002997,
+    "duration": 119.986533,
+    "frame_count": 3596,
+    "width": 1920,
+    "height": 1080
+  },
+  "field": {
+    "annotations": [
+      {
+        "id": "field-1787306802490-1",
+        "video": "benchmark_easy_2min.mp4",
+        "frame": 0,
+        "type": "point",
+        "coordinates": {
+          "x": 499.4155844155844,
+          "y": 404
+        },
+        "source": "manual"
+      },
+      {
+        "id": "field-1787306821842-2",
+        "video": "benchmark_easy_2min.mp4",
+        "frame": 0,
+        "type": "line",
+        "coordinates": {
+          "start": {
+            "x": 1918.2597402597403,
+            "y": 776.3701298701299
+          },
+          "end": {
+            "x": 426.5974025974026,
+            "y": 1079.948051948052
+          }
+        },
+        "source": "manual"
+      }
+    ]
+  },
+  "people": {}
+}
