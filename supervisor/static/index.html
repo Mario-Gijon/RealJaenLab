@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -17,67 +17,93 @@
         <label class="video-selector" for="video-select">
           <span>VIDEO</span>
           <select id="video-select" disabled>
-            <option>Loading videos…</option>
+            <option>Cargando vídeos…</option>
           </select>
         </label>
 
-        <nav class="mode-tabs" aria-label="Workspace mode">
-          <button class="mode-tab is-active" type="button" data-mode="field">FIELD</button>
-          <button class="mode-tab" type="button" data-mode="people">PEOPLE</button>
+        <nav class="mode-tabs" aria-label="Modo de trabajo">
+          <button class="mode-tab is-active" type="button" data-mode="field">CAMPO</button>
+          <button class="mode-tab" type="button" data-mode="people">PERSONAS</button>
         </nav>
 
         <div class="actions">
-          <button class="button button-secondary debug-toggle" id="debug-toggle" type="button" aria-pressed="false">Debug overlay</button>
+          <button class="button button-secondary debug-toggle" id="debug-toggle" type="button" aria-pressed="false">Depuración</button>
           <span class="save-status" id="save-status" role="status">
             <span class="status-dot" aria-hidden="true"></span>
-            <span id="save-status-label">UNSAVED</span>
+            <span id="save-status-label">SIN GUARDAR</span>
           </span>
-          <button class="button button-secondary" id="undo-button" type="button">Undo</button>
-          <button class="button button-primary" type="button" id="save-button">Save</button>
+          <button class="button button-secondary" id="undo-button" type="button">Deshacer</button>
+          <button class="button button-primary" type="button" id="save-button">Guardar</button>
         </div>
       </header>
 
-      <section class="workspace" aria-label="Video workspace">
+      <section class="workspace" aria-label="Área de vídeo">
         <div class="work-area">
           <video id="video" class="video" playsinline preload="metadata"></video>
           <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
           <div class="work-area-message" id="workspace-message">
-            <span class="work-area-kicker" id="mode-label">FIELD MODE</span>
-            <h1 id="workspace-title">Video workspace</h1>
-            <p id="workspace-description">Choose a video to begin.</p>
+            <span class="work-area-kicker" id="mode-label">MODO CAMPO</span>
+            <h1 id="workspace-title">Área de vídeo</h1>
+            <p id="workspace-description">Selecciona un vídeo para empezar.</p>
           </div>
         </div>
-        <div class="field-toolbar" id="field-toolbar" aria-label="Field editing tools">
-          <button class="field-tool is-active" type="button" data-field-tool="select">Select / Move</button>
-          <button class="field-tool" type="button" data-field-tool="point">Add point</button>
-          <button class="field-tool field-tool-primary" type="button" data-field-tool="line">Add line</button>
-          <button class="field-tool field-tool-secondary" type="button" data-field-tool="smart-line">Smart line</button>
-          <button class="field-tool" type="button" data-field-tool="ellipse">Arc / ellipse</button>
-          <button class="field-tool calibration-action" id="calibrate-pitch" type="button">Calibrate pitch</button>
-          <button class="field-tool" id="delete-field-item" type="button">Delete</button>
-          <button class="field-tool" id="undo-field-edit" type="button">Undo</button>
+        <div class="field-toolbar" id="field-toolbar" aria-label="Herramientas de edición del campo">
+          <button class="field-tool is-active" type="button" data-field-tool="select">Seleccionar / mover</button>
+          <button class="field-tool" type="button" data-field-tool="point">Añadir punto</button>
+          <button class="field-tool field-tool-primary" type="button" data-field-tool="line">Añadir línea</button>
+          <button class="field-tool field-tool-secondary" type="button" data-field-tool="smart-line">Línea asistida</button>
+          <button class="field-tool" type="button" data-field-tool="ellipse">Arco / elipse</button>
+          <button class="field-tool calibration-action" id="calibrate-pitch" type="button">Calibrar campo</button>
+          <button class="field-tool" id="delete-field-item" type="button">Eliminar</button>
+          <button class="field-tool" id="undo-field-edit" type="button">Deshacer</button>
         </div>
         <div class="calibration-panel" id="calibration-panel" hidden>
-          <label for="calibration-landmark">LANDMARK</label>
-          <select id="calibration-landmark"></select>
-          <span id="calibration-status">Choose a landmark, then click it in the frame.</span>
-          <button class="field-tool" id="remove-calibration-point" type="button">Remove landmark</button>
-          <button class="field-tool" id="exit-calibration" type="button">Done</button>
+          <div class="calibration-reference">
+            <span class="calibration-heading">REFERENCIA 105 × 68 M</span>
+            <span class="calibration-hint" id="calibration-hint">Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo.</span>
+            <svg id="calibration-pitch" viewBox="-58 -43 116 86" role="img" aria-label="Diagrama canónico del campo para seleccionar referencias">
+              <rect x="-52.5" y="-34" width="105" height="68" class="pitch-diagram-line" />
+              <line x1="0" y1="-34" x2="0" y2="34" class="pitch-diagram-line" />
+              <circle cx="0" cy="0" r="9.15" class="pitch-diagram-line" />
+              <path d="M -52.5 -20.16 H -36 V 20.16 H -52.5 M 52.5 -20.16 H 36 V 20.16 H 52.5" class="pitch-diagram-line" />
+              <path d="M -52.5 -9.16 H -47 V 9.16 H -52.5 M 52.5 -9.16 H 47 V 9.16 H 52.5" class="pitch-diagram-line" />
+              <g id="calibration-pitch-lines"></g>
+              <g id="calibration-pitch-arcs"></g>
+              <g id="calibration-pitch-markers"></g>
+              <text x="0" y="-38" text-anchor="middle" class="pitch-diagram-direction">ARRIBA (DIAGRAMA)</text>
+              <text x="-55" y="39" text-anchor="start" class="pitch-diagram-direction">IZQUIERDA</text>
+              <text x="55" y="39" text-anchor="end" class="pitch-diagram-direction">DERECHA</text>
+            </svg>
+          </div>
+          <div class="calibration-actions">
+            <span id="calibration-status">0 puntos / mínimo 4</span>
+            <label for="calibration-constraint-type">Tipo de referencia</label>
+            <select id="calibration-constraint-type">
+              <option value="point">Punto</option>
+              <option value="line">Línea</option>
+              <option value="arc">Arco</option>
+            </select>
+            <label for="calibration-landmark">Selector alternativo</label>
+            <select id="calibration-landmark"></select>
+            <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
+            <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
+            <button class="field-tool" id="exit-calibration" type="button">Listo</button>
+          </div>
         </div>
       </section>
 
-      <footer class="controls" aria-label="Video controls">
+      <footer class="controls" aria-label="Controles de vídeo">
         <div class="transport-controls">
-          <button class="icon-button" id="previous-frame" type="button" aria-label="Previous frame" disabled>|&lt;</button>
-          <button class="play-button" id="play-pause" type="button" aria-label="Play" disabled>▶</button>
-          <button class="icon-button" id="next-frame" type="button" aria-label="Next frame" disabled>&gt;|</button>
+          <button class="icon-button" id="previous-frame" type="button" aria-label="Fotograma anterior" disabled>|&lt;</button>
+          <button class="play-button" id="play-pause" type="button" aria-label="Reproducir" disabled>▶</button>
+          <button class="icon-button" id="next-frame" type="button" aria-label="Fotograma siguiente" disabled>&gt;|</button>
         </div>
-        <input class="timeline" id="timeline" type="range" min="0" max="0" value="0" step="0.001" aria-label="Timeline" disabled />
+        <input class="timeline" id="timeline" type="range" min="0" max="0" value="0" step="0.001" aria-label="Línea de tiempo" disabled />
         <div class="time-readout"><span id="current-time">00:00:00</span> <span>/</span> <span id="total-time">00:00:00</span></div>
         <div class="frame-controls">
-          <button class="frame-button" id="previous-frame-label" type="button" disabled>− Frame</button>
-          <span class="frame-readout" id="frame-readout">Frame —</span>
-          <button class="frame-button" id="next-frame-label" type="button" disabled>+ Frame</button>
+          <button class="frame-button" id="previous-frame-label" type="button" disabled>− Fotograma</button>
+          <span class="frame-readout" id="frame-readout">Fotograma —</span>
+          <button class="frame-button" id="next-frame-label" type="button" disabled>+ Fotograma</button>
         </div>
       </footer>
     </main>

@@ -71,11 +71,29 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .field-tool-primary { color: #e9d27a; border-color: #665a2b; }
 .field-tool-secondary { color: #8e969e; }
 .calibration-action { color: #a8d9d4; }
-.calibration-panel { position: absolute; z-index: 2; top: 89px; left: 42px; display: flex; align-items: center; gap: 7px; max-width: 620px; padding: 7px; border: 1px solid #2f5654; border-radius: 5px; background: rgba(16, 35, 35, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+.calibration-panel { position: absolute; z-index: 2; top: 89px; left: 42px; display: flex; gap: 12px; width: 450px; padding: 10px; border: 1px solid #2f5654; border-radius: 5px; background: rgba(16, 35, 35, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 .calibration-panel[hidden] { display: none; }
+.calibration-reference { width: 230px; flex: 0 0 230px; }
+.calibration-heading, .calibration-hint { display: block; }
+.calibration-heading { color: #8fd4ce; font-size: 10px; font-weight: 750; letter-spacing: .09em; }
+.calibration-hint { margin: 4px 0 6px; color: #a8bebc; font-size: 10px; line-height: 1.35; }
+#calibration-pitch { display: block; width: 230px; border: 1px solid #3b6865; border-radius: 3px; background: #142c2b; }
+.pitch-diagram-line { fill: none; stroke: #7fb9b4; stroke-width: .65; vector-effect: non-scaling-stroke; }
+.pitch-diagram-direction { fill: #9da9a8; font-size: 4px; font-weight: 700; letter-spacing: .35px; }
+.pitch-landmark { cursor: pointer; }
+.pitch-landmark circle { fill: #5aa9ff; stroke: #102d4d; stroke-width: .75; vector-effect: non-scaling-stroke; }
+.pitch-landmark.is-selected circle { fill: #f0f2f4; stroke: #d4a414; stroke-width: 1.2; }
+.pitch-landmark.is-assigned circle { fill: #d4a414; }
+.pitch-landmark text { fill: #10191d; font-size: 4.5px; font-weight: 800; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.pitch-line-selector, .pitch-arc-selector { fill: none; stroke: transparent; stroke-width: 5; cursor: pointer; }
+.pitch-line-selector.is-visible, .pitch-arc-selector.is-visible { stroke: #4f9290; stroke-width: 1.4; }
+.pitch-line-selector.is-selected, .pitch-arc-selector.is-selected { stroke: #f0f2f4; stroke-width: 2; }
+.pitch-line-selector.is-assigned, .pitch-arc-selector.is-assigned { stroke: #d4a414; stroke-width: 1.8; }
+.pitch-constraint-number { fill: #10191d; font-size: 4.5px; font-weight: 800; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.calibration-actions { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 6px; min-width: 175px; }
+.calibration-actions #calibration-status { color: #d2e4e2; font-size: 11px; font-weight: 650; line-height: 1.3; }
 .calibration-panel label { color: #8fd4ce; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 .calibration-panel select { max-width: 230px; color: #d6dade; border: 1px solid #3b6865; border-radius: 3px; padding: 6px 8px; background: #172a2a; font-size: 11px; }
-.calibration-panel span { color: #a8bebc; font-size: 11px; }
 
 .controls { gap: 22px; border-top: 1px solid #292e33; padding: 0 28px; }
 .transport-controls, .frame-controls { display: flex; align-items: center; gap: 8px; }

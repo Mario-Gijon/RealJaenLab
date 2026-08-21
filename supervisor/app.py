@@ -8,6 +8,8 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from supervisor.field_solver import solve_field_calibration
+
 
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
@@ -137,20 +139,20 @@ def points_are_non_collinear(points: np.ndarray) -> bool:
 def calculate_homography(payload: dict = Body()) -> dict[str, list | float]:
     correspondences = payload.get("correspondences", [])
     if len(correspondences) < 4:
-        raise HTTPException(status_code=400, detail="At least four correspondences are required")
+        raise HTTPException(status_code=400, detail="Se requieren al menos cuatro correspondencias")
 
     try:
         world_points = np.array([[item["world"]["x"], item["world"]["y"]] for item in correspondences], dtype=np.float64)
         image_points = np.array([[item["image"]["x"], item["image"]["y"]] for item in correspondences], dtype=np.float64)
     except (KeyError, TypeError, ValueError) as error:
-        raise HTTPException(status_code=400, detail="Invalid correspondence coordinates") from error
+        raise HTTPException(status_code=400, detail="Coordenadas de correspondencia no válidas") from error
 
     if not points_are_non_collinear(world_points) or not points_are_non_collinear(image_points):
-        raise HTTPException(status_code=400, detail="Correspondences are geometrically degenerate")
+        raise HTTPException(status_code=400, detail="Las correspondencias son geométricamente degeneradas")
 
     homography, _ = cv2.findHomography(world_points, image_points, method=0)
     if homography is None or not np.isfinite(homography).all() or abs(homography[2, 2]) < 1e-12:
-        raise HTTPException(status_code=400, detail="Unable to calculate a valid homography")
+        raise HTTPException(status_code=400, detail="No se pudo calcular una homografía válida")
     homography /= homography[2, 2]
 
     homogeneous_world = np.column_stack([world_points, np.ones(len(world_points))])
@@ -158,3 +160,20 @@ def calculate_homography(payload: dict = Body()) -> dict[str, list | float]:
     projected = projected[:, :2] / projected[:, 2:3]
     reprojection_error = float(np.mean(np.linalg.norm(projected - image_points, axis=1)))
     return {"homography": homography.tolist(), "reprojection_error": reprojection_error}
+
+
+@app.post("/api/field-calibration/solve")
+def solve_calibration(payload: dict = Body()) -> dict:
+    constraints = payload.get("constraints", [])
+    grouped = {"point": [], "line": [], "arc": []}
+    for constraint in constraints:
+        constraint_type = constraint.get("type")
+        if constraint_type in grouped:
+            grouped[constraint_type].append(constraint)
+    return solve_field_calibration(
+        grouped["point"],
+        grouped["line"],
+        grouped["arc"],
+        payload.get("image_width"),
+        payload.get("image_height"),
+    )

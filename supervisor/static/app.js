@@ -27,8 +27,14 @@ const undoFieldEditButton = document.querySelector("#undo-field-edit");
 const calibratePitchButton = document.querySelector("#calibrate-pitch");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationLandmark = document.querySelector("#calibration-landmark");
+const calibrationPitchMarkers = document.querySelector("#calibration-pitch-markers");
+const calibrationPitchLines = document.querySelector("#calibration-pitch-lines");
+const calibrationPitchArcs = document.querySelector("#calibration-pitch-arcs");
 const calibrationStatus = document.querySelector("#calibration-status");
+const calibrationHint = document.querySelector("#calibration-hint");
+const calibrationConstraintType = document.querySelector("#calibration-constraint-type");
 const removeCalibrationPointButton = document.querySelector("#remove-calibration-point");
+const clearCalibrationButton = document.querySelector("#clear-calibration");
 const exitCalibrationButton = document.querySelector("#exit-calibration");
 
 let selectedVideo = null;
@@ -51,15 +57,20 @@ let videoLoadSequence = 0;
 let calibrationMode = false;
 let calibrationDragState = null;
 let calibrationSolveSequence = 0;
+let calibrationType = "point";
+let calibrationSemantic = null;
+let calibrationLineDraft = null;
+let calibrationArcDraft = null;
 
 workArea.classList.add("field-editing");
 PITCH_MODEL.landmarks.forEach((landmark) => calibrationLandmark.add(new Option(landmark.label, landmark.id)));
+calibrationSemantic = calibrationLandmark.value;
 
 modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     modeTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
     activeMode = tab.dataset.mode;
-    modeLabel.textContent = `${activeMode.toUpperCase()} MODE`;
+    modeLabel.textContent = activeMode === "field" ? "MODO CAMPO" : "MODO PERSONAS";
     fieldToolbar.hidden = activeMode !== "field";
     workArea.classList.toggle("field-editing", activeMode === "field");
     selectedFieldItem = null;
@@ -74,7 +85,7 @@ modeTabs.forEach((tab) => {
 function setReviewDirty(isDirty) {
   reviewIsDirty = isDirty;
   saveStatus.classList.toggle("is-saved", !isDirty);
-  saveStatusLabel.textContent = isDirty ? "UNSAVED" : "SAVED";
+  saveStatusLabel.textContent = isDirty ? "SIN GUARDAR" : "GUARDADO";
 }
 
 // These helpers are the shared mapping boundary for future FIELD and PEOPLE overlays.
@@ -346,6 +357,8 @@ function setActiveFieldTool(tool) {
   fieldToolButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.fieldTool === tool));
   lineDraft = null;
   assistedDraft = null;
+  calibrationLineDraft = null;
+  calibrationArcDraft = null;
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) video.pause();
   drawOverlay();
 }
@@ -359,6 +372,8 @@ function undoFieldEdit() {
   lineDraft = null;
   assistedDraft = null;
   calibrationDragState = null;
+  calibrationLineDraft = null;
+  calibrationArcDraft = null;
   setReviewDirty(true);
   updateCalibrationStatus();
   drawOverlay();
@@ -374,16 +389,150 @@ function deleteSelectedFieldItem() {
   drawOverlay();
 }
 
+function calibrationConstraints(calibration) {
+  if (!calibration) return [];
+  if (!Array.isArray(calibration.constraints)) {
+    calibration.constraints = (calibration.correspondences || []).map((item) => ({
+      type: "point", semantic: item.landmark, world: item.world, image: item.image, source: "manual",
+    }));
+  }
+  return calibration.constraints;
+}
+
+function syncLegacyPointCorrespondences(calibration) {
+  calibration.correspondences = calibrationConstraints(calibration)
+    .filter((constraint) => constraint.type === "point")
+    .map((constraint) => ({ landmark: constraint.semantic, world: constraint.world, image: constraint.image }));
+}
+
+function selectedSemanticDefinition() {
+  if (calibrationType === "point") return PITCH_MODEL.landmarksById[calibrationSemantic];
+  if (calibrationType === "line") return PITCH_MODEL.calibrationLinesById[calibrationSemantic];
+  return PITCH_MODEL.calibrationArcsById[calibrationSemantic];
+}
+
+function renderCalibrationPitch() {
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const calibration = calibrationForCurrentFrame();
+  const constraints = calibrationConstraints(calibration);
+  calibrationPitchMarkers.replaceChildren();
+  calibrationPitchLines.replaceChildren();
+  calibrationPitchArcs.replaceChildren();
+
+  PITCH_MODEL.landmarks.forEach((landmark) => {
+    const assignedIndex = constraints.findIndex((item) => item.type === "point" && item.semantic === landmark.id);
+    const marker = document.createElementNS(svgNamespace, "g");
+    marker.classList.add("pitch-landmark");
+    if (calibrationType !== "point") marker.style.display = "none";
+    if (landmark.id === calibrationSemantic) marker.classList.add("is-selected");
+    if (assignedIndex >= 0) marker.classList.add("is-assigned");
+    marker.setAttribute("transform", `translate(${landmark.world.x} ${landmark.world.y})`);
+    marker.setAttribute("data-landmark", landmark.id);
+    marker.setAttribute("aria-label", landmark.label);
+    marker.setAttribute("role", "button");
+
+    const circle = document.createElementNS(svgNamespace, "circle");
+    circle.setAttribute("r", "2.2");
+    const title = document.createElementNS(svgNamespace, "title");
+    title.textContent = landmark.label;
+    marker.append(circle, title);
+    if (assignedIndex >= 0) {
+      const number = document.createElementNS(svgNamespace, "text");
+      number.textContent = String(assignedIndex + 1);
+      marker.append(number);
+    }
+    marker.addEventListener("click", () => {
+      calibrationType = "point";
+      calibrationConstraintType.value = "point";
+      calibrationSemantic = landmark.id;
+      calibrationLandmark.value = landmark.id;
+      renderCalibrationPitch();
+      updateCalibrationStatus();
+      drawOverlay();
+    });
+    calibrationPitchMarkers.append(marker);
+  });
+
+  PITCH_MODEL.calibrationLines.forEach((line) => {
+    const assignedIndex = constraints.findIndex((item) => item.type === "line" && item.semantic === line.id);
+    const selector = document.createElementNS(svgNamespace, "line");
+    selector.setAttribute("x1", line.world.start.x);
+    selector.setAttribute("y1", line.world.start.y);
+    selector.setAttribute("x2", line.world.end.x);
+    selector.setAttribute("y2", line.world.end.y);
+    selector.classList.add("pitch-line-selector");
+    selector.style.pointerEvents = calibrationType === "line" ? "stroke" : "none";
+    if (calibrationType === "line") selector.classList.add("is-visible");
+    if (line.id === calibrationSemantic) selector.classList.add("is-selected");
+    if (assignedIndex >= 0) selector.classList.add("is-assigned");
+    selector.addEventListener("click", () => {
+      calibrationType = "line";
+      calibrationConstraintType.value = "line";
+      calibrationSemantic = line.id;
+      updateCalibrationStatus();
+      drawOverlay();
+    });
+    calibrationPitchLines.append(selector);
+    if (assignedIndex >= 0) {
+      const number = document.createElementNS(svgNamespace, "text");
+      number.classList.add("pitch-constraint-number");
+      number.setAttribute("x", (line.world.start.x + line.world.end.x) / 2);
+      number.setAttribute("y", (line.world.start.y + line.world.end.y) / 2);
+      number.textContent = String(assignedIndex + 1);
+      calibrationPitchLines.append(number);
+    }
+  });
+
+  PITCH_MODEL.calibrationArcs.forEach((arc) => {
+    const assignedIndex = constraints.findIndex((item) => item.type === "arc" && item.semantic === arc.id);
+    const selector = document.createElementNS(svgNamespace, "circle");
+    selector.setAttribute("cx", arc.world.center.x);
+    selector.setAttribute("cy", arc.world.center.y);
+    selector.setAttribute("r", arc.world.radius);
+    selector.classList.add("pitch-arc-selector");
+    selector.style.pointerEvents = calibrationType === "arc" ? "stroke" : "none";
+    if (calibrationType === "arc") selector.classList.add("is-visible");
+    if (arc.id === calibrationSemantic) selector.classList.add("is-selected");
+    if (assignedIndex >= 0) selector.classList.add("is-assigned");
+    selector.addEventListener("click", () => {
+      calibrationType = "arc";
+      calibrationConstraintType.value = "arc";
+      calibrationSemantic = arc.id;
+      updateCalibrationStatus();
+      drawOverlay();
+    });
+    calibrationPitchArcs.append(selector);
+    if (assignedIndex >= 0) {
+      const number = document.createElementNS(svgNamespace, "text");
+      number.classList.add("pitch-constraint-number");
+      number.setAttribute("x", arc.world.center.x);
+      number.setAttribute("y", arc.world.center.y - arc.world.radius - 2);
+      number.textContent = String(assignedIndex + 1);
+      calibrationPitchArcs.append(number);
+    }
+  });
+}
+
 function updateCalibrationStatus(message = null) {
   const calibration = calibrationForCurrentFrame();
+  renderCalibrationPitch();
+  calibrationHint.textContent = calibrationType === "point"
+    ? "Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo."
+    : calibrationType === "line"
+      ? "Elige una línea del diagrama y arrastra un tramo visible de esa línea en el vídeo."
+      : "Elige el arco del diagrama y traza su parte visible en el vídeo.";
   if (message) {
     calibrationStatus.textContent = message;
     return;
   }
-  const count = calibration?.correspondences.length || 0;
-  calibrationStatus.textContent = count >= 4 && calibration?.homography
-    ? `${count} landmarks — pitch projected`
-    : `${count} landmarks — add at least 4 non-collinear points`;
+  const constraints = calibrationConstraints(calibration);
+  const pointCount = constraints.filter((item) => item.type === "point").length;
+  const hasMixedConstraints = constraints.some((item) => item.type !== "point");
+  calibrationStatus.textContent = calibration?.homography
+    ? `${pointCount} puntos / campo proyectado`
+    : hasMixedConstraints
+      ? `${constraints.length} referencias / solver mixto pendiente`
+      : `${pointCount} puntos / mínimo 4`;
 }
 
 function enterCalibrationMode() {
@@ -400,6 +549,8 @@ function enterCalibrationMode() {
 function exitCalibrationMode() {
   calibrationMode = false;
   calibrationDragState = null;
+  calibrationLineDraft = null;
+  calibrationArcDraft = null;
   calibrationPanel.hidden = true;
   setActiveFieldTool("select");
   drawOverlay();
@@ -414,6 +565,7 @@ function ensureCurrentCalibration() {
     frame: currentFrameNumber(),
     source: "manual",
     correspondences: [],
+    constraints: [],
     homography: null,
     reprojectionError: null,
   };
@@ -425,12 +577,35 @@ function calibrationHitTest(coordinates) {
   const calibration = calibrationForCurrentFrame();
   if (!calibration || !displayedVideoRect) return null;
   const hitRadius = 14 / (displayedVideoRect.width / video.videoWidth);
-  const correspondence = calibration.correspondences.find((item) => distanceBetween(item.image, coordinates) <= hitRadius);
-  return correspondence ? { calibration, correspondence } : null;
+  const constraint = calibrationConstraints(calibration).find((item) => {
+    if (item.type === "point" && distanceBetween(item.image, coordinates) <= hitRadius) return { item, handle: "point" };
+    if (item.type === "line") {
+      if (distanceBetween(item.image.start, coordinates) <= hitRadius) return { item, handle: "start" };
+      if (distanceBetween(item.image.end, coordinates) <= hitRadius) return { item, handle: "end" };
+      if (distanceToLineSegment(coordinates, item.image.start, item.image.end) <= hitRadius) return { item, handle: "line" };
+    }
+    if (item.type === "arc") {
+      const { center, radiusX, radiusY, rotation } = item.image.geometry;
+      const xHandle = { x: center.x + radiusX * Math.cos(rotation), y: center.y + radiusX * Math.sin(rotation) };
+      const yHandle = { x: center.x - radiusY * Math.sin(rotation), y: center.y + radiusY * Math.cos(rotation) };
+      if (distanceBetween(coordinates, center) <= hitRadius) return { item, handle: "arc-center" };
+      if (distanceBetween(coordinates, xHandle) <= hitRadius) return { item, handle: "arc-radius-x" };
+      if (distanceBetween(coordinates, yHandle) <= hitRadius) return { item, handle: "arc-radius-y" };
+      const relativeX = coordinates.x - center.x;
+      const relativeY = coordinates.y - center.y;
+      const localX = relativeX * Math.cos(rotation) + relativeY * Math.sin(rotation);
+      const localY = -relativeX * Math.sin(rotation) + relativeY * Math.cos(rotation);
+      if (Math.abs(Math.hypot(localX / radiusX, localY / radiusY) - 1) * Math.min(radiusX, radiusY) <= hitRadius) return { item, handle: "arc" };
+    }
+    return null;
+  });
+  return constraint ? { calibration, constraint: constraint.item, handle: constraint.handle } : null;
 }
 
 async function solveCalibration(calibration) {
-  if (calibration.correspondences.length < 4) {
+  const constraints = calibrationConstraints(calibration);
+  const pointCount = constraints.filter((item) => item.type === "point").length;
+  if (pointCount < 4 && !constraints.some((item) => item.type !== "point")) {
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus();
@@ -438,15 +613,15 @@ async function solveCalibration(calibration) {
     return;
   }
   const sequence = ++calibrationSolveSequence;
-  updateCalibrationStatus("Calculating pitch projection…");
+  updateCalibrationStatus("Calculando la proyección del campo…");
   try {
-    const response = await fetch("/api/homography", {
+    const response = await fetch("/api/field-calibration/solve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correspondences: calibration.correspondences }),
+      body: JSON.stringify({ constraints, image_width: video.videoWidth, image_height: video.videoHeight }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.detail || "Unable to calculate pitch projection");
+    if (!response.ok || result.status !== "solved") throw new Error(result.detail || "No se pudo calcular la proyección del campo");
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
     calibration.homography = result.homography;
     calibration.reprojectionError = result.reprojection_error;
@@ -462,18 +637,15 @@ async function solveCalibration(calibration) {
 }
 
 function addCalibrationCorrespondence(image) {
-  const landmark = PITCH_MODEL.landmarksById[calibrationLandmark.value];
+  const landmark = PITCH_MODEL.landmarksById[calibrationSemantic];
   if (!landmark) return;
   rememberFieldEdit();
   const calibration = ensureCurrentCalibration();
-  const existing = calibration.correspondences.find((item) => item.landmark === landmark.id);
-  const correspondence = {
-    landmark: landmark.id,
-    world: { ...landmark.world },
-    image: clampToVideo(image),
-  };
-  if (existing) Object.assign(existing, correspondence);
-  else calibration.correspondences.push(correspondence);
+  const existing = calibrationConstraints(calibration).find((item) => item.type === "point" && item.semantic === landmark.id);
+  const constraint = { type: "point", semantic: landmark.id, world: { ...landmark.world }, image: clampToVideo(image), source: "manual" };
+  if (existing) Object.assign(existing, constraint);
+  else calibration.constraints.push(constraint);
+  syncLegacyPointCorrespondences(calibration);
   calibration.homography = null;
   solveCalibration(calibration);
 }
@@ -481,12 +653,23 @@ function addCalibrationCorrespondence(image) {
 function removeSelectedCalibrationCorrespondence() {
   const calibration = calibrationForCurrentFrame();
   if (!calibration) return;
-  const landmarkId = calibrationLandmark.value;
-  if (!calibration.correspondences.some((item) => item.landmark === landmarkId)) return;
+  const landmarkId = calibrationSemantic;
+  if (!calibrationConstraints(calibration).some((item) => item.type === calibrationType && item.semantic === landmarkId)) return;
   rememberFieldEdit();
-  calibration.correspondences = calibration.correspondences.filter((item) => item.landmark !== landmarkId);
+  calibration.constraints = calibrationConstraints(calibration).filter((item) => !(item.type === calibrationType && item.semantic === landmarkId));
+  syncLegacyPointCorrespondences(calibration);
   calibration.homography = null;
   solveCalibration(calibration);
+}
+
+function clearCurrentCalibration() {
+  const calibration = calibrationForCurrentFrame();
+  if (!calibration) return;
+  rememberFieldEdit();
+  fieldCalibrations = fieldCalibrations.filter((item) => item.id !== calibration.id);
+  calibrationSolveSequence += 1;
+  updateCalibrationStatus();
+  drawOverlay();
 }
 
 function drawFieldHandle({ x, y }, selected, displayScale) {
@@ -602,17 +785,62 @@ function drawCalibrationOverlay() {
     });
   }
 
-  calibration.correspondences.forEach((correspondence) => {
-    const selected = calibrationMode && correspondence.landmark === calibrationLandmark.value;
+  calibrationConstraints(calibration).forEach((constraint, index) => {
+    const selected = calibrationMode && constraint.semantic === calibrationSemantic && constraint.type === calibrationType;
     const radius = (selected ? 9 : 7) / displayScale;
+    if (constraint.type === "line") {
+      overlayContext.strokeStyle = selected ? "#f0f2f4" : "#d4a414";
+      overlayContext.lineWidth = (selected ? 3 : 2.5) / displayScale;
+      overlayContext.beginPath();
+      overlayContext.moveTo(constraint.image.start.x, constraint.image.start.y);
+      overlayContext.lineTo(constraint.image.end.x, constraint.image.end.y);
+      overlayContext.stroke();
+      drawFieldHandle(constraint.image.start, selected, displayScale);
+      drawFieldHandle(constraint.image.end, selected, displayScale);
+      const midpoint = { x: (constraint.image.start.x + constraint.image.end.x) / 2, y: (constraint.image.start.y + constraint.image.end.y) / 2 };
+      overlayContext.fillStyle = "#d4a414";
+      overlayContext.fillText(String(index + 1), midpoint.x, midpoint.y);
+      return;
+    }
+    if (constraint.type === "arc") {
+      drawEllipse({ coordinates: constraint.image.geometry }, selected, displayScale);
+      return;
+    }
     overlayContext.beginPath();
-    overlayContext.arc(correspondence.image.x, correspondence.image.y, radius, 0, Math.PI * 2);
+    overlayContext.arc(constraint.image.x, constraint.image.y, radius, 0, Math.PI * 2);
     overlayContext.fillStyle = selected ? "#f0f2f4" : "#5aa9ff";
     overlayContext.fill();
     overlayContext.strokeStyle = "#102d4d";
     overlayContext.lineWidth = 2 / displayScale;
     overlayContext.stroke();
+    overlayContext.fillStyle = "#102d4d";
+    overlayContext.font = `700 ${11 / displayScale}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    overlayContext.textAlign = "center";
+    overlayContext.textBaseline = "middle";
+    overlayContext.fillText(String(index + 1), constraint.image.x, constraint.image.y);
   });
+  if (calibrationLineDraft) {
+    overlayContext.setLineDash([7 / displayScale, 5 / displayScale]);
+    overlayContext.strokeStyle = "#d4a414";
+    overlayContext.lineWidth = 2.5 / displayScale;
+    overlayContext.beginPath();
+    overlayContext.moveTo(calibrationLineDraft.start.x, calibrationLineDraft.start.y);
+    overlayContext.lineTo(calibrationLineDraft.end.x, calibrationLineDraft.end.y);
+    overlayContext.stroke();
+    overlayContext.setLineDash([]);
+  }
+  if (calibrationArcDraft?.samples.length > 1) {
+    overlayContext.setLineDash([6 / displayScale, 5 / displayScale]);
+    overlayContext.strokeStyle = "#d4a414";
+    overlayContext.lineWidth = 2 / displayScale;
+    overlayContext.beginPath();
+    calibrationArcDraft.samples.forEach((point, index) => {
+      if (index === 0) overlayContext.moveTo(point.x, point.y);
+      else overlayContext.lineTo(point.x, point.y);
+    });
+    overlayContext.stroke();
+    overlayContext.setLineDash([]);
+  }
   overlayContext.restore();
 }
 
@@ -764,9 +992,9 @@ function updatePlaybackDisplay() {
   if (fps) {
     const currentFrame = Math.min(Math.floor(currentTime * fps), Math.max(0, (selectedVideo.frame_count || Infinity) - 1));
     const totalFrames = selectedVideo.frame_count ?? "—";
-    frameReadout.textContent = `Frame ${currentFrame} / ${totalFrames}`;
+    frameReadout.textContent = `Fotograma ${currentFrame} / ${totalFrames}`;
   } else {
-    frameReadout.textContent = "Frame —";
+    frameReadout.textContent = "Fotograma —";
   }
 }
 
@@ -774,12 +1002,12 @@ function resetPlaybackState() {
   video.pause();
   video.currentTime = 0;
   playPauseButton.textContent = "▶";
-  playPauseButton.setAttribute("aria-label", "Play");
+  playPauseButton.setAttribute("aria-label", "Reproducir");
   timeline.max = 0;
   timeline.value = 0;
   currentTimeLabel.textContent = "00:00:00";
   totalTimeLabel.textContent = "00:00:00";
-  frameReadout.textContent = "Frame —";
+  frameReadout.textContent = "Fotograma —";
   pointerVideoCoordinates = null;
   pointerBrowserPosition = null;
   displayedVideoRect = null;
@@ -799,30 +1027,33 @@ async function loadVideo(videoInfo) {
   calibrationMode = false;
   calibrationPanel.hidden = true;
   calibrationDragState = null;
+  calibrationLineDraft = null;
+  calibrationArcDraft = null;
   setReviewDirty(false);
   resetPlaybackState();
   setControlsEnabled(false);
   video.classList.remove("is-loaded");
   workspaceMessage.hidden = false;
-  workspaceTitle.textContent = "Loading video";
+  workspaceTitle.textContent = "Cargando vídeo";
   workspaceDescription.textContent = videoInfo.name;
   video.src = `/videos/${encodeURIComponent(videoInfo.name)}`;
   video.load();
 
   try {
     const response = await fetch(`/api/reviews/${encodeURIComponent(videoInfo.name)}`);
-    if (!response.ok) throw new Error("Unable to load review");
+    if (!response.ok) throw new Error("No se pudo cargar la revisión");
     const { review } = await response.json();
     if (loadSequence !== videoLoadSequence) return;
     fieldAnnotations = Array.isArray(review?.field?.annotations) ? review.field.annotations : [];
     fieldCalibrations = Array.isArray(review?.field?.calibrations) ? review.field.calibrations : [];
+    fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
     drawOverlay();
   } catch (error) {
     if (loadSequence !== videoLoadSequence) return;
     setReviewDirty(true);
-    workspaceDescription.textContent = "Review could not be loaded. You can still create and save one.";
+    workspaceDescription.textContent = "No se pudo cargar la revisión. Puedes crear una y guardarla.";
   }
 }
 
@@ -835,7 +1066,7 @@ async function saveCurrentReview() {
     field: {
       annotations: fieldAnnotations.filter((annotation) => annotation.video === selectedVideo.name),
       calibrations: fieldCalibrations.filter((calibration) => (
-        calibration.video === selectedVideo.name && Array.isArray(calibration.homography)
+        calibration.video === selectedVideo.name && calibrationConstraints(calibration).length > 0
       )),
     },
     people: {},
@@ -847,11 +1078,11 @@ async function saveCurrentReview() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(review),
     });
-    if (!response.ok) throw new Error("Unable to save review");
+    if (!response.ok) throw new Error("No se pudo guardar la revisión");
     setReviewDirty(false);
   } catch (error) {
     setReviewDirty(true);
-    saveStatusLabel.textContent = "SAVE FAILED";
+    saveStatusLabel.textContent = "ERROR AL GUARDAR";
   } finally {
     saveButton.disabled = false;
   }
@@ -892,29 +1123,30 @@ video.addEventListener("timeupdate", () => {
 });
 video.addEventListener("seeked", () => {
   updatePlaybackDisplay();
+  if (calibrationMode) updateCalibrationStatus();
   drawOverlay();
 });
 video.addEventListener("play", () => {
   playPauseButton.textContent = "❚❚";
-  playPauseButton.setAttribute("aria-label", "Pause");
+  playPauseButton.setAttribute("aria-label", "Pausar");
   drawOverlay();
 });
 video.addEventListener("pause", () => {
   playPauseButton.textContent = "▶";
-  playPauseButton.setAttribute("aria-label", "Play");
+  playPauseButton.setAttribute("aria-label", "Reproducir");
   drawOverlay();
 });
 video.addEventListener("error", () => {
   setControlsEnabled(false);
   workspaceMessage.hidden = false;
-  workspaceTitle.textContent = "Unable to load video";
-  workspaceDescription.textContent = "Choose another MP4 from the selector.";
+  workspaceTitle.textContent = "No se pudo cargar el vídeo";
+  workspaceDescription.textContent = "Elige otro MP4 en el selector.";
 });
 
 videoSelect.addEventListener("change", () => {
   const videoInfo = videoSelect.videos.find((item) => item.name === videoSelect.value);
   if (!videoInfo || videoInfo.name === selectedVideo?.name) return;
-  if (reviewIsDirty && !window.confirm("Discard unsaved changes for this video?")) {
+  if (reviewIsDirty && !window.confirm("¿Descartar los cambios sin guardar de este vídeo?")) {
     videoSelect.value = selectedVideo.name;
     return;
   }
@@ -934,9 +1166,47 @@ workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
   pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
   if (calibrationMode && calibrationDragState && pointerVideoCoordinates) {
-    calibrationDragState.correspondence.image = clampToVideo(pointerVideoCoordinates);
+    const coordinates = clampToVideo(pointerVideoCoordinates);
+    const { constraint, handle, origin, image } = calibrationDragState;
+    if (constraint.type === "point") constraint.image = coordinates;
+    if (constraint.type === "line") {
+      if (handle === "start") constraint.image.start = coordinates;
+      else if (handle === "end") constraint.image.end = coordinates;
+      else {
+        const deltaX = coordinates.x - origin.x;
+        const deltaY = coordinates.y - origin.y;
+        constraint.image.start = clampToVideo({ x: image.start.x + deltaX, y: image.start.y + deltaY });
+        constraint.image.end = clampToVideo({ x: image.end.x + deltaX, y: image.end.y + deltaY });
+      }
+    }
+    if (constraint.type === "arc") {
+      const deltaX = coordinates.x - origin.x;
+      const deltaY = coordinates.y - origin.y;
+      const geometry = constraint.image.geometry;
+      if (handle === "arc-radius-x" || handle === "arc-radius-y") {
+        const relativeX = coordinates.x - geometry.center.x;
+        const relativeY = coordinates.y - geometry.center.y;
+        if (handle === "arc-radius-x") geometry.radiusX = Math.max(6, Math.abs(relativeX * Math.cos(geometry.rotation) + relativeY * Math.sin(geometry.rotation)));
+        else geometry.radiusY = Math.max(6, Math.abs(-relativeX * Math.sin(geometry.rotation) + relativeY * Math.cos(geometry.rotation)));
+      } else {
+        constraint.image.geometry.center = clampToVideo({ x: image.geometry.center.x + deltaX, y: image.geometry.center.y + deltaY });
+      }
+    }
+    syncLegacyPointCorrespondences(calibrationDragState.calibration);
     calibrationDragState.didMove = true;
     solveCalibration(calibrationDragState.calibration);
+    drawOverlay();
+    return;
+  }
+  if (calibrationMode && calibrationLineDraft && pointerVideoCoordinates) {
+    calibrationLineDraft.end = clampToVideo(pointerVideoCoordinates);
+    drawOverlay();
+    return;
+  }
+  if (calibrationMode && calibrationArcDraft && pointerVideoCoordinates) {
+    const coordinates = clampToVideo(pointerVideoCoordinates);
+    const previous = calibrationArcDraft.samples[calibrationArcDraft.samples.length - 1];
+    if (distanceBetween(previous, coordinates) >= 3 / (displayedVideoRect.width / video.videoWidth)) calibrationArcDraft.samples.push(coordinates);
     drawOverlay();
     return;
   }
@@ -1009,9 +1279,14 @@ workArea.addEventListener("pointerdown", (event) => {
   if (calibrationMode) {
     const hit = calibrationHitTest(coordinates);
     if (hit) {
-      calibrationLandmark.value = hit.correspondence.landmark;
+      calibrationType = hit.constraint.type;
+      calibrationConstraintType.value = calibrationType;
+      calibrationSemantic = hit.constraint.semantic;
+      if (calibrationType === "point") calibrationLandmark.value = calibrationSemantic;
       calibrationDragState = {
         ...hit,
+        origin: coordinates,
+        image: JSON.parse(JSON.stringify(hit.constraint.image)),
         before: cloneFieldState(),
         didMove: false,
       };
@@ -1019,7 +1294,15 @@ workArea.addEventListener("pointerdown", (event) => {
       updateCalibrationStatus();
       drawOverlay();
     } else {
-      addCalibrationCorrespondence(coordinates);
+      if (calibrationType === "point") addCalibrationCorrespondence(coordinates);
+      if (calibrationType === "line" && selectedSemanticDefinition()) {
+        calibrationLineDraft = { semantic: calibrationSemantic, start: coordinates, end: coordinates, pointerId: event.pointerId };
+        workArea.setPointerCapture(event.pointerId);
+      }
+      if (calibrationType === "arc" && selectedSemanticDefinition()) {
+        calibrationArcDraft = { semantic: calibrationSemantic, samples: [coordinates], pointerId: event.pointerId };
+        workArea.setPointerCapture(event.pointerId);
+      }
     }
     return;
   }
@@ -1069,6 +1352,43 @@ workArea.addEventListener("pointerup", (event) => {
       setReviewDirty(true);
     }
     calibrationDragState = null;
+  }
+  if (calibrationLineDraft?.pointerId === event.pointerId) {
+    const draft = calibrationLineDraft;
+    const coordinates = browserToVideoCoordinates(event);
+    if (coordinates) draft.end = clampToVideo(coordinates);
+    calibrationLineDraft = null;
+    if (distanceBetween(draft.start, draft.end) > 2) {
+      rememberFieldEdit();
+      const calibration = ensureCurrentCalibration();
+      const semantic = PITCH_MODEL.calibrationLinesById[draft.semantic];
+      const constraints = calibrationConstraints(calibration);
+      const constraint = { type: "line", semantic: semantic.id, world: semantic.world, image: { start: draft.start, end: draft.end }, source: "manual" };
+      const existing = constraints.find((item) => item.type === "line" && item.semantic === semantic.id);
+      if (existing) Object.assign(existing, constraint);
+      else constraints.push(constraint);
+      solveCalibration(calibration);
+    }
+  }
+  if (calibrationArcDraft?.pointerId === event.pointerId) {
+    const draft = calibrationArcDraft;
+    const coordinates = browserToVideoCoordinates(event);
+    if (coordinates && distanceBetween(draft.samples[draft.samples.length - 1], coordinates) > 0) draft.samples.push(clampToVideo(coordinates));
+    calibrationArcDraft = null;
+    if (draft.samples.length >= 6) {
+      rememberFieldEdit();
+      const calibration = ensureCurrentCalibration();
+      const semantic = PITCH_MODEL.calibrationArcsById[draft.semantic];
+      const constraints = calibrationConstraints(calibration);
+      const constraint = {
+        type: "arc", semantic: semantic.id, world: semantic.world,
+        image: { samples: draft.samples, geometry: fitEllipse(draft.samples) }, source: "manual",
+      };
+      const existing = constraints.find((item) => item.type === "arc" && item.semantic === semantic.id);
+      if (existing) Object.assign(existing, constraint);
+      else constraints.push(constraint);
+      solveCalibration(calibration);
+    }
   }
   if (assistedDraft?.pointerId === event.pointerId) {
     const draft = assistedDraft;
@@ -1125,7 +1445,19 @@ fieldToolButtons.forEach((button) => {
 calibratePitchButton.addEventListener("click", enterCalibrationMode);
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
+clearCalibrationButton.addEventListener("click", clearCurrentCalibration);
+calibrationConstraintType.addEventListener("change", () => {
+  calibrationType = calibrationConstraintType.value;
+  if (calibrationType === "point") calibrationSemantic = calibrationLandmark.value;
+  if (calibrationType === "line") calibrationSemantic = PITCH_MODEL.calibrationLines[0].id;
+  if (calibrationType === "arc") calibrationSemantic = PITCH_MODEL.calibrationArcs[0].id;
+  updateCalibrationStatus();
+  drawOverlay();
+});
 calibrationLandmark.addEventListener("change", () => {
+  calibrationType = "point";
+  calibrationConstraintType.value = "point";
+  calibrationSemantic = calibrationLandmark.value;
   updateCalibrationStatus();
   drawOverlay();
 });
@@ -1166,9 +1498,9 @@ async function initialiseVideos() {
     videoSelect.videos = videos;
 
     if (!videos.length) {
-      videoSelect.add(new Option("No MP4 videos found", ""));
-      workspaceTitle.textContent = "No videos available";
-      workspaceDescription.textContent = "Add an MP4 file to the input directory.";
+      videoSelect.add(new Option("No se encontraron vídeos MP4", ""));
+      workspaceTitle.textContent = "No hay vídeos disponibles";
+      workspaceDescription.textContent = "Añade un archivo MP4 al directorio input.";
       return;
     }
 
@@ -1176,8 +1508,8 @@ async function initialiseVideos() {
     videoSelect.disabled = false;
     loadVideo(videos[0]);
   } catch (error) {
-    workspaceTitle.textContent = "Video list unavailable";
-    workspaceDescription.textContent = "Unable to read the input directory.";
+    workspaceTitle.textContent = "Lista de vídeos no disponible";
+    workspaceDescription.textContent = "No se pudo leer el directorio input.";
   }
 }
 
