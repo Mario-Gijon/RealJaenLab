@@ -68,6 +68,14 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .field-tool { color: #c2c8ce; border: 1px solid transparent; border-radius: 3px; padding: 7px 9px; background: transparent; cursor: pointer; font-size: 11px; font-weight: 650; }
 .field-tool:hover { color: #f0f2f4; background: #292e33; }
 .field-tool.is-active { color: #17191c; border-color: #d4a414; background: #d4a414; }
+.field-tool-primary { color: #e9d27a; border-color: #665a2b; }
+.field-tool-secondary { color: #8e969e; }
+.calibration-action { color: #a8d9d4; }
+.calibration-panel { position: absolute; z-index: 2; top: 89px; left: 42px; display: flex; align-items: center; gap: 7px; max-width: 620px; padding: 7px; border: 1px solid #2f5654; border-radius: 5px; background: rgba(16, 35, 35, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+.calibration-panel[hidden] { display: none; }
+.calibration-panel label { color: #8fd4ce; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.calibration-panel select { max-width: 230px; color: #d6dade; border: 1px solid #3b6865; border-radius: 3px; padding: 6px 8px; background: #172a2a; font-size: 11px; }
+.calibration-panel span { color: #a8bebc; font-size: 11px; }
 
 .controls { gap: 22px; border-top: 1px solid #292e33; padding: 0 28px; }
 .transport-controls, .frame-controls { display: flex; align-items: center; gap: 8px; }

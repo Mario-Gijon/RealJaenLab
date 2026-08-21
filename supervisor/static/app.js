@@ -24,6 +24,12 @@ const fieldToolbar = document.querySelector("#field-toolbar");
 const fieldToolButtons = document.querySelectorAll("[data-field-tool]");
 const deleteFieldItemButton = document.querySelector("#delete-field-item");
 const undoFieldEditButton = document.querySelector("#undo-field-edit");
+const calibratePitchButton = document.querySelector("#calibrate-pitch");
+const calibrationPanel = document.querySelector("#calibration-panel");
+const calibrationLandmark = document.querySelector("#calibration-landmark");
+const calibrationStatus = document.querySelector("#calibration-status");
+const removeCalibrationPointButton = document.querySelector("#remove-calibration-point");
+const exitCalibrationButton = document.querySelector("#exit-calibration");
 
 let selectedVideo = null;
 let debugOverlayEnabled = false;
@@ -33,6 +39,7 @@ let displayedVideoRect = null;
 let activeMode = "field";
 let activeFieldTool = "select";
 let fieldAnnotations = [];
+let fieldCalibrations = [];
 let fieldUndoStack = [];
 let selectedFieldItem = null;
 let fieldDragState = null;
@@ -41,8 +48,12 @@ let assistedDraft = null;
 let annotationSequence = 0;
 let reviewIsDirty = false;
 let videoLoadSequence = 0;
+let calibrationMode = false;
+let calibrationDragState = null;
+let calibrationSolveSequence = 0;
 
 workArea.classList.add("field-editing");
+PITCH_MODEL.landmarks.forEach((landmark) => calibrationLandmark.add(new Option(landmark.label, landmark.id)));
 
 modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -54,6 +65,8 @@ modeTabs.forEach((tab) => {
     selectedFieldItem = null;
     lineDraft = null;
     assistedDraft = null;
+    calibrationMode = false;
+    calibrationPanel.hidden = true;
     drawOverlay();
   });
 });
@@ -113,12 +126,22 @@ function annotationsForCurrentFrame() {
   ));
 }
 
+function calibrationForCurrentFrame() {
+  return fieldCalibrations.find((calibration) => (
+    calibration.video === selectedVideo?.name && calibration.frame === currentFrameNumber()
+  ));
+}
+
 function cloneAnnotations() {
   return JSON.parse(JSON.stringify(fieldAnnotations));
 }
 
+function cloneFieldState() {
+  return JSON.parse(JSON.stringify({ annotations: fieldAnnotations, calibrations: fieldCalibrations }));
+}
+
 function rememberFieldEdit() {
-  fieldUndoStack.push(cloneAnnotations());
+  fieldUndoStack.push(cloneFieldState());
   setReviewDirty(true);
 }
 
@@ -318,6 +341,8 @@ function fitEllipse(samples) {
 
 function setActiveFieldTool(tool) {
   activeFieldTool = tool;
+  calibrationMode = false;
+  calibrationPanel.hidden = true;
   fieldToolButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.fieldTool === tool));
   lineDraft = null;
   assistedDraft = null;
@@ -326,13 +351,16 @@ function setActiveFieldTool(tool) {
 }
 
 function undoFieldEdit() {
-  const previousAnnotations = fieldUndoStack.pop();
-  if (!previousAnnotations) return;
-  fieldAnnotations = previousAnnotations;
+  const previousState = fieldUndoStack.pop();
+  if (!previousState) return;
+  fieldAnnotations = previousState.annotations;
+  fieldCalibrations = previousState.calibrations;
   selectedFieldItem = null;
   lineDraft = null;
   assistedDraft = null;
+  calibrationDragState = null;
   setReviewDirty(true);
+  updateCalibrationStatus();
   drawOverlay();
 }
 
@@ -344,6 +372,121 @@ function deleteSelectedFieldItem() {
   fieldAnnotations = fieldAnnotations.filter((item) => item.id !== annotation.id);
   selectedFieldItem = null;
   drawOverlay();
+}
+
+function updateCalibrationStatus(message = null) {
+  const calibration = calibrationForCurrentFrame();
+  if (message) {
+    calibrationStatus.textContent = message;
+    return;
+  }
+  const count = calibration?.correspondences.length || 0;
+  calibrationStatus.textContent = count >= 4 && calibration?.homography
+    ? `${count} landmarks — pitch projected`
+    : `${count} landmarks — add at least 4 non-collinear points`;
+}
+
+function enterCalibrationMode() {
+  if (!selectedVideo) return;
+  video.pause();
+  calibrationMode = true;
+  activeFieldTool = "select";
+  fieldToolButtons.forEach((button) => button.classList.remove("is-active"));
+  calibrationPanel.hidden = false;
+  updateCalibrationStatus();
+  drawOverlay();
+}
+
+function exitCalibrationMode() {
+  calibrationMode = false;
+  calibrationDragState = null;
+  calibrationPanel.hidden = true;
+  setActiveFieldTool("select");
+  drawOverlay();
+}
+
+function ensureCurrentCalibration() {
+  let calibration = calibrationForCurrentFrame();
+  if (calibration) return calibration;
+  calibration = {
+    id: `calibration-${Date.now()}`,
+    video: selectedVideo.name,
+    frame: currentFrameNumber(),
+    source: "manual",
+    correspondences: [],
+    homography: null,
+    reprojectionError: null,
+  };
+  fieldCalibrations.push(calibration);
+  return calibration;
+}
+
+function calibrationHitTest(coordinates) {
+  const calibration = calibrationForCurrentFrame();
+  if (!calibration || !displayedVideoRect) return null;
+  const hitRadius = 14 / (displayedVideoRect.width / video.videoWidth);
+  const correspondence = calibration.correspondences.find((item) => distanceBetween(item.image, coordinates) <= hitRadius);
+  return correspondence ? { calibration, correspondence } : null;
+}
+
+async function solveCalibration(calibration) {
+  if (calibration.correspondences.length < 4) {
+    calibration.homography = null;
+    calibration.reprojectionError = null;
+    updateCalibrationStatus();
+    drawOverlay();
+    return;
+  }
+  const sequence = ++calibrationSolveSequence;
+  updateCalibrationStatus("Calculating pitch projection…");
+  try {
+    const response = await fetch("/api/homography", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ correspondences: calibration.correspondences }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "Unable to calculate pitch projection");
+    if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
+    calibration.homography = result.homography;
+    calibration.reprojectionError = result.reprojection_error;
+    updateCalibrationStatus();
+    drawOverlay();
+  } catch (error) {
+    if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
+    calibration.homography = null;
+    calibration.reprojectionError = null;
+    updateCalibrationStatus(error.message);
+    drawOverlay();
+  }
+}
+
+function addCalibrationCorrespondence(image) {
+  const landmark = PITCH_MODEL.landmarksById[calibrationLandmark.value];
+  if (!landmark) return;
+  rememberFieldEdit();
+  const calibration = ensureCurrentCalibration();
+  const existing = calibration.correspondences.find((item) => item.landmark === landmark.id);
+  const correspondence = {
+    landmark: landmark.id,
+    world: { ...landmark.world },
+    image: clampToVideo(image),
+  };
+  if (existing) Object.assign(existing, correspondence);
+  else calibration.correspondences.push(correspondence);
+  calibration.homography = null;
+  solveCalibration(calibration);
+}
+
+function removeSelectedCalibrationCorrespondence() {
+  const calibration = calibrationForCurrentFrame();
+  if (!calibration) return;
+  const landmarkId = calibrationLandmark.value;
+  if (!calibration.correspondences.some((item) => item.landmark === landmarkId)) return;
+  rememberFieldEdit();
+  calibration.correspondences = calibration.correspondences.filter((item) => item.landmark !== landmarkId);
+  calibration.homography = null;
+  solveCalibration(calibration);
 }
 
 function drawFieldHandle({ x, y }, selected, displayScale) {
@@ -405,6 +548,71 @@ function drawRawAssistedStroke(displayScale) {
     else overlayContext.lineTo(point.x, point.y);
   });
   overlayContext.stroke();
+  overlayContext.restore();
+}
+
+function projectWorldPoint(point, homography) {
+  const [first, second, third] = homography;
+  const denominator = third[0] * point.x + third[1] * point.y + third[2];
+  if (Math.abs(denominator) < 1e-8) return null;
+  return {
+    x: (first[0] * point.x + first[1] * point.y + first[2]) / denominator,
+    y: (second[0] * point.x + second[1] * point.y + second[2]) / denominator,
+  };
+}
+
+function drawProjectedPath(points, homography, displayScale) {
+  let started = false;
+  overlayContext.beginPath();
+  points.forEach((point) => {
+    const projected = projectWorldPoint(point, homography);
+    if (!projected) return;
+    if (!started) {
+      overlayContext.moveTo(projected.x, projected.y);
+      started = true;
+    } else {
+      overlayContext.lineTo(projected.x, projected.y);
+    }
+  });
+  if (started) overlayContext.stroke();
+}
+
+function drawCalibrationOverlay() {
+  const calibration = calibrationForCurrentFrame();
+  if (!calibration || !displayedVideoRect || !video.videoWidth) return;
+  const displayScale = displayedVideoRect.width / video.videoWidth;
+  overlayContext.save();
+
+  if (Array.isArray(calibration.homography)) {
+    overlayContext.strokeStyle = "#5aa9ff";
+    overlayContext.lineWidth = 2 / displayScale;
+    PITCH_MODEL.segments.forEach((segment) => drawProjectedPath(segment, calibration.homography, displayScale));
+    drawProjectedPath(PITCH_MODEL.sampleCircle({ x: 0, y: 0 }, PITCH_MODEL.centerCircleRadius), calibration.homography, displayScale);
+    [
+      { x: 0, y: 0 },
+      { x: -41.5, y: 0 },
+      { x: 41.5, y: 0 },
+    ].forEach((worldPoint) => {
+      const point = projectWorldPoint(worldPoint, calibration.homography);
+      if (!point) return;
+      overlayContext.beginPath();
+      overlayContext.arc(point.x, point.y, 3.5 / displayScale, 0, Math.PI * 2);
+      overlayContext.fillStyle = "#5aa9ff";
+      overlayContext.fill();
+    });
+  }
+
+  calibration.correspondences.forEach((correspondence) => {
+    const selected = calibrationMode && correspondence.landmark === calibrationLandmark.value;
+    const radius = (selected ? 9 : 7) / displayScale;
+    overlayContext.beginPath();
+    overlayContext.arc(correspondence.image.x, correspondence.image.y, radius, 0, Math.PI * 2);
+    overlayContext.fillStyle = selected ? "#f0f2f4" : "#5aa9ff";
+    overlayContext.fill();
+    overlayContext.strokeStyle = "#102d4d";
+    overlayContext.lineWidth = 2 / displayScale;
+    overlayContext.stroke();
+  });
   overlayContext.restore();
 }
 
@@ -506,6 +714,7 @@ function drawDebugOverlay() {
 function drawOverlay() {
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   drawFieldAnnotations();
+  drawCalibrationOverlay();
   drawDebugOverlay();
 }
 
@@ -582,10 +791,14 @@ async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
+  fieldCalibrations = [];
   fieldUndoStack = [];
   selectedFieldItem = null;
   lineDraft = null;
   assistedDraft = null;
+  calibrationMode = false;
+  calibrationPanel.hidden = true;
+  calibrationDragState = null;
   setReviewDirty(false);
   resetPlaybackState();
   setControlsEnabled(false);
@@ -602,6 +815,7 @@ async function loadVideo(videoInfo) {
     const { review } = await response.json();
     if (loadSequence !== videoLoadSequence) return;
     fieldAnnotations = Array.isArray(review?.field?.annotations) ? review.field.annotations : [];
+    fieldCalibrations = Array.isArray(review?.field?.calibrations) ? review.field.calibrations : [];
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
     drawOverlay();
@@ -620,6 +834,9 @@ async function saveCurrentReview() {
     video: { filename: selectedVideo.name },
     field: {
       annotations: fieldAnnotations.filter((annotation) => annotation.video === selectedVideo.name),
+      calibrations: fieldCalibrations.filter((calibration) => (
+        calibration.video === selectedVideo.name && Array.isArray(calibration.homography)
+      )),
     },
     people: {},
   };
@@ -716,6 +933,13 @@ debugToggle.addEventListener("click", () => {
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
   pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
+  if (calibrationMode && calibrationDragState && pointerVideoCoordinates) {
+    calibrationDragState.correspondence.image = clampToVideo(pointerVideoCoordinates);
+    calibrationDragState.didMove = true;
+    solveCalibration(calibrationDragState.calibration);
+    drawOverlay();
+    return;
+  }
   if (activeMode === "field" && pointerVideoCoordinates) {
     if (lineDraft) {
       lineDraft.end = clampToVideo(pointerVideoCoordinates);
@@ -782,6 +1006,24 @@ workArea.addEventListener("pointerdown", (event) => {
   video.pause();
   const coordinates = clampToVideo(pointerCoordinates);
 
+  if (calibrationMode) {
+    const hit = calibrationHitTest(coordinates);
+    if (hit) {
+      calibrationLandmark.value = hit.correspondence.landmark;
+      calibrationDragState = {
+        ...hit,
+        before: cloneFieldState(),
+        didMove: false,
+      };
+      workArea.setPointerCapture(event.pointerId);
+      updateCalibrationStatus();
+      drawOverlay();
+    } else {
+      addCalibrationCorrespondence(coordinates);
+    }
+    return;
+  }
+
   if (activeFieldTool === "point") {
     rememberFieldEdit();
     const annotation = createFieldAnnotation("point", coordinates);
@@ -812,7 +1054,7 @@ workArea.addEventListener("pointerdown", (event) => {
       ...hit,
       origin: coordinates,
       coordinates: cloneAnnotations().find((annotation) => annotation.id === hit.id).coordinates,
-      before: cloneAnnotations(),
+      before: cloneFieldState(),
       didMove: false,
     };
     workArea.setPointerCapture(event.pointerId);
@@ -821,6 +1063,13 @@ workArea.addEventListener("pointerdown", (event) => {
 });
 
 workArea.addEventListener("pointerup", (event) => {
+  if (calibrationDragState) {
+    if (calibrationDragState.didMove) {
+      fieldUndoStack.push(calibrationDragState.before);
+      setReviewDirty(true);
+    }
+    calibrationDragState = null;
+  }
   if (assistedDraft?.pointerId === event.pointerId) {
     const draft = assistedDraft;
     const pointerCoordinates = browserToVideoCoordinates(event);
@@ -872,6 +1121,13 @@ workArea.addEventListener("pointerup", (event) => {
 
 fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
+});
+calibratePitchButton.addEventListener("click", enterCalibrationMode);
+exitCalibrationButton.addEventListener("click", exitCalibrationMode);
+removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
+calibrationLandmark.addEventListener("change", () => {
+  updateCalibrationStatus();
+  drawOverlay();
 });
 deleteFieldItemButton.addEventListener("click", deleteSelectedFieldItem);
 undoFieldEditButton.addEventListener("click", undoFieldEdit);

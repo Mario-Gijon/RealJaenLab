@@ -2,6 +2,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import cv2
+import numpy as np
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -121,3 +123,38 @@ def save_review(filename: str, review: dict = Body()) -> dict[str, str]:
     REVIEW_DIR.mkdir(parents=True, exist_ok=True)
     review_path.write_text(json.dumps(saved_review, indent=2) + "\n", encoding="utf-8")
     return {"status": "saved"}
+
+
+def points_are_non_collinear(points: np.ndarray) -> bool:
+    if len(points) < 4:
+        return False
+    centered = points - points.mean(axis=0)
+    singular_values = np.linalg.svd(centered, compute_uv=False)
+    return len(singular_values) == 2 and singular_values[1] > singular_values[0] * 1e-4
+
+
+@app.post("/api/homography")
+def calculate_homography(payload: dict = Body()) -> dict[str, list | float]:
+    correspondences = payload.get("correspondences", [])
+    if len(correspondences) < 4:
+        raise HTTPException(status_code=400, detail="At least four correspondences are required")
+
+    try:
+        world_points = np.array([[item["world"]["x"], item["world"]["y"]] for item in correspondences], dtype=np.float64)
+        image_points = np.array([[item["image"]["x"], item["image"]["y"]] for item in correspondences], dtype=np.float64)
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Invalid correspondence coordinates") from error
+
+    if not points_are_non_collinear(world_points) or not points_are_non_collinear(image_points):
+        raise HTTPException(status_code=400, detail="Correspondences are geometrically degenerate")
+
+    homography, _ = cv2.findHomography(world_points, image_points, method=0)
+    if homography is None or not np.isfinite(homography).all() or abs(homography[2, 2]) < 1e-12:
+        raise HTTPException(status_code=400, detail="Unable to calculate a valid homography")
+    homography /= homography[2, 2]
+
+    homogeneous_world = np.column_stack([world_points, np.ones(len(world_points))])
+    projected = homogeneous_world @ homography.T
+    projected = projected[:, :2] / projected[:, 2:3]
+    reprojection_error = float(np.mean(np.linalg.norm(projected - image_points, axis=1)))
+    return {"homography": homography.tolist(), "reprojection_error": reprojection_error}
