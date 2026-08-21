@@ -32,7 +32,7 @@
             <span class="status-dot" aria-hidden="true"></span>
             <span id="save-status-label">UNSAVED</span>
           </span>
-          <button class="button button-secondary" type="button">Undo</button>
+          <button class="button button-secondary" id="undo-button" type="button">Undo</button>
           <button class="button button-primary" type="button" id="save-button">Save</button>
         </div>
       </header>
@@ -46,6 +46,13 @@
             <h1 id="workspace-title">Video workspace</h1>
             <p id="workspace-description">Choose a video to begin.</p>
           </div>
+        </div>
+        <div class="field-toolbar" id="field-toolbar" aria-label="Field editing tools">
+          <button class="field-tool is-active" type="button" data-field-tool="select">Select / Move</button>
+          <button class="field-tool" type="button" data-field-tool="point">Add point</button>
+          <button class="field-tool" type="button" data-field-tool="line">Add line</button>
+          <button class="field-tool" id="delete-field-item" type="button">Delete</button>
+          <button class="field-tool" id="undo-field-edit" type="button">Undo</button>
         </div>
       </section>
 

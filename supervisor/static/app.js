@@ -1,6 +1,7 @@
 const modeTabs = document.querySelectorAll(".mode-tab");
 const modeLabel = document.querySelector("#mode-label");
 const saveButton = document.querySelector("#save-button");
+const undoButton = document.querySelector("#undo-button");
 const saveStatus = document.querySelector("#save-status");
 const saveStatusLabel = document.querySelector("#save-status-label");
 const video = document.querySelector("#video");
@@ -19,17 +20,37 @@ const currentTimeLabel = document.querySelector("#current-time");
 const totalTimeLabel = document.querySelector("#total-time");
 const frameReadout = document.querySelector("#frame-readout");
 const debugToggle = document.querySelector("#debug-toggle");
+const fieldToolbar = document.querySelector("#field-toolbar");
+const fieldToolButtons = document.querySelectorAll("[data-field-tool]");
+const deleteFieldItemButton = document.querySelector("#delete-field-item");
+const undoFieldEditButton = document.querySelector("#undo-field-edit");
 
 let selectedVideo = null;
 let debugOverlayEnabled = false;
 let pointerVideoCoordinates = null;
 let pointerBrowserPosition = null;
 let displayedVideoRect = null;
+let activeMode = "field";
+let activeFieldTool = "select";
+let fieldAnnotations = [];
+let fieldUndoStack = [];
+let selectedFieldItem = null;
+let fieldDragState = null;
+let lineDraft = null;
+let annotationSequence = 0;
+
+workArea.classList.add("field-editing");
 
 modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     modeTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
-    modeLabel.textContent = `${tab.dataset.mode.toUpperCase()} MODE`;
+    activeMode = tab.dataset.mode;
+    modeLabel.textContent = `${activeMode.toUpperCase()} MODE`;
+    fieldToolbar.hidden = activeMode !== "field";
+    workArea.classList.toggle("field-editing", activeMode === "field");
+    selectedFieldItem = null;
+    lineDraft = null;
+    drawOverlay();
   });
 });
 
@@ -77,8 +98,163 @@ function getDisplayedVideoRect() {
   };
 }
 
+function currentFrameNumber() {
+  return selectedVideo?.fps ? Math.floor(video.currentTime * selectedVideo.fps) : 0;
+}
+
+function annotationsForCurrentFrame() {
+  return fieldAnnotations.filter((annotation) => (
+    annotation.video === selectedVideo?.name && annotation.frame === currentFrameNumber()
+  ));
+}
+
+function cloneAnnotations() {
+  return JSON.parse(JSON.stringify(fieldAnnotations));
+}
+
+function rememberFieldEdit() {
+  fieldUndoStack.push(cloneAnnotations());
+}
+
+function clampToVideo({ x, y }) {
+  return {
+    x: Math.min(Math.max(x, 0), video.videoWidth),
+    y: Math.min(Math.max(y, 0), video.videoHeight),
+  };
+}
+
+function createFieldAnnotation(type, coordinates) {
+  annotationSequence += 1;
+  return {
+    id: `field-${Date.now()}-${annotationSequence}`,
+    video: selectedVideo.name,
+    frame: currentFrameNumber(),
+    type,
+    coordinates,
+    source: "manual",
+  };
+}
+
+function findFieldAnnotation(id) {
+  return fieldAnnotations.find((annotation) => annotation.id === id);
+}
+
+function distanceBetween(first, second) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function distanceToLineSegment(point, start, end) {
+  const deltaX = end.x - start.x;
+  const deltaY = end.y - start.y;
+  const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+  if (!lengthSquared) return distanceBetween(point, start);
+  const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * deltaX + (point.y - start.y) * deltaY) / lengthSquared));
+  return distanceBetween(point, { x: start.x + ratio * deltaX, y: start.y + ratio * deltaY });
+}
+
+function hitTestFieldAnnotation(coordinates) {
+  if (!displayedVideoRect) return null;
+  const hitRadius = 12 / (displayedVideoRect.width / video.videoWidth);
+  const annotations = annotationsForCurrentFrame();
+  for (let index = annotations.length - 1; index >= 0; index -= 1) {
+    const annotation = annotations[index];
+    if (annotation.type === "point" && distanceBetween(coordinates, annotation.coordinates) <= hitRadius) {
+      return { id: annotation.id, handle: "point" };
+    }
+    if (annotation.type === "line") {
+      if (distanceBetween(coordinates, annotation.coordinates.start) <= hitRadius) return { id: annotation.id, handle: "start" };
+      if (distanceBetween(coordinates, annotation.coordinates.end) <= hitRadius) return { id: annotation.id, handle: "end" };
+      if (distanceToLineSegment(coordinates, annotation.coordinates.start, annotation.coordinates.end) <= hitRadius) {
+        return { id: annotation.id, handle: "line" };
+      }
+    }
+  }
+  return null;
+}
+
+function setActiveFieldTool(tool) {
+  activeFieldTool = tool;
+  fieldToolButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.fieldTool === tool));
+  lineDraft = null;
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) video.pause();
+  drawOverlay();
+}
+
+function undoFieldEdit() {
+  const previousAnnotations = fieldUndoStack.pop();
+  if (!previousAnnotations) return;
+  fieldAnnotations = previousAnnotations;
+  selectedFieldItem = null;
+  lineDraft = null;
+  drawOverlay();
+}
+
+function deleteSelectedFieldItem() {
+  if (activeMode !== "field" || !selectedFieldItem) return;
+  const annotation = findFieldAnnotation(selectedFieldItem.id);
+  if (!annotation) return;
+  rememberFieldEdit();
+  fieldAnnotations = fieldAnnotations.filter((item) => item.id !== annotation.id);
+  selectedFieldItem = null;
+  drawOverlay();
+}
+
+function drawFieldHandle({ x, y }, selected, displayScale) {
+  const radius = (selected ? 8 : 6) / displayScale;
+  overlayContext.beginPath();
+  overlayContext.arc(x, y, radius, 0, Math.PI * 2);
+  overlayContext.fillStyle = selected ? "#f0f2f4" : "#2ec4b6";
+  overlayContext.fill();
+  overlayContext.strokeStyle = "#0b3532";
+  overlayContext.lineWidth = 2 / displayScale;
+  overlayContext.stroke();
+}
+
+function drawFieldAnnotations() {
+  if (!displayedVideoRect || !video.videoWidth || !video.videoHeight) return;
+  const displayScale = displayedVideoRect.width / video.videoWidth;
+  const selectedId = selectedFieldItem?.id;
+  overlayContext.save();
+  overlayContext.lineCap = "round";
+  overlayContext.lineJoin = "round";
+
+  annotationsForCurrentFrame().forEach((annotation) => {
+    const selected = annotation.id === selectedId;
+    const color = selected ? "#f0f2f4" : "#2ec4b6";
+    if (annotation.type === "point") {
+      drawFieldHandle(annotation.coordinates, selected, displayScale);
+      return;
+    }
+
+    const { start, end } = annotation.coordinates;
+    overlayContext.strokeStyle = color;
+    overlayContext.lineWidth = (selected ? 3 : 2.5) / displayScale;
+    overlayContext.beginPath();
+    overlayContext.moveTo(start.x, start.y);
+    overlayContext.lineTo(end.x, end.y);
+    overlayContext.stroke();
+    if (selected) {
+      drawFieldHandle(start, true, displayScale);
+      drawFieldHandle(end, true, displayScale);
+    }
+  });
+
+  if (lineDraft) {
+    overlayContext.setLineDash([7 / displayScale, 5 / displayScale]);
+    overlayContext.strokeStyle = "#2ec4b6";
+    overlayContext.lineWidth = 2.5 / displayScale;
+    overlayContext.beginPath();
+    overlayContext.moveTo(lineDraft.start.x, lineDraft.start.y);
+    overlayContext.lineTo(lineDraft.end.x, lineDraft.end.y);
+    overlayContext.stroke();
+    overlayContext.setLineDash([]);
+    drawFieldHandle(lineDraft.start, true, displayScale);
+    drawFieldHandle(lineDraft.end, true, displayScale);
+  }
+  overlayContext.restore();
+}
+
 function drawDebugOverlay() {
-  overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   if (!debugOverlayEnabled || !displayedVideoRect || !video.videoWidth || !video.videoHeight) return;
 
   const displayScale = displayedVideoRect.width / video.videoWidth;
@@ -123,6 +299,12 @@ function drawDebugOverlay() {
   overlayContext.restore();
 }
 
+function drawOverlay() {
+  overlayContext.clearRect(0, 0, overlay.width, overlay.height);
+  drawFieldAnnotations();
+  drawDebugOverlay();
+}
+
 function syncOverlay() {
   displayedVideoRect = getDisplayedVideoRect();
   if (!displayedVideoRect) {
@@ -139,7 +321,7 @@ function syncOverlay() {
   overlay.style.height = `${displayedVideoRect.height}px`;
   overlay.classList.add("is-loaded");
   pointerVideoCoordinates = pointerBrowserPosition ? browserToVideoCoordinates(pointerBrowserPosition) : null;
-  drawDebugOverlay();
+  drawOverlay();
 }
 
 function formatTime(seconds) {
@@ -235,21 +417,21 @@ video.addEventListener("loadedmetadata", () => {
 
 video.addEventListener("timeupdate", () => {
   updatePlaybackDisplay();
-  drawDebugOverlay();
+  drawOverlay();
 });
 video.addEventListener("seeked", () => {
   updatePlaybackDisplay();
-  drawDebugOverlay();
+  drawOverlay();
 });
 video.addEventListener("play", () => {
   playPauseButton.textContent = "❚❚";
   playPauseButton.setAttribute("aria-label", "Pause");
-  drawDebugOverlay();
+  drawOverlay();
 });
 video.addEventListener("pause", () => {
   playPauseButton.textContent = "▶";
   playPauseButton.setAttribute("aria-label", "Play");
-  drawDebugOverlay();
+  drawOverlay();
 });
 video.addEventListener("error", () => {
   setControlsEnabled(false);
@@ -267,25 +449,122 @@ debugToggle.addEventListener("click", () => {
   debugOverlayEnabled = !debugOverlayEnabled;
   debugToggle.classList.toggle("is-active", debugOverlayEnabled);
   debugToggle.setAttribute("aria-pressed", String(debugOverlayEnabled));
-  drawDebugOverlay();
+  drawOverlay();
 });
 
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
   pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
-  drawDebugOverlay();
+  if (activeMode === "field" && pointerVideoCoordinates) {
+    if (lineDraft) {
+      lineDraft.end = clampToVideo(pointerVideoCoordinates);
+    } else if (fieldDragState) {
+      const annotation = findFieldAnnotation(fieldDragState.id);
+      if (annotation) {
+        const coordinates = clampToVideo(pointerVideoCoordinates);
+        if (fieldDragState.handle === "point") annotation.coordinates = coordinates;
+        if (fieldDragState.handle === "start") annotation.coordinates.start = coordinates;
+        if (fieldDragState.handle === "end") annotation.coordinates.end = coordinates;
+        if (fieldDragState.handle === "line") {
+          const deltaX = coordinates.x - fieldDragState.origin.x;
+          const deltaY = coordinates.y - fieldDragState.origin.y;
+          annotation.coordinates.start = clampToVideo({
+            x: fieldDragState.coordinates.start.x + deltaX,
+            y: fieldDragState.coordinates.start.y + deltaY,
+          });
+          annotation.coordinates.end = clampToVideo({
+            x: fieldDragState.coordinates.end.x + deltaX,
+            y: fieldDragState.coordinates.end.y + deltaY,
+          });
+        }
+        fieldDragState.didMove = true;
+      }
+    }
+  }
+  drawOverlay();
 });
 
 workArea.addEventListener("pointerleave", () => {
   pointerBrowserPosition = null;
   pointerVideoCoordinates = null;
-  drawDebugOverlay();
+  drawOverlay();
 });
+
+workArea.addEventListener("pointerdown", (event) => {
+  const pointerCoordinates = browserToVideoCoordinates(event);
+  if (activeMode !== "field" || !pointerCoordinates || !video.videoWidth) return;
+  event.preventDefault();
+  video.pause();
+  const coordinates = clampToVideo(pointerCoordinates);
+
+  if (activeFieldTool === "point") {
+    rememberFieldEdit();
+    const annotation = createFieldAnnotation("point", coordinates);
+    fieldAnnotations.push(annotation);
+    selectedFieldItem = { id: annotation.id, handle: "point" };
+    drawOverlay();
+    return;
+  }
+
+  if (activeFieldTool === "line") {
+    lineDraft = { start: coordinates, end: coordinates, pointerId: event.pointerId };
+    workArea.setPointerCapture(event.pointerId);
+    drawOverlay();
+    return;
+  }
+
+  const hit = hitTestFieldAnnotation(coordinates);
+  selectedFieldItem = hit;
+  if (hit) {
+    fieldDragState = {
+      ...hit,
+      origin: coordinates,
+      coordinates: cloneAnnotations().find((annotation) => annotation.id === hit.id).coordinates,
+      before: cloneAnnotations(),
+      didMove: false,
+    };
+    workArea.setPointerCapture(event.pointerId);
+  }
+  drawOverlay();
+});
+
+workArea.addEventListener("pointerup", (event) => {
+  if (lineDraft?.pointerId === event.pointerId) {
+    const draft = lineDraft;
+    const pointerCoordinates = browserToVideoCoordinates(event);
+    if (pointerCoordinates) draft.end = clampToVideo(pointerCoordinates);
+    lineDraft = null;
+    if (distanceBetween(draft.start, draft.end) > 2) {
+      rememberFieldEdit();
+      const annotation = createFieldAnnotation("line", { start: draft.start, end: draft.end });
+      fieldAnnotations.push(annotation);
+      selectedFieldItem = { id: annotation.id, handle: "line" };
+    }
+  }
+  if (fieldDragState) {
+    if (fieldDragState.didMove) fieldUndoStack.push(fieldDragState.before);
+    fieldDragState = null;
+  }
+  if (workArea.hasPointerCapture(event.pointerId)) workArea.releasePointerCapture(event.pointerId);
+  drawOverlay();
+});
+
+fieldToolButtons.forEach((button) => {
+  button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
+});
+deleteFieldItemButton.addEventListener("click", deleteSelectedFieldItem);
+undoFieldEditButton.addEventListener("click", undoFieldEdit);
+undoButton.addEventListener("click", undoFieldEdit);
 
 new ResizeObserver(syncOverlay).observe(workArea);
 window.addEventListener("resize", syncOverlay);
 
 document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && activeMode === "field") {
+    event.preventDefault();
+    undoFieldEdit();
+    return;
+  }
   const targetName = event.target.tagName;
   if (targetName === "SELECT" || targetName === "BUTTON" || targetName === "INPUT") return;
   if (event.code === "Space") {
