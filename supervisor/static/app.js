@@ -4,6 +4,9 @@ const saveButton = document.querySelector("#save-button");
 const saveStatus = document.querySelector("#save-status");
 const saveStatusLabel = document.querySelector("#save-status-label");
 const video = document.querySelector("#video");
+const workArea = document.querySelector(".work-area");
+const overlay = document.querySelector("#video-overlay");
+const overlayContext = overlay.getContext("2d");
 const videoSelect = document.querySelector("#video-select");
 const workspaceMessage = document.querySelector("#workspace-message");
 const workspaceTitle = document.querySelector("#workspace-title");
@@ -15,8 +18,13 @@ const timeline = document.querySelector("#timeline");
 const currentTimeLabel = document.querySelector("#current-time");
 const totalTimeLabel = document.querySelector("#total-time");
 const frameReadout = document.querySelector("#frame-readout");
+const debugToggle = document.querySelector("#debug-toggle");
 
 let selectedVideo = null;
+let debugOverlayEnabled = false;
+let pointerVideoCoordinates = null;
+let pointerBrowserPosition = null;
+let displayedVideoRect = null;
 
 modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -29,6 +37,110 @@ saveButton.addEventListener("click", () => {
   saveStatus.classList.add("is-saved");
   saveStatusLabel.textContent = "SAVED";
 });
+
+// These helpers are the shared mapping boundary for future FIELD and PEOPLE overlays.
+// They use the actual contained video image, rather than the larger workspace/video element.
+function videoToDisplayCoordinates({ x, y }) {
+  if (!displayedVideoRect || !video.videoWidth || !video.videoHeight) return null;
+  return {
+    x: displayedVideoRect.left + (x / video.videoWidth) * displayedVideoRect.width,
+    y: displayedVideoRect.top + (y / video.videoHeight) * displayedVideoRect.height,
+  };
+}
+
+function browserToVideoCoordinates({ clientX, clientY }) {
+  if (!displayedVideoRect || !video.videoWidth || !video.videoHeight) return null;
+  const { left, top, width, height } = displayedVideoRect;
+  if (clientX < left || clientX > left + width || clientY < top || clientY > top + height) return null;
+  return {
+    x: ((clientX - left) / width) * video.videoWidth,
+    y: ((clientY - top) / height) * video.videoHeight,
+  };
+}
+
+function getDisplayedVideoRect() {
+  if (!video.videoWidth || !video.videoHeight) return null;
+  const videoBounds = video.getBoundingClientRect();
+  const videoAspectRatio = video.videoWidth / video.videoHeight;
+  const elementAspectRatio = videoBounds.width / videoBounds.height;
+  const width = elementAspectRatio > videoAspectRatio
+    ? videoBounds.height * videoAspectRatio
+    : videoBounds.width;
+  const height = elementAspectRatio > videoAspectRatio
+    ? videoBounds.height
+    : videoBounds.width / videoAspectRatio;
+  return {
+    left: videoBounds.left + (videoBounds.width - width) / 2,
+    top: videoBounds.top + (videoBounds.height - height) / 2,
+    width,
+    height,
+  };
+}
+
+function drawDebugOverlay() {
+  overlayContext.clearRect(0, 0, overlay.width, overlay.height);
+  if (!debugOverlayEnabled || !displayedVideoRect || !video.videoWidth || !video.videoHeight) return;
+
+  const displayScale = displayedVideoRect.width / video.videoWidth;
+  const markerRadius = 6 / displayScale;
+  const padding = 16 / displayScale;
+  const fontSize = 12 / displayScale;
+  const crosshairSize = 12 / displayScale;
+
+  overlayContext.save();
+  overlayContext.strokeStyle = "#d4a414";
+  overlayContext.fillStyle = "#f0f2f4";
+  overlayContext.lineWidth = 2 / displayScale;
+  overlayContext.font = `700 ${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  overlayContext.textBaseline = "top";
+
+  [[0, 0], [video.videoWidth, 0], [video.videoWidth, video.videoHeight], [0, video.videoHeight]].forEach(([x, y]) => {
+    overlayContext.beginPath();
+    overlayContext.arc(x, y, markerRadius, 0, Math.PI * 2);
+    overlayContext.fill();
+    overlayContext.stroke();
+  });
+
+  const centerX = video.videoWidth / 2;
+  const centerY = video.videoHeight / 2;
+  overlayContext.beginPath();
+  overlayContext.moveTo(centerX - crosshairSize, centerY);
+  overlayContext.lineTo(centerX + crosshairSize, centerY);
+  overlayContext.moveTo(centerX, centerY - crosshairSize);
+  overlayContext.lineTo(centerX, centerY + crosshairSize);
+  overlayContext.stroke();
+
+  overlayContext.fillText(`${video.videoWidth} × ${video.videoHeight}`, padding, padding);
+
+  if (pointerVideoCoordinates) {
+    const x = Math.round(pointerVideoCoordinates.x);
+    const y = Math.round(pointerVideoCoordinates.y);
+    const label = `${x}, ${y}`;
+    const labelX = Math.min(pointerVideoCoordinates.x + padding, video.videoWidth - 100 / displayScale);
+    const labelY = Math.min(pointerVideoCoordinates.y + padding, video.videoHeight - 22 / displayScale);
+    overlayContext.fillText(label, labelX, labelY);
+  }
+  overlayContext.restore();
+}
+
+function syncOverlay() {
+  displayedVideoRect = getDisplayedVideoRect();
+  if (!displayedVideoRect) {
+    overlay.classList.remove("is-loaded");
+    return;
+  }
+
+  const workspaceBounds = workArea.getBoundingClientRect();
+  overlay.width = video.videoWidth;
+  overlay.height = video.videoHeight;
+  overlay.style.left = `${displayedVideoRect.left - workspaceBounds.left}px`;
+  overlay.style.top = `${displayedVideoRect.top - workspaceBounds.top}px`;
+  overlay.style.width = `${displayedVideoRect.width}px`;
+  overlay.style.height = `${displayedVideoRect.height}px`;
+  overlay.classList.add("is-loaded");
+  pointerVideoCoordinates = pointerBrowserPosition ? browserToVideoCoordinates(pointerBrowserPosition) : null;
+  drawDebugOverlay();
+}
 
 function formatTime(seconds) {
   const totalSeconds = Math.max(0, Math.floor(seconds || 0));
@@ -73,6 +185,11 @@ function resetPlaybackState() {
   currentTimeLabel.textContent = "00:00:00";
   totalTimeLabel.textContent = "00:00:00";
   frameReadout.textContent = "Frame —";
+  pointerVideoCoordinates = null;
+  pointerBrowserPosition = null;
+  displayedVideoRect = null;
+  overlayContext.clearRect(0, 0, overlay.width, overlay.height);
+  overlay.classList.remove("is-loaded");
 }
 
 function loadVideo(videoInfo) {
@@ -113,17 +230,26 @@ video.addEventListener("loadedmetadata", () => {
   video.classList.add("is-loaded");
   setControlsEnabled(true);
   updatePlaybackDisplay();
+  syncOverlay();
 });
 
-video.addEventListener("timeupdate", updatePlaybackDisplay);
-video.addEventListener("seeked", updatePlaybackDisplay);
+video.addEventListener("timeupdate", () => {
+  updatePlaybackDisplay();
+  drawDebugOverlay();
+});
+video.addEventListener("seeked", () => {
+  updatePlaybackDisplay();
+  drawDebugOverlay();
+});
 video.addEventListener("play", () => {
   playPauseButton.textContent = "❚❚";
   playPauseButton.setAttribute("aria-label", "Pause");
+  drawDebugOverlay();
 });
 video.addEventListener("pause", () => {
   playPauseButton.textContent = "▶";
   playPauseButton.setAttribute("aria-label", "Play");
+  drawDebugOverlay();
 });
 video.addEventListener("error", () => {
   setControlsEnabled(false);
@@ -136,6 +262,28 @@ videoSelect.addEventListener("change", () => {
   const videoInfo = videoSelect.videos.find((item) => item.name === videoSelect.value);
   if (videoInfo) loadVideo(videoInfo);
 });
+
+debugToggle.addEventListener("click", () => {
+  debugOverlayEnabled = !debugOverlayEnabled;
+  debugToggle.classList.toggle("is-active", debugOverlayEnabled);
+  debugToggle.setAttribute("aria-pressed", String(debugOverlayEnabled));
+  drawDebugOverlay();
+});
+
+workArea.addEventListener("pointermove", (event) => {
+  pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
+  pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
+  drawDebugOverlay();
+});
+
+workArea.addEventListener("pointerleave", () => {
+  pointerBrowserPosition = null;
+  pointerVideoCoordinates = null;
+  drawDebugOverlay();
+});
+
+new ResizeObserver(syncOverlay).observe(workArea);
+window.addEventListener("resize", syncOverlay);
 
 document.addEventListener("keydown", (event) => {
   const targetName = event.target.tagName;

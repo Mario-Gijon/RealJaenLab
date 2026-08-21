@@ -27,6 +27,7 @@
         </nav>
 
         <div class="actions">
+          <button class="button button-secondary debug-toggle" id="debug-toggle" type="button" aria-pressed="false">Debug overlay</button>
           <span class="save-status" id="save-status" role="status">
             <span class="status-dot" aria-hidden="true"></span>
             <span id="save-status-label">UNSAVED</span>
@@ -39,6 +40,7 @@
       <section class="workspace" aria-label="Video workspace">
         <div class="work-area">
           <video id="video" class="video" playsinline preload="metadata"></video>
+          <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
           <div class="work-area-message" id="workspace-message">
             <span class="work-area-kicker" id="mode-label">FIELD MODE</span>
             <h1 id="workspace-title">Video workspace</h1>
