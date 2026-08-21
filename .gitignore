@@ -14,3 +14,6 @@ input/*.mp4
 
 .env
 .env.*
+yolo26x.pt
+/yolo26x.pt
+/external/sn-gamestate/
