@@ -14,6 +14,13 @@
           <span>REALJAEN SUPERVISOR</span>
         </div>
 
+        <label class="video-selector" for="video-select">
+          <span>VIDEO</span>
+          <select id="video-select" disabled>
+            <option>Loading videos…</option>
+          </select>
+        </label>
+
         <nav class="mode-tabs" aria-label="Workspace mode">
           <button class="mode-tab is-active" type="button" data-mode="field">FIELD</button>
           <button class="mode-tab" type="button" data-mode="people">PEOPLE</button>
@@ -31,29 +38,27 @@
 
       <section class="workspace" aria-label="Video workspace">
         <div class="work-area">
-          <div class="work-area-message">
+          <video id="video" class="video" playsinline preload="metadata"></video>
+          <div class="work-area-message" id="workspace-message">
             <span class="work-area-kicker" id="mode-label">FIELD MODE</span>
-            <h1>Video workspace</h1>
-            <p>Video support will be added in the next step.</p>
+            <h1 id="workspace-title">Video workspace</h1>
+            <p id="workspace-description">Choose a video to begin.</p>
           </div>
         </div>
       </section>
 
       <footer class="controls" aria-label="Video controls">
         <div class="transport-controls">
-          <button class="icon-button" type="button" aria-label="Previous frame">|&lt;</button>
-          <button class="play-button" type="button" aria-label="Play">▶</button>
-          <button class="icon-button" type="button" aria-label="Next frame">&gt;|</button>
+          <button class="icon-button" id="previous-frame" type="button" aria-label="Previous frame" disabled>|&lt;</button>
+          <button class="play-button" id="play-pause" type="button" aria-label="Play" disabled>▶</button>
+          <button class="icon-button" id="next-frame" type="button" aria-label="Next frame" disabled>&gt;|</button>
         </div>
-        <div class="timeline" aria-label="Timeline placeholder">
-          <span class="timeline-progress"></span>
-          <span class="timeline-handle"></span>
-        </div>
-        <div class="time-readout">00:00:00 <span>/</span> 00:00:00</div>
+        <input class="timeline" id="timeline" type="range" min="0" max="0" value="0" step="0.001" aria-label="Timeline" disabled />
+        <div class="time-readout"><span id="current-time">00:00:00</span> <span>/</span> <span id="total-time">00:00:00</span></div>
         <div class="frame-controls">
-          <button class="frame-button" type="button">− Frame</button>
-          <span class="frame-readout">Frame —</span>
-          <button class="frame-button" type="button">+ Frame</button>
+          <button class="frame-button" id="previous-frame-label" type="button" disabled>− Frame</button>
+          <span class="frame-readout" id="frame-readout">Frame —</span>
+          <button class="frame-button" id="next-frame-label" type="button" disabled>+ Frame</button>
         </div>
       </footer>
     </main>
