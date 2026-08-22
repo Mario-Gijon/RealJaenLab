@@ -54,8 +54,12 @@
           <button class="field-tool field-tool-secondary" type="button" data-field-tool="smart-line">Línea asistida</button>
           <button class="field-tool" type="button" data-field-tool="ellipse">Arco / elipse</button>
           <button class="field-tool calibration-action" id="calibrate-pitch" type="button">Calibrar campo</button>
+          <button class="field-tool propagation-action" id="propagate-field" type="button" disabled>Propagar 5 s →</button>
+          <button class="field-tool refinement-action" id="refine-segment" type="button" disabled>Refinar tramo anterior</button>
+          <span class="field-current-reference" id="field-current-reference" hidden></span>
           <button class="field-tool" id="delete-field-item" type="button">Eliminar</button>
           <button class="field-tool" id="undo-field-edit" type="button">Deshacer</button>
+          <span class="field-propagation-status" id="field-propagation-status" hidden role="status"></span>
         </div>
         <div class="calibration-panel" id="calibration-panel" hidden>
           <div class="calibration-reference">
@@ -65,6 +69,7 @@
               <rect x="-52.5" y="-34" width="105" height="68" class="pitch-diagram-line" />
               <line x1="0" y1="-34" x2="0" y2="34" class="pitch-diagram-line" />
               <circle cx="0" cy="0" r="9.15" class="pitch-diagram-line" />
+              <path d="M -36 -7.3125 A 9.15 9.15 0 0 1 -36 7.3125 M 36 -7.3125 A 9.15 9.15 0 0 0 36 7.3125" class="pitch-diagram-line" />
               <path d="M -52.5 -20.16 H -36 V 20.16 H -52.5 M 52.5 -20.16 H 36 V 20.16 H 52.5" class="pitch-diagram-line" />
               <path d="M -52.5 -9.16 H -47 V 9.16 H -52.5 M 52.5 -9.16 H 47 V 9.16 H 52.5" class="pitch-diagram-line" />
               <g id="calibration-pitch-lines"></g>

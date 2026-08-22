@@ -8,6 +8,8 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from supervisor.field_propagation import propagate_field_homography
+from supervisor.field_segment_refinement import refine_field_segment
 from supervisor.field_solver import solve_field_calibration
 
 
@@ -176,4 +178,52 @@ def solve_calibration(payload: dict = Body()) -> dict:
         grouped["arc"],
         payload.get("image_width"),
         payload.get("image_height"),
+    )
+
+
+@app.post("/api/field-propagation")
+def propagate_calibration(payload: dict = Body()) -> dict:
+    filename = payload.get("filename")
+    video_path = available_videos().get(filename)
+    if video_path is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    try:
+        anchor_frame = int(payload["anchor_frame"])
+        max_frames = int(payload.get("max_frames", 150))
+        direction = int(payload.get("direction", 1))
+        homography = payload["homography"]
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud de propagación no válida") from error
+
+    return propagate_field_homography(
+        video_path,
+        anchor_frame,
+        homography,
+        max_frames=max_frames,
+        direction=direction,
+    )
+
+
+@app.post("/api/field-segment/refine")
+def refine_calibration_segment(payload: dict = Body()) -> dict:
+    filename = payload.get("filename")
+    video_path = available_videos().get(filename)
+    if video_path is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    try:
+        left_anchor_frame = int(payload["left_anchor_frame"])
+        right_anchor_frame = int(payload["right_anchor_frame"])
+        left_homography = payload["left_homography"]
+        right_homography = payload["right_homography"]
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud de refinamiento no válida") from error
+
+    return refine_field_segment(
+        video_path,
+        left_anchor_frame,
+        left_homography,
+        right_anchor_frame,
+        right_homography,
     )

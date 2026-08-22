@@ -25,6 +25,9 @@ const fieldToolButtons = document.querySelectorAll("[data-field-tool]");
 const deleteFieldItemButton = document.querySelector("#delete-field-item");
 const undoFieldEditButton = document.querySelector("#undo-field-edit");
 const calibratePitchButton = document.querySelector("#calibrate-pitch");
+const propagateFieldButton = document.querySelector("#propagate-field");
+const refineSegmentButton = document.querySelector("#refine-segment");
+const propagationStatus = document.querySelector("#field-propagation-status");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationLandmark = document.querySelector("#calibration-landmark");
 const calibrationPitchMarkers = document.querySelector("#calibration-pitch-markers");
@@ -32,6 +35,7 @@ const calibrationPitchLines = document.querySelector("#calibration-pitch-lines")
 const calibrationPitchArcs = document.querySelector("#calibration-pitch-arcs");
 const calibrationStatus = document.querySelector("#calibration-status");
 const calibrationHint = document.querySelector("#calibration-hint");
+const currentReferenceLabel = document.querySelector("#field-current-reference");
 const calibrationConstraintType = document.querySelector("#calibration-constraint-type");
 const removeCalibrationPointButton = document.querySelector("#remove-calibration-point");
 const clearCalibrationButton = document.querySelector("#clear-calibration");
@@ -46,6 +50,8 @@ let activeMode = "field";
 let activeFieldTool = "select";
 let fieldAnnotations = [];
 let fieldCalibrations = [];
+let fieldPropagations = [];
+let fieldRefinedSegments = [];
 let fieldUndoStack = [];
 let selectedFieldItem = null;
 let fieldDragState = null;
@@ -58,13 +64,18 @@ let calibrationMode = false;
 let calibrationDragState = null;
 let calibrationSolveSequence = 0;
 let calibrationType = "point";
-let calibrationSemantic = null;
+let calibrationSemantic = PITCH_MODEL.landmarks[0]?.id || null;
+const selectedSemanticByType = { point: calibrationSemantic, line: null, arc: null };
 let calibrationLineDraft = null;
 let calibrationArcDraft = null;
+let selectedCalibrationConstraint = null;
+let propagationInProgress = false;
+let propagationRequestSequence = 0;
+let refinementInProgress = false;
+let refinementRequestSequence = 0;
+let manualCalibrationRevision = 0;
 
 workArea.classList.add("field-editing");
-PITCH_MODEL.landmarks.forEach((landmark) => calibrationLandmark.add(new Option(landmark.label, landmark.id)));
-calibrationSemantic = calibrationLandmark.value;
 
 modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -143,17 +154,112 @@ function calibrationForCurrentFrame() {
   ));
 }
 
+function propagatedFrameForCurrentFrame() {
+  const frame = currentFrameNumber();
+  for (const propagation of fieldPropagations) {
+    if (propagation.video !== selectedVideo?.name) continue;
+    const propagatedFrame = propagation.frames?.find((item) => item.frame === frame);
+    if (propagatedFrame?.homography) return propagatedFrame;
+  }
+  return null;
+}
+
+function refinedFrameForCurrentFrame() {
+  const frame = currentFrameNumber();
+  const candidates = fieldRefinedSegments
+    .filter((segment) => (
+      segment.video === selectedVideo?.name
+      && segment.leftAnchorFrame <= frame
+      && segment.rightAnchorFrame >= frame
+    ))
+    .map((segment) => ({
+      segment,
+      frame: segment.frames?.find((item) => item.frame === frame),
+    }))
+    .filter((candidate) => Array.isArray(candidate.frame?.homography));
+  candidates.sort((first, second) => (
+    (first.segment.rightAnchorFrame - first.segment.leftAnchorFrame)
+    - (second.segment.rightAnchorFrame - second.segment.leftAnchorFrame)
+  ));
+  return candidates[0]?.frame || null;
+}
+
+function hasSolvedManualCalibration(calibration = calibrationForCurrentFrame()) {
+  return calibration?.source === "manual"
+    && Array.isArray(calibration.homography)
+    && calibration.homography.length === 3;
+}
+
 function cloneAnnotations() {
   return JSON.parse(JSON.stringify(fieldAnnotations));
 }
 
 function cloneFieldState() {
-  return JSON.parse(JSON.stringify({ annotations: fieldAnnotations, calibrations: fieldCalibrations }));
+  return JSON.parse(JSON.stringify({
+    annotations: fieldAnnotations,
+    calibrations: fieldCalibrations,
+    propagations: fieldPropagations,
+    refinedSegments: fieldRefinedSegments,
+  }));
 }
 
 function rememberFieldEdit() {
   fieldUndoStack.push(cloneFieldState());
   setReviewDirty(true);
+}
+
+function setPropagationStatus(message = "") {
+  propagationStatus.textContent = message;
+  propagationStatus.hidden = !message;
+}
+
+function updatePropagationControl() {
+  const enabled = !propagationInProgress && !refinementInProgress && hasSolvedManualCalibration();
+  propagateFieldButton.disabled = !enabled;
+  propagateFieldButton.textContent = propagationInProgress ? "Propagando campo…" : "Propagar 5 s →";
+}
+
+function isFieldEditInProgress() {
+  return Boolean(
+    fieldDragState || calibrationDragState || lineDraft || assistedDraft || calibrationLineDraft || calibrationArcDraft
+  );
+}
+
+function previousManualCalibration(calibration = calibrationForCurrentFrame()) {
+  if (!calibration || !selectedVideo) return null;
+  return fieldCalibrations
+    .filter((item) => (
+      item.video === selectedVideo.name
+      && item.frame < calibration.frame
+      && hasSolvedManualCalibration(item)
+    ))
+    .sort((first, second) => second.frame - first.frame)[0] || null;
+}
+
+function updateRefinementControl() {
+  const enabled = !propagationInProgress
+    && !refinementInProgress
+    && !isFieldEditInProgress()
+    && hasSolvedManualCalibration()
+    && Boolean(previousManualCalibration());
+  refineSegmentButton.disabled = !enabled;
+  refineSegmentButton.textContent = refinementInProgress ? "Refinando tramo FIELD…" : "Refinar tramo anterior";
+}
+
+function invalidatePropagationsFromAnchor(calibration) {
+  if (!calibration) return;
+  fieldPropagations = fieldPropagations.filter((propagation) => !(
+    propagation.video === calibration.video && propagation.anchorFrame === calibration.frame
+  ));
+}
+
+function invalidateRefinedSegmentsForCalibration(calibration) {
+  if (!calibration) return;
+  fieldRefinedSegments = fieldRefinedSegments.filter((segment) => !(
+    segment.video === calibration.video
+    && calibration.frame >= segment.leftAnchorFrame
+    && calibration.frame <= segment.rightAnchorFrame
+  ));
 }
 
 function clampToVideo({ x, y }) {
@@ -368,6 +474,8 @@ function undoFieldEdit() {
   if (!previousState) return;
   fieldAnnotations = previousState.annotations;
   fieldCalibrations = previousState.calibrations;
+  fieldPropagations = previousState.propagations || [];
+  fieldRefinedSegments = previousState.refinedSegments || [];
   selectedFieldItem = null;
   lineDraft = null;
   assistedDraft = null;
@@ -405,10 +513,100 @@ function syncLegacyPointCorrespondences(calibration) {
     .map((constraint) => ({ landmark: constraint.semantic, world: constraint.world, image: constraint.image }));
 }
 
+function semanticDefinitionsForType(type = calibrationType) {
+  if (type === "point") return PITCH_MODEL.landmarks;
+  if (type === "line") return PITCH_MODEL.calibrationLines;
+  if (type === "arc") return PITCH_MODEL.calibrationArcs;
+  return [];
+}
+
+function syncSemanticSelector() {
+  const definitions = semanticDefinitionsForType();
+  if (!definitions.some((item) => item.id === calibrationSemantic)) {
+    calibrationSemantic = selectedSemanticByType[calibrationType];
+  }
+  if (!definitions.some((item) => item.id === calibrationSemantic)) {
+    calibrationSemantic = definitions[0]?.id || null;
+  }
+  selectedSemanticByType[calibrationType] = calibrationSemantic;
+  calibrationLandmark.replaceChildren(...definitions.map((item) => new Option(item.label, item.id)));
+  calibrationLandmark.value = calibrationSemantic || "";
+}
+
+function setCalibrationSelection(type, semantic = selectedSemanticByType[type]) {
+  calibrationType = type;
+  calibrationConstraintType.value = type;
+  calibrationSemantic = semantic;
+  syncSemanticSelector();
+}
+
 function selectedSemanticDefinition() {
   if (calibrationType === "point") return PITCH_MODEL.landmarksById[calibrationSemantic];
   if (calibrationType === "line") return PITCH_MODEL.calibrationLinesById[calibrationSemantic];
-  return PITCH_MODEL.calibrationArcsById[calibrationSemantic];
+  if (calibrationType === "arc") return PITCH_MODEL.calibrationArcsById[calibrationSemantic];
+  return null;
+}
+
+const LINE_WARNING_ERROR_PX = 12;
+
+function lineConstraintError(constraint, homography, samples = 12) {
+  const { start: worldStart, end: worldEnd } = constraint.world;
+  const { start: imageStart, end: imageEnd } = constraint.image;
+  const imageLength = Math.hypot(imageEnd.x - imageStart.x, imageEnd.y - imageStart.y);
+  if (!Array.isArray(homography) || imageLength < 1e-6) return null;
+
+  const errors = [];
+  for (let index = 0; index <= samples; index += 1) {
+    const ratio = index / samples;
+    const projected = projectWorldPoint({
+      x: worldStart.x + (worldEnd.x - worldStart.x) * ratio,
+      y: worldStart.y + (worldEnd.y - worldStart.y) * ratio,
+    }, homography);
+    if (!projected) return null;
+    const signedDistance = (
+      (imageEnd.x - imageStart.x) * (imageStart.y - projected.y)
+      - (imageStart.x - projected.x) * (imageEnd.y - imageStart.y)
+    ) / imageLength;
+    errors.push(Math.abs(signedDistance));
+  }
+  return errors.length ? errors.reduce((sum, value) => sum + value, 0) / errors.length : null;
+}
+
+function calibrationLineDiagnostics(calibration) {
+  if (!hasSolvedManualCalibration(calibration)) return [];
+  return calibrationConstraints(calibration)
+    .filter((constraint) => constraint.type === "line")
+    .map((constraint) => ({
+      semantic: constraint.semantic,
+      label: PITCH_MODEL.calibrationLinesById[constraint.semantic]?.label || constraint.semantic,
+      errorPx: lineConstraintError(constraint, calibration.homography),
+    }))
+    .filter((diagnostic) => Number.isFinite(diagnostic.errorPx));
+}
+
+function constraintCountsLabel(constraints) {
+  const counts = { point: 0, line: 0, arc: 0 };
+  constraints.forEach((constraint) => { if (counts[constraint.type] !== undefined) counts[constraint.type] += 1; });
+  const labels = [
+    counts.point && `${counts.point} ${counts.point === 1 ? "punto" : "puntos"}`,
+    counts.line && `${counts.line} ${counts.line === 1 ? "línea" : "líneas"}`,
+    counts.arc && `${counts.arc} ${counts.arc === 1 ? "arco" : "arcos"}`,
+  ].filter(Boolean);
+  return labels.join(" · ") || "0 referencias";
+}
+
+function updateCurrentReferenceLabel() {
+  const semantic = selectedSemanticDefinition();
+  const calibration = calibrationForCurrentFrame();
+  const selectedOnCurrentFrame = selectedCalibrationConstraint?.calibrationId === calibration?.id;
+  const shouldShow = Boolean(semantic && (calibrationMode || selectedOnCurrentFrame || calibrationLineDraft || calibrationArcDraft));
+  const warning = calibrationLineDiagnostics(calibration).find((diagnostic) => diagnostic.errorPx > LINE_WARNING_ERROR_PX);
+  currentReferenceLabel.hidden = !shouldShow && !warning;
+  currentReferenceLabel.textContent = shouldShow
+    ? `Referencia actual: ${semantic.label}`
+    : warning
+      ? `${warning.label}: error ${Math.round(warning.errorPx)} px`
+      : "";
 }
 
 function renderCalibrationPitch() {
@@ -442,11 +640,7 @@ function renderCalibrationPitch() {
       marker.append(number);
     }
     marker.addEventListener("click", () => {
-      calibrationType = "point";
-      calibrationConstraintType.value = "point";
-      calibrationSemantic = landmark.id;
-      calibrationLandmark.value = landmark.id;
-      renderCalibrationPitch();
+      setCalibrationSelection("point", landmark.id);
       updateCalibrationStatus();
       drawOverlay();
     });
@@ -466,9 +660,7 @@ function renderCalibrationPitch() {
     if (line.id === calibrationSemantic) selector.classList.add("is-selected");
     if (assignedIndex >= 0) selector.classList.add("is-assigned");
     selector.addEventListener("click", () => {
-      calibrationType = "line";
-      calibrationConstraintType.value = "line";
-      calibrationSemantic = line.id;
+      setCalibrationSelection("line", line.id);
       updateCalibrationStatus();
       drawOverlay();
     });
@@ -485,22 +677,39 @@ function renderCalibrationPitch() {
 
   PITCH_MODEL.calibrationArcs.forEach((arc) => {
     const assignedIndex = constraints.findIndex((item) => item.type === "arc" && item.semantic === arc.id);
-    const selector = document.createElementNS(svgNamespace, "circle");
-    selector.setAttribute("cx", arc.world.center.x);
-    selector.setAttribute("cy", arc.world.center.y);
-    selector.setAttribute("r", arc.world.radius);
+    const hasArcSpan = Number.isFinite(arc.world.startAngle) && Number.isFinite(arc.world.endAngle);
+    const selector = document.createElementNS(svgNamespace, hasArcSpan ? "path" : "circle");
+    if (hasArcSpan) {
+      const { center, radius, startAngle, endAngle } = arc.world;
+      const start = {
+        x: center.x + radius * Math.cos(startAngle),
+        y: center.y + radius * Math.sin(startAngle),
+      };
+      const end = {
+        x: center.x + radius * Math.cos(endAngle),
+        y: center.y + radius * Math.sin(endAngle),
+      };
+      const largeArc = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+      const sweep = endAngle >= startAngle ? 1 : 0;
+      selector.setAttribute("d", `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${end.x} ${end.y}`);
+    } else {
+      selector.setAttribute("cx", arc.world.center.x);
+      selector.setAttribute("cy", arc.world.center.y);
+      selector.setAttribute("r", arc.world.radius);
+    }
     selector.classList.add("pitch-arc-selector");
     selector.style.pointerEvents = calibrationType === "arc" ? "stroke" : "none";
     if (calibrationType === "arc") selector.classList.add("is-visible");
     if (arc.id === calibrationSemantic) selector.classList.add("is-selected");
     if (assignedIndex >= 0) selector.classList.add("is-assigned");
     selector.addEventListener("click", () => {
-      calibrationType = "arc";
-      calibrationConstraintType.value = "arc";
-      calibrationSemantic = arc.id;
+      setCalibrationSelection("arc", arc.id);
       updateCalibrationStatus();
       drawOverlay();
     });
+    const title = document.createElementNS(svgNamespace, "title");
+    title.textContent = arc.label;
+    selector.append(title);
     calibrationPitchArcs.append(selector);
     if (assignedIndex >= 0) {
       const number = document.createElementNS(svgNamespace, "text");
@@ -514,25 +723,27 @@ function renderCalibrationPitch() {
 }
 
 function updateCalibrationStatus(message = null) {
+  syncSemanticSelector();
   const calibration = calibrationForCurrentFrame();
   renderCalibrationPitch();
+  updateCurrentReferenceLabel();
   calibrationHint.textContent = calibrationType === "point"
     ? "Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo."
     : calibrationType === "line"
       ? "Elige una línea del diagrama y arrastra un tramo visible de esa línea en el vídeo."
       : "Elige el arco del diagrama y traza su parte visible en el vídeo.";
   if (message) {
-    calibrationStatus.textContent = message;
+    calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))} · ${message}`;
     return;
   }
   const constraints = calibrationConstraints(calibration);
-  const pointCount = constraints.filter((item) => item.type === "point").length;
+  const lineWarning = calibrationLineDiagnostics(calibration).find((diagnostic) => diagnostic.errorPx > LINE_WARNING_ERROR_PX);
   const hasMixedConstraints = constraints.some((item) => item.type !== "point");
   calibrationStatus.textContent = calibration?.homography
-    ? `${pointCount} puntos / campo proyectado`
+    ? `${constraintCountsLabel(constraints)} · campo proyectado${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
     : hasMixedConstraints
-      ? `${constraints.length} referencias / solver mixto pendiente`
-      : `${pointCount} puntos / mínimo 4`;
+      ? `${constraintCountsLabel(constraints)} · solver mixto pendiente`
+      : `${constraintCountsLabel(constraints)} / mínimo 4`;
 }
 
 function enterCalibrationMode() {
@@ -602,7 +813,33 @@ function calibrationHitTest(coordinates) {
   return constraint ? { calibration, constraint: constraint.item, handle: constraint.handle } : null;
 }
 
+function isCalibrationHandle(hit) {
+  return hit && hit.handle !== "line" && hit.handle !== "arc";
+}
+
+function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
+  setCalibrationSelection(hit.constraint.type, hit.constraint.semantic);
+  selectedCalibrationConstraint = {
+    calibrationId: hit.calibration.id,
+    type: hit.constraint.type,
+    semantic: hit.constraint.semantic,
+  };
+  calibrationDragState = {
+    ...hit,
+    origin: coordinates,
+    image: JSON.parse(JSON.stringify(hit.constraint.image)),
+    before: cloneFieldState(),
+    didMove: false,
+  };
+  workArea.setPointerCapture(pointerId);
+  updateCurrentReferenceLabel();
+  if (calibrationMode) updateCalibrationStatus();
+}
+
 async function solveCalibration(calibration) {
+  manualCalibrationRevision += 1;
+  invalidatePropagationsFromAnchor(calibration);
+  invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
   const pointCount = constraints.filter((item) => item.type === "point").length;
   if (pointCount < 4 && !constraints.some((item) => item.type !== "point")) {
@@ -666,6 +903,9 @@ function clearCurrentCalibration() {
   const calibration = calibrationForCurrentFrame();
   if (!calibration) return;
   rememberFieldEdit();
+  invalidatePropagationsFromAnchor(calibration);
+  invalidateRefinedSegmentsForCalibration(calibration);
+  manualCalibrationRevision += 1;
   fieldCalibrations = fieldCalibrations.filter((item) => item.id !== calibration.id);
   calibrationSolveSequence += 1;
   updateCalibrationStatus();
@@ -760,60 +1000,132 @@ function drawProjectedPath(points, homography, displayScale) {
   if (started) overlayContext.stroke();
 }
 
+function drawProjectedPitch(homography, displayScale) {
+  overlayContext.strokeStyle = "#5aa9ff";
+  overlayContext.lineWidth = 2 / displayScale;
+  PITCH_MODEL.segments.forEach((segment) => drawProjectedPath(segment, homography, displayScale));
+  PITCH_MODEL.calibrationArcs.forEach((arc) => {
+    const { center, radius, startAngle, endAngle } = arc.world;
+    const points = Number.isFinite(startAngle) && Number.isFinite(endAngle)
+      ? PITCH_MODEL.sampleArc(center, radius, startAngle, endAngle)
+      : PITCH_MODEL.sampleCircle(center, radius);
+    drawProjectedPath(points, homography, displayScale);
+  });
+  [
+    { x: 0, y: 0 },
+    { x: -41.5, y: 0 },
+    { x: 41.5, y: 0 },
+  ].forEach((worldPoint) => {
+    const point = projectWorldPoint(worldPoint, homography);
+    if (!point) return;
+    overlayContext.beginPath();
+    overlayContext.arc(point.x, point.y, 3.5 / displayScale, 0, Math.PI * 2);
+    overlayContext.fillStyle = "#5aa9ff";
+    overlayContext.fill();
+  });
+}
+
+function drawCalibrationHandle({ x, y }, displayScale) {
+  overlayContext.beginPath();
+  overlayContext.arc(x, y, 7 / displayScale, 0, Math.PI * 2);
+  overlayContext.fillStyle = "#d4a414";
+  overlayContext.fill();
+  overlayContext.strokeStyle = "#fff0a8";
+  overlayContext.lineWidth = 2 / displayScale;
+  overlayContext.stroke();
+}
+
+function drawCalibrationArc(geometry, selected, displayScale) {
+  const { center, radiusX, radiusY, rotation, arc } = geometry;
+  const arcSpan = arc ? Math.abs(arc.endAngle - arc.startAngle) : Math.PI * 2;
+  const isPartialArc = arcSpan < Math.PI * 1.85;
+  overlayContext.strokeStyle = selected ? "#d4a414" : "rgba(212, 164, 20, .72)";
+  overlayContext.lineWidth = (selected ? 3 : 2) / displayScale;
+  overlayContext.beginPath();
+  overlayContext.ellipse(
+    center.x,
+    center.y,
+    radiusX,
+    radiusY,
+    rotation,
+    isPartialArc ? arc.startAngle : 0,
+    isPartialArc ? arc.endAngle : Math.PI * 2,
+    arc?.counterclockwise || false,
+  );
+  overlayContext.stroke();
+
+  if (!selected) return;
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  drawCalibrationHandle(center, displayScale);
+  drawCalibrationHandle({ x: center.x + radiusX * cos, y: center.y + radiusX * sin }, displayScale);
+  drawCalibrationHandle({ x: center.x - radiusY * sin, y: center.y + radiusY * cos }, displayScale);
+}
+
 function drawCalibrationOverlay() {
   const calibration = calibrationForCurrentFrame();
-  if (!calibration || !displayedVideoRect || !video.videoWidth) return;
+  const refinedFrame = refinedFrameForCurrentFrame();
+  const propagatedFrame = propagatedFrameForCurrentFrame();
+  if (!displayedVideoRect || !video.videoWidth) return;
   const displayScale = displayedVideoRect.width / video.videoWidth;
   overlayContext.save();
 
-  if (Array.isArray(calibration.homography)) {
-    overlayContext.strokeStyle = "#5aa9ff";
-    overlayContext.lineWidth = 2 / displayScale;
-    PITCH_MODEL.segments.forEach((segment) => drawProjectedPath(segment, calibration.homography, displayScale));
-    drawProjectedPath(PITCH_MODEL.sampleCircle({ x: 0, y: 0 }, PITCH_MODEL.centerCircleRadius), calibration.homography, displayScale);
-    [
-      { x: 0, y: 0 },
-      { x: -41.5, y: 0 },
-      { x: 41.5, y: 0 },
-    ].forEach((worldPoint) => {
-      const point = projectWorldPoint(worldPoint, calibration.homography);
-      if (!point) return;
-      overlayContext.beginPath();
-      overlayContext.arc(point.x, point.y, 3.5 / displayScale, 0, Math.PI * 2);
-      overlayContext.fillStyle = "#5aa9ff";
-      overlayContext.fill();
-    });
+  const homography = hasSolvedManualCalibration(calibration)
+    ? calibration.homography
+    : refinedFrame?.homography || propagatedFrame?.homography;
+  if (Array.isArray(homography)) drawProjectedPitch(homography, displayScale);
+
+  if (!calibration) {
+    overlayContext.restore();
+    return;
   }
 
+  const lineWarnings = new Map(
+    calibrationLineDiagnostics(calibration)
+      .filter((diagnostic) => diagnostic.errorPx > LINE_WARNING_ERROR_PX)
+      .map((diagnostic) => [diagnostic.semantic, diagnostic])
+  );
   calibrationConstraints(calibration).forEach((constraint, index) => {
-    const selected = calibrationMode && constraint.semantic === calibrationSemantic && constraint.type === calibrationType;
+    const selected = (
+      (calibrationMode && constraint.semantic === calibrationSemantic && constraint.type === calibrationType)
+      || (
+        selectedCalibrationConstraint?.calibrationId === calibration.id
+        && selectedCalibrationConstraint?.semantic === constraint.semantic
+        && selectedCalibrationConstraint?.type === constraint.type
+      )
+    );
+    const hasWarning = constraint.type === "line" && lineWarnings.has(constraint.semantic);
+    if (!calibrationMode && !selected && !debugOverlayEnabled && !hasWarning) return;
     const radius = (selected ? 9 : 7) / displayScale;
+    const constraintColor = selected || hasWarning ? "#d4a414" : "rgba(212, 164, 20, .52)";
     if (constraint.type === "line") {
-      overlayContext.strokeStyle = selected ? "#f0f2f4" : "#d4a414";
-      overlayContext.lineWidth = (selected ? 3 : 2.5) / displayScale;
+      overlayContext.strokeStyle = constraintColor;
+      overlayContext.lineWidth = (selected || hasWarning ? 3 : 1.75) / displayScale;
       overlayContext.beginPath();
       overlayContext.moveTo(constraint.image.start.x, constraint.image.start.y);
       overlayContext.lineTo(constraint.image.end.x, constraint.image.end.y);
       overlayContext.stroke();
-      drawFieldHandle(constraint.image.start, selected, displayScale);
-      drawFieldHandle(constraint.image.end, selected, displayScale);
+      if (selected) {
+        drawCalibrationHandle(constraint.image.start, displayScale);
+        drawCalibrationHandle(constraint.image.end, displayScale);
+      }
       const midpoint = { x: (constraint.image.start.x + constraint.image.end.x) / 2, y: (constraint.image.start.y + constraint.image.end.y) / 2 };
-      overlayContext.fillStyle = "#d4a414";
+      overlayContext.fillStyle = constraintColor;
       overlayContext.fillText(String(index + 1), midpoint.x, midpoint.y);
       return;
     }
     if (constraint.type === "arc") {
-      drawEllipse({ coordinates: constraint.image.geometry }, selected, displayScale);
+      drawCalibrationArc(constraint.image.geometry, selected, displayScale);
       return;
     }
     overlayContext.beginPath();
     overlayContext.arc(constraint.image.x, constraint.image.y, radius, 0, Math.PI * 2);
-    overlayContext.fillStyle = selected ? "#f0f2f4" : "#5aa9ff";
+    overlayContext.fillStyle = constraintColor;
     overlayContext.fill();
-    overlayContext.strokeStyle = "#102d4d";
+    overlayContext.strokeStyle = selected ? "#fff0a8" : "#755c0c";
     overlayContext.lineWidth = 2 / displayScale;
     overlayContext.stroke();
-    overlayContext.fillStyle = "#102d4d";
+    overlayContext.fillStyle = "#17191c";
     overlayContext.font = `700 ${11 / displayScale}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     overlayContext.textAlign = "center";
     overlayContext.textBaseline = "middle";
@@ -944,6 +1256,9 @@ function drawOverlay() {
   drawFieldAnnotations();
   drawCalibrationOverlay();
   drawDebugOverlay();
+  updatePropagationControl();
+  updateRefinementControl();
+  updateCurrentReferenceLabel();
 }
 
 function syncOverlay() {
@@ -1017,11 +1332,18 @@ function resetPlaybackState() {
 
 async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
+  propagationRequestSequence += 1;
+  refinementRequestSequence += 1;
+  propagationInProgress = false;
+  refinementInProgress = false;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
+  fieldPropagations = [];
+  fieldRefinedSegments = [];
   fieldUndoStack = [];
   selectedFieldItem = null;
+  selectedCalibrationConstraint = null;
   lineDraft = null;
   assistedDraft = null;
   calibrationMode = false;
@@ -1029,6 +1351,9 @@ async function loadVideo(videoInfo) {
   calibrationDragState = null;
   calibrationLineDraft = null;
   calibrationArcDraft = null;
+  setPropagationStatus();
+  updatePropagationControl();
+  updateRefinementControl();
   setReviewDirty(false);
   resetPlaybackState();
   setControlsEnabled(false);
@@ -1046,6 +1371,8 @@ async function loadVideo(videoInfo) {
     if (loadSequence !== videoLoadSequence) return;
     fieldAnnotations = Array.isArray(review?.field?.annotations) ? review.field.annotations : [];
     fieldCalibrations = Array.isArray(review?.field?.calibrations) ? review.field.calibrations : [];
+    fieldPropagations = Array.isArray(review?.field?.propagations) ? review.field.propagations : [];
+    fieldRefinedSegments = Array.isArray(review?.field?.refinedSegments) ? review.field.refinedSegments : [];
     fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
@@ -1068,6 +1395,8 @@ async function saveCurrentReview() {
       calibrations: fieldCalibrations.filter((calibration) => (
         calibration.video === selectedVideo.name && calibrationConstraints(calibration).length > 0
       )),
+      propagations: fieldPropagations.filter((propagation) => propagation.video === selectedVideo.name),
+      refinedSegments: fieldRefinedSegments.filter((segment) => segment.video === selectedVideo.name),
     },
     people: {},
   };
@@ -1085,6 +1414,188 @@ async function saveCurrentReview() {
     saveStatusLabel.textContent = "ERROR AL GUARDAR";
   } finally {
     saveButton.disabled = false;
+  }
+}
+
+async function propagateCurrentCalibration() {
+  const calibration = calibrationForCurrentFrame();
+  if (!selectedVideo || !hasSolvedManualCalibration(calibration)) return;
+
+  video.pause();
+  const requestSequence = ++propagationRequestSequence;
+  const solverSequence = calibrationSolveSequence;
+  const anchorFrame = currentFrameNumber();
+  const filename = selectedVideo.name;
+  const homography = JSON.parse(JSON.stringify(calibration.homography));
+  propagationInProgress = true;
+  setPropagationStatus("Propagando campo…");
+  updatePropagationControl();
+
+  try {
+    const response = await fetch("/api/field-propagation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        anchor_frame: anchorFrame,
+        homography,
+        max_frames: 150,
+        direction: 1,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudo propagar el campo");
+    if (
+      requestSequence !== propagationRequestSequence
+      || solverSequence !== calibrationSolveSequence
+      || selectedVideo?.name !== filename
+    ) return;
+    if (result.status === "invalid") throw new Error(result.detail || "No se pudo propagar el campo");
+
+    const frames = Array.isArray(result.frames)
+      ? result.frames.filter((item) => item.frame !== anchorFrame && Array.isArray(item.homography))
+      : [];
+    rememberFieldEdit();
+    fieldPropagations = fieldPropagations.filter((propagation) => !(
+      propagation.video === filename
+      && propagation.anchorFrame === anchorFrame
+      && propagation.direction === "forward"
+    ));
+    if (frames.length) {
+      fieldPropagations.push({
+        id: `propagation-${Date.now()}`,
+        video: filename,
+        anchorFrame,
+        direction: "forward",
+        source: "propagated_optical_flow",
+        status: result.status,
+        detail: result.detail,
+        stoppedFrame: result.stopped_frame,
+        requestedFrames: result.requested_frames,
+        propagatedFrames: result.propagated_frames,
+        fps: result.fps,
+        config: result.config,
+        frames,
+      });
+    }
+
+    if (result.status === "partial" && frames.length) {
+      const lastFrame = frames[frames.length - 1].frame;
+      setPropagationStatus(`Propagado hasta el fotograma ${lastFrame}. Se necesita revisión: ${result.detail || "confianza insuficiente."}`);
+    } else if (frames.length) {
+      setPropagationStatus(`Campo propagado durante ${frames.length} fotogramas.`);
+    } else {
+      setPropagationStatus(`No se pudo propagar el campo. Se necesita revisión: ${result.detail || "sin fotogramas fiables."}`);
+    }
+    drawOverlay();
+  } catch (error) {
+    if (requestSequence === propagationRequestSequence) {
+      setPropagationStatus(error.message || "No se pudo propagar el campo.");
+    }
+  } finally {
+    if (requestSequence === propagationRequestSequence) {
+      propagationInProgress = false;
+      updatePropagationControl();
+    }
+  }
+}
+
+function formatFrameRanges(ranges) {
+  return (ranges || [])
+    .map(({ start, end }) => (start === end ? String(start) : `${start}–${end}`))
+    .join(", ");
+}
+
+async function refinePreviousSegment() {
+  const rightAnchor = calibrationForCurrentFrame();
+  const leftAnchor = previousManualCalibration(rightAnchor);
+  if (
+    !selectedVideo
+    || isFieldEditInProgress()
+    || !hasSolvedManualCalibration(rightAnchor)
+    || !leftAnchor
+  ) return;
+
+  video.pause();
+  const requestSequence = ++refinementRequestSequence;
+  const solverSequence = calibrationSolveSequence;
+  const calibrationRevision = manualCalibrationRevision;
+  const filename = selectedVideo.name;
+  const leftAnchorFrame = leftAnchor.frame;
+  const rightAnchorFrame = rightAnchor.frame;
+  refinementInProgress = true;
+  setPropagationStatus("Refinando tramo FIELD…");
+  updatePropagationControl();
+  updateRefinementControl();
+
+  try {
+    const response = await fetch("/api/field-segment/refine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        left_anchor_frame: leftAnchorFrame,
+        left_homography: leftAnchor.homography,
+        right_anchor_frame: rightAnchorFrame,
+        right_homography: rightAnchor.homography,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudo refinar el tramo FIELD");
+    if (
+      requestSequence !== refinementRequestSequence
+      || solverSequence !== calibrationSolveSequence
+      || calibrationRevision !== manualCalibrationRevision
+      || selectedVideo?.name !== filename
+    ) return;
+    if (result.status === "invalid") throw new Error(result.detail || "No se pudo refinar el tramo FIELD");
+
+    rememberFieldEdit();
+    fieldRefinedSegments = fieldRefinedSegments.filter((segment) => !(
+      segment.video === filename
+      && segment.leftAnchorFrame === leftAnchorFrame
+      && segment.rightAnchorFrame === rightAnchorFrame
+    ));
+    fieldRefinedSegments.push({
+      id: `refined-segment-${Date.now()}`,
+      video: filename,
+      leftAnchorFrame,
+      rightAnchorFrame,
+      source: "refined_bidirectional",
+      status: result.status,
+      detail: result.detail,
+      intervalFrames: result.interval_frames,
+      producedFrames: result.produced_frames,
+      reviewRanges: result.review_ranges || [],
+      missingRanges: result.missing_ranges || [],
+      forward: result.forward,
+      backward: result.backward,
+      config: result.config,
+      frames: result.frames || [],
+    });
+
+    const missingRanges = formatFrameRanges(result.missing_ranges);
+    const reviewRanges = formatFrameRanges(result.review_ranges);
+    if (missingRanges) {
+      setPropagationStatus(`Refinado parcial. Sin cobertura en ${missingRanges}.`);
+    } else if (reviewRanges) {
+      setPropagationStatus(`Tramo refinado. Revisar fotogramas ${reviewRanges}.`);
+    } else if (result.status === "partial") {
+      setPropagationStatus(`Refinado parcial: ${result.detail || "se necesita revisión."}`);
+    } else {
+      setPropagationStatus(`Tramo refinado: fotogramas ${leftAnchorFrame}–${rightAnchorFrame}.`);
+    }
+    drawOverlay();
+  } catch (error) {
+    if (requestSequence === refinementRequestSequence) {
+      setPropagationStatus(error.message || "No se pudo refinar el tramo FIELD.");
+    }
+  } finally {
+    if (requestSequence === refinementRequestSequence) {
+      refinementInProgress = false;
+      updatePropagationControl();
+      updateRefinementControl();
+    }
   }
 }
 
@@ -1165,7 +1676,7 @@ debugToggle.addEventListener("click", () => {
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
   pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
-  if (calibrationMode && calibrationDragState && pointerVideoCoordinates) {
+  if (calibrationDragState && pointerVideoCoordinates) {
     const coordinates = clampToVideo(pointerVideoCoordinates);
     const { constraint, handle, origin, image } = calibrationDragState;
     if (constraint.type === "point") constraint.image = coordinates;
@@ -1279,32 +1790,37 @@ workArea.addEventListener("pointerdown", (event) => {
   if (calibrationMode) {
     const hit = calibrationHitTest(coordinates);
     if (hit) {
-      calibrationType = hit.constraint.type;
-      calibrationConstraintType.value = calibrationType;
-      calibrationSemantic = hit.constraint.semantic;
-      if (calibrationType === "point") calibrationLandmark.value = calibrationSemantic;
-      calibrationDragState = {
-        ...hit,
-        origin: coordinates,
-        image: JSON.parse(JSON.stringify(hit.constraint.image)),
-        before: cloneFieldState(),
-        didMove: false,
-      };
-      workArea.setPointerCapture(event.pointerId);
-      updateCalibrationStatus();
+      beginCalibrationConstraintDrag(hit, coordinates, event.pointerId);
       drawOverlay();
     } else {
       if (calibrationType === "point") addCalibrationCorrespondence(coordinates);
-      if (calibrationType === "line" && selectedSemanticDefinition()) {
-        calibrationLineDraft = { semantic: calibrationSemantic, start: coordinates, end: coordinates, pointerId: event.pointerId };
+      const selectedSemantic = selectedSemanticDefinition();
+      if (calibrationType === "line" && selectedSemantic) {
+        calibrationLineDraft = {
+          semantic: selectedSemantic.id,
+          start: coordinates,
+          end: coordinates,
+          pointerId: event.pointerId,
+        };
         workArea.setPointerCapture(event.pointerId);
       }
-      if (calibrationType === "arc" && selectedSemanticDefinition()) {
-        calibrationArcDraft = { semantic: calibrationSemantic, samples: [coordinates], pointerId: event.pointerId };
+      if (calibrationType === "arc" && selectedSemantic) {
+        calibrationArcDraft = { semantic: selectedSemantic.id, samples: [coordinates], pointerId: event.pointerId };
         workArea.setPointerCapture(event.pointerId);
       }
     }
     return;
+  }
+
+  if (activeFieldTool === "select") {
+    const calibrationHit = calibrationHitTest(coordinates);
+    const fieldHit = hitTestFieldAnnotation(coordinates);
+    if (calibrationHit && (isCalibrationHandle(calibrationHit) || !fieldHit)) {
+      selectedFieldItem = null;
+      beginCalibrationConstraintDrag(calibrationHit, coordinates, event.pointerId);
+      drawOverlay();
+      return;
+    }
   }
 
   if (activeFieldTool === "point") {
@@ -1331,6 +1847,7 @@ workArea.addEventListener("pointerdown", (event) => {
   }
 
   const hit = hitTestFieldAnnotation(coordinates);
+  selectedCalibrationConstraint = null;
   selectedFieldItem = hit;
   if (hit) {
     fieldDragState = {
@@ -1443,21 +1960,18 @@ fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
 });
 calibratePitchButton.addEventListener("click", enterCalibrationMode);
+propagateFieldButton.addEventListener("click", propagateCurrentCalibration);
+refineSegmentButton.addEventListener("click", refinePreviousSegment);
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
 clearCalibrationButton.addEventListener("click", clearCurrentCalibration);
 calibrationConstraintType.addEventListener("change", () => {
-  calibrationType = calibrationConstraintType.value;
-  if (calibrationType === "point") calibrationSemantic = calibrationLandmark.value;
-  if (calibrationType === "line") calibrationSemantic = PITCH_MODEL.calibrationLines[0].id;
-  if (calibrationType === "arc") calibrationSemantic = PITCH_MODEL.calibrationArcs[0].id;
+  setCalibrationSelection(calibrationConstraintType.value);
   updateCalibrationStatus();
   drawOverlay();
 });
 calibrationLandmark.addEventListener("change", () => {
-  calibrationType = "point";
-  calibrationConstraintType.value = "point";
-  calibrationSemantic = calibrationLandmark.value;
+  setCalibrationSelection(calibrationType, calibrationLandmark.value);
   updateCalibrationStatus();
   drawOverlay();
 });

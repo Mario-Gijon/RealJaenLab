@@ -10,36 +10,1618 @@
     "height": 1080
   },
   "field": {
-    "annotations": [
+    "annotations": [],
+    "calibrations": [
       {
-        "id": "field-1787306802490-1",
+        "id": "calibration-1787325525934",
         "video": "benchmark_easy_2min.mp4",
-        "frame": 0,
-        "type": "point",
-        "coordinates": {
-          "x": 499.4155844155844,
-          "y": 404
-        },
-        "source": "manual"
-      },
-      {
-        "id": "field-1787306821842-2",
-        "video": "benchmark_easy_2min.mp4",
-        "frame": 0,
-        "type": "line",
-        "coordinates": {
-          "start": {
-            "x": 1918.2597402597403,
-            "y": 776.3701298701299
+        "frame": 91,
+        "source": "manual",
+        "correspondences": [
+          {
+            "landmark": "centre_mark",
+            "world": {
+              "x": 0,
+              "y": 0
+            },
+            "image": {
+              "x": 266.0864604462475,
+              "y": 546.632860040568
+            }
           },
-          "end": {
-            "x": 426.5974025974026,
-            "y": 1079.948051948052
+          {
+            "landmark": "halfway_top",
+            "world": {
+              "x": 0,
+              "y": -34
+            },
+            "image": {
+              "x": 273.64350912778906,
+              "y": 412.1919371196754
+            }
+          },
+          {
+            "landmark": "halfway_bottom",
+            "world": {
+              "x": 0,
+              "y": 34
+            },
+            "image": {
+              "x": 243.7918356997972,
+              "y": 1069.2672413793102
+            }
+          },
+          {
+            "landmark": "centre_circle_halfway_bottom",
+            "world": {
+              "x": 0,
+              "y": 9.15
+            },
+            "image": {
+              "x": 265.0824036511156,
+              "y": 613.9579107505072
+            }
+          },
+          {
+            "landmark": "centre_circle_halfway_top",
+            "world": {
+              "x": 0,
+              "y": -9.15
+            },
+            "image": {
+              "x": 271.3539553752536,
+              "y": 492.7827079107505
+            }
+          },
+          {
+            "landmark": "right_penalty_top",
+            "world": {
+              "x": 36,
+              "y": -20.16
+            },
+            "image": {
+              "x": 1424.5055780933062,
+              "y": 421.2588742393509
+            }
+          },
+          {
+            "landmark": "top_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": -34
+            },
+            "image": {
+              "x": 1661.2614097363085,
+              "y": 379.05045638945234
+            }
           }
-        },
-        "source": "manual"
+        ],
+        "constraints": [
+          {
+            "type": "point",
+            "semantic": "centre_mark",
+            "world": {
+              "x": 0,
+              "y": 0
+            },
+            "image": {
+              "x": 266.0864604462475,
+              "y": 546.632860040568
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "halfway_top",
+            "world": {
+              "x": 0,
+              "y": -34
+            },
+            "image": {
+              "x": 273.64350912778906,
+              "y": 412.1919371196754
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "halfway_bottom",
+            "world": {
+              "x": 0,
+              "y": 34
+            },
+            "image": {
+              "x": 243.7918356997972,
+              "y": 1069.2672413793102
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "centre_circle_halfway_bottom",
+            "world": {
+              "x": 0,
+              "y": 9.15
+            },
+            "image": {
+              "x": 265.0824036511156,
+              "y": 613.9579107505072
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "centre_circle_halfway_top",
+            "world": {
+              "x": 0,
+              "y": -9.15
+            },
+            "image": {
+              "x": 271.3539553752536,
+              "y": 492.7827079107505
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_top",
+            "world": {
+              "x": 36,
+              "y": -20.16
+            },
+            "image": {
+              "x": 1424.5055780933062,
+              "y": 421.2588742393509
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "top_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": -34
+            },
+            "image": {
+              "x": 1661.2614097363085,
+              "y": 379.05045638945234
+            },
+            "source": "manual"
+          }
+        ],
+        "homography": [
+          [
+            50.2870318516284,
+            -4.952169270854037,
+            267.7308624743717
+          ],
+          [
+            0.9173956650517089,
+            -3.21826389959594,
+            545.235945693129
+          ],
+          [
+            0.004936600753542147,
+            -0.01742462661807712,
+            1
+          ]
+        ],
+        "reprojectionError": 1.1787651046901055
       }
-    ]
+    ],
+    "propagations": [
+      {
+        "id": "propagation-1787325565127",
+        "video": "benchmark_easy_2min.mp4",
+        "anchorFrame": 91,
+        "direction": "forward",
+        "source": "propagated_optical_flow",
+        "status": "partial",
+        "detail": "El movimiento acumulado de c\u00e1mara es poco plausible.",
+        "stoppedFrame": 128,
+        "requestedFrames": 150,
+        "propagatedFrames": 36,
+        "fps": 29.97002997002997,
+        "config": {
+          "working_scale": 0.5,
+          "max_corners": 1400,
+          "quality_level": 0.006,
+          "min_distance_px": 7,
+          "block_size": 7,
+          "grid_columns": 10,
+          "grid_rows": 6,
+          "max_features_per_cell": 28,
+          "preferred_background_ratio": 0.62,
+          "lk_window_px": 27,
+          "lk_max_level": 4,
+          "fb_max_error_px": 2.5,
+          "max_step_motion_px": 90,
+          "ransac_reproj_threshold_px": 3.5,
+          "min_tracks": 35,
+          "min_inliers": 24,
+          "min_inlier_ratio": 0.45,
+          "max_median_reprojection_error_px": 4,
+          "allow_projective_model": true,
+          "homography_improvement_ratio": 0.72,
+          "max_projective_term_scaled": 0.0015,
+          "max_anchor_median_motion_px": 850,
+          "max_visible_reference_displacement_px": 900,
+          "max_homography_condition": 500000000,
+          "min_confidence": 0.32
+        },
+        "frames": [
+          {
+            "frame": 92,
+            "homography": [
+              [
+                50.132285574305214,
+                -5.352907173936026,
+                289.9844123196857
+              ],
+              [
+                0.892368407258804,
+                -3.2206769746385184,
+                544.2020586502713
+              ],
+              [
+                0.004796809986166258,
+                -0.01742789230909758,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9940450941083981,
+            "tracking": {
+              "remaining_anchor_tracks": 595,
+              "tracked_features": 595,
+              "median_fb_error_px": 0.002793692285194993,
+              "median_step_motion_px": 21.470651626586914,
+              "motion_model": "homography",
+              "tracks_for_model": 595,
+              "inliers": 571,
+              "inlier_ratio": 0.9596638655462185,
+              "median_reprojection_error_px": 0.13239596784114838,
+              "p90_reprojection_error_px": 0.36784955859184265,
+              "homography_condition": 54866.57483053123,
+              "median_reference_displacement_px": 22.398123038185698,
+              "max_reference_displacement_px": 35.84629564834995,
+              "median_screen_motion_px": 22.6891144332651
+            }
+          },
+          {
+            "frame": 93,
+            "homography": [
+              [
+                49.98571441777926,
+                -5.760035027743476,
+                312.7425951332978
+              ],
+              [
+                0.8676366174150302,
+                -3.2186006323546406,
+                543.3921556915237
+              ],
+              [
+                0.004658087888302188,
+                -0.017433968656405,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9944149390468521,
+            "tracking": {
+              "remaining_anchor_tracks": 585,
+              "tracked_features": 585,
+              "median_fb_error_px": 0.002324349945411086,
+              "median_step_motion_px": 21.790529251098633,
+              "motion_model": "homography",
+              "tracks_for_model": 585,
+              "inliers": 542,
+              "inlier_ratio": 0.9264957264957265,
+              "median_reprojection_error_px": 0.12444142997264862,
+              "p90_reprojection_error_px": 0.4067356586456299,
+              "homography_condition": 55859.36452577217,
+              "median_reference_displacement_px": 45.25855429323414,
+              "max_reference_displacement_px": 71.68172906325874,
+              "median_screen_motion_px": 45.895774297830556
+            }
+          },
+          {
+            "frame": 94,
+            "homography": [
+              [
+                49.772209480021786,
+                -6.157548387850008,
+                335.9963265823323
+              ],
+              [
+                0.8415176604115034,
+                -3.217198055567717,
+                542.0135220169316
+              ],
+              [
+                0.004504702673970711,
+                -0.017422276367483953,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9957304655529738,
+            "tracking": {
+              "remaining_anchor_tracks": 575,
+              "tracked_features": 575,
+              "median_fb_error_px": 0.0021397152449935675,
+              "median_step_motion_px": 21.762937545776367,
+              "motion_model": "homography",
+              "tracks_for_model": 575,
+              "inliers": 528,
+              "inlier_ratio": 0.9182608695652174,
+              "median_reprojection_error_px": 0.09435190260410309,
+              "p90_reprojection_error_px": 0.18307773768901825,
+              "homography_condition": 57007.36613278029,
+              "median_reference_displacement_px": 68.49652629502236,
+              "max_reference_displacement_px": 109.67467950864233,
+              "median_screen_motion_px": 70.10462134287661
+            }
+          },
+          {
+            "frame": 95,
+            "homography": [
+              [
+                49.592149952833665,
+                -6.5552163409714765,
+                358.6271369283956
+              ],
+              [
+                0.8141799286308358,
+                -3.2167004151285514,
+                541.0434587300014
+              ],
+              [
+                0.004350155093070881,
+                -0.01741985107747747,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9955137603146336,
+            "tracking": {
+              "remaining_anchor_tracks": 568,
+              "tracked_features": 568,
+              "median_fb_error_px": 0.0020828000269830227,
+              "median_step_motion_px": 21.83966064453125,
+              "motion_model": "homography",
+              "tracks_for_model": 568,
+              "inliers": 518,
+              "inlier_ratio": 0.9119718309859155,
+              "median_reprojection_error_px": 0.09940709173679352,
+              "p90_reprojection_error_px": 0.19586040079593658,
+              "homography_condition": 58156.662408158816,
+              "median_reference_displacement_px": 91.1871705306161,
+              "max_reference_displacement_px": 145.995745231608,
+              "median_screen_motion_px": 94.37350125739219
+            }
+          },
+          {
+            "frame": 96,
+            "homography": [
+              [
+                49.44900996645979,
+                -6.959476748355472,
+                381.3932673250545
+              ],
+              [
+                0.7907377097435507,
+                -3.2170190749632828,
+                540.1689847992445
+              ],
+              [
+                0.004214279456878874,
+                -0.017420860192931913,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.995311054687594,
+            "tracking": {
+              "remaining_anchor_tracks": 556,
+              "tracked_features": 556,
+              "median_fb_error_px": 0.0025131499860435724,
+              "median_step_motion_px": 22.179277420043945,
+              "motion_model": "homography",
+              "tracks_for_model": 556,
+              "inliers": 506,
+              "inlier_ratio": 0.9100719424460432,
+              "median_reprojection_error_px": 0.10351787507534027,
+              "p90_reprojection_error_px": 0.2248217761516571,
+              "homography_condition": 59364.257906275634,
+              "median_reference_displacement_px": 114.04242862855395,
+              "max_reference_displacement_px": 180.56111781731911,
+              "median_screen_motion_px": 118.76361670418609
+            }
+          },
+          {
+            "frame": 97,
+            "homography": [
+              [
+                49.285354689914115,
+                -7.355043934975962,
+                403.8771195162014
+              ],
+              [
+                0.7647328874779561,
+                -3.214655180366404,
+                539.2580730465764
+              ],
+              [
+                0.004062144132215485,
+                -0.017419418035216135,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9952622105013482,
+            "tracking": {
+              "remaining_anchor_tracks": 533,
+              "tracked_features": 533,
+              "median_fb_error_px": 0.002042854903265834,
+              "median_step_motion_px": 21.851491928100586,
+              "motion_model": "homography",
+              "tracks_for_model": 533,
+              "inliers": 484,
+              "inlier_ratio": 0.9080675422138836,
+              "median_reprojection_error_px": 0.1052485853433609,
+              "p90_reprojection_error_px": 0.2210341840982437,
+              "homography_condition": 60585.47136443802,
+              "median_reference_displacement_px": 136.58728078351285,
+              "max_reference_displacement_px": 215.54093989701084,
+              "median_screen_motion_px": 142.49824065743184
+            }
+          },
+          {
+            "frame": 98,
+            "homography": [
+              [
+                49.12466259612728,
+                -7.757743300773225,
+                426.7378219765845
+              ],
+              [
+                0.737842993009149,
+                -3.2123095201830743,
+                538.36130208481
+              ],
+              [
+                0.003911428595823464,
+                -0.017416806637029398,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9949050468908484,
+            "tracking": {
+              "remaining_anchor_tracks": 532,
+              "tracked_features": 532,
+              "median_fb_error_px": 0.001867696177214384,
+              "median_step_motion_px": 22.41888427734375,
+              "motion_model": "homography",
+              "tracks_for_model": 532,
+              "inliers": 484,
+              "inlier_ratio": 0.9097744360902256,
+              "median_reprojection_error_px": 0.11370863020420074,
+              "p90_reprojection_error_px": 0.22711585462093353,
+              "homography_condition": 61883.97353106632,
+              "median_reference_displacement_px": 159.52035748559138,
+              "max_reference_displacement_px": 250.48276674497154,
+              "median_screen_motion_px": 166.26088694047877
+            }
+          },
+          {
+            "frame": 99,
+            "homography": [
+              [
+                48.97067864143829,
+                -8.155319049300338,
+                449.2716615901762
+              ],
+              [
+                0.7131261157519284,
+                -3.214246033713489,
+                537.7217894219388
+              ],
+              [
+                0.0037638445585332575,
+                -0.01741609136363548,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9945733363411181,
+            "tracking": {
+              "remaining_anchor_tracks": 530,
+              "tracked_features": 530,
+              "median_fb_error_px": 0.001893783686682582,
+              "median_step_motion_px": 22.163610458374023,
+              "motion_model": "homography",
+              "tracks_for_model": 530,
+              "inliers": 484,
+              "inlier_ratio": 0.9132075471698113,
+              "median_reprojection_error_px": 0.12133588641881943,
+              "p90_reprojection_error_px": 0.2534477114677429,
+              "homography_condition": 63241.63367672087,
+              "median_reference_displacement_px": 182.11637381804252,
+              "max_reference_displacement_px": 284.49137554080477,
+              "median_screen_motion_px": 189.5425264205816
+            }
+          },
+          {
+            "frame": 100,
+            "homography": [
+              [
+                48.80273882259357,
+                -8.561085388383745,
+                472.2704067796303
+              ],
+              [
+                0.6879044048250333,
+                -3.2125991651952854,
+                536.8127664260659
+              ],
+              [
+                0.0036142571494563857,
+                -0.017414690480743962,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9945131066982881,
+            "tracking": {
+              "remaining_anchor_tracks": 526,
+              "tracked_features": 526,
+              "median_fb_error_px": 0.0020706956274807453,
+              "median_step_motion_px": 22.59082794189453,
+              "motion_model": "homography",
+              "tracks_for_model": 526,
+              "inliers": 484,
+              "inlier_ratio": 0.9201520912547528,
+              "median_reprojection_error_px": 0.12249942123889923,
+              "p90_reprojection_error_px": 0.2703634202480316,
+              "homography_condition": 64635.27676977652,
+              "median_reference_displacement_px": 205.32930742422897,
+              "max_reference_displacement_px": 319.1915381744595,
+              "median_screen_motion_px": 213.35975266517468
+            }
+          },
+          {
+            "frame": 101,
+            "homography": [
+              [
+                48.63874421795222,
+                -8.961141227320086,
+                495.03834645647333
+              ],
+              [
+                0.6607173117935543,
+                -3.2129558340437434,
+                536.1149914334037
+              ],
+              [
+                0.003468286342572143,
+                -0.017412625428781484,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9941882069615784,
+            "tracking": {
+              "remaining_anchor_tracks": 521,
+              "tracked_features": 521,
+              "median_fb_error_px": 0.001861572265625,
+              "median_step_motion_px": 22.42529296875,
+              "motion_model": "homography",
+              "tracks_for_model": 521,
+              "inliers": 484,
+              "inlier_ratio": 0.9289827255278311,
+              "median_reprojection_error_px": 0.13028869032859802,
+              "p90_reprojection_error_px": 0.2682815194129944,
+              "homography_condition": 66084.27166152926,
+              "median_reference_displacement_px": 228.65766920103772,
+              "max_reference_displacement_px": 353.0697406440872,
+              "median_screen_motion_px": 236.97378111640623
+            }
+          },
+          {
+            "frame": 102,
+            "homography": [
+              [
+                48.45553970598356,
+                -9.365171393979152,
+                518.0152133526918
+              ],
+              [
+                0.6357355162521222,
+                -3.208778533601711,
+                535.0523328098818
+              ],
+              [
+                0.0033191555872042807,
+                -0.0174093300029391,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9932193322160141,
+            "tracking": {
+              "remaining_anchor_tracks": 517,
+              "tracked_features": 517,
+              "median_fb_error_px": 0.00210466212593019,
+              "median_step_motion_px": 22.593332290649414,
+              "motion_model": "homography",
+              "tracks_for_model": 517,
+              "inliers": 480,
+              "inlier_ratio": 0.9284332688588007,
+              "median_reprojection_error_px": 0.15246829390525818,
+              "p90_reprojection_error_px": 0.31656691431999207,
+              "homography_condition": 67538.38647863244,
+              "median_reference_displacement_px": 252.1331121533135,
+              "max_reference_displacement_px": 387.54489887852037,
+              "median_screen_motion_px": 260.87498539110436
+            }
+          },
+          {
+            "frame": 103,
+            "homography": [
+              [
+                48.306597382507825,
+                -9.764734637328658,
+                540.6097107789263
+              ],
+              [
+                0.6094094953896484,
+                -3.207137431160473,
+                534.2994682699078
+              ],
+              [
+                0.0031721277573580563,
+                -0.017409561579944385,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9932557018138517,
+            "tracking": {
+              "remaining_anchor_tracks": 512,
+              "tracked_features": 512,
+              "median_fb_error_px": 0.0017984561854973435,
+              "median_step_motion_px": 22.534893035888672,
+              "motion_model": "homography",
+              "tracks_for_model": 512,
+              "inliers": 475,
+              "inlier_ratio": 0.927734375,
+              "median_reprojection_error_px": 0.15202060341835022,
+              "p90_reprojection_error_px": 0.31055107712745667,
+              "homography_condition": 69010.00547242325,
+              "median_reference_displacement_px": 275.7603838386799,
+              "max_reference_displacement_px": 420.32470448083944,
+              "median_screen_motion_px": 284.8789175961691
+            }
+          },
+          {
+            "frame": 104,
+            "homography": [
+              [
+                48.13874256695551,
+                -10.15953503493718,
+                562.9825311510484
+              ],
+              [
+                0.5827618424293983,
+                -3.2063800774913442,
+                533.5271786129175
+              ],
+              [
+                0.003023120528729205,
+                -0.017408583921164237,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9933247091850612,
+            "tracking": {
+              "remaining_anchor_tracks": 508,
+              "tracked_features": 508,
+              "median_fb_error_px": 0.0017947410233318806,
+              "median_step_motion_px": 22.25067901611328,
+              "motion_model": "homography",
+              "tracks_for_model": 508,
+              "inliers": 471,
+              "inlier_ratio": 0.9271653543307087,
+              "median_reprojection_error_px": 0.1504197120666504,
+              "p90_reprojection_error_px": 0.34183624386787415,
+              "homography_condition": 70514.06098216842,
+              "median_reference_displacement_px": 299.0707144187687,
+              "max_reference_displacement_px": 453.1466044211524,
+              "median_screen_motion_px": 310.0649762932678
+            }
+          },
+          {
+            "frame": 105,
+            "homography": [
+              [
+                47.98371118375776,
+                -10.554405896118716,
+                585.2769309234351
+              ],
+              [
+                0.5599776438298141,
+                -3.2104464999542692,
+                533.1349290876014
+              ],
+              [
+                0.002878971617309818,
+                -0.017410047269314544,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9928353893117237,
+            "tracking": {
+              "remaining_anchor_tracks": 493,
+              "tracked_features": 493,
+              "median_fb_error_px": 0.002238417975604534,
+              "median_step_motion_px": 22.232006072998047,
+              "motion_model": "homography",
+              "tracks_for_model": 493,
+              "inliers": 457,
+              "inlier_ratio": 0.9269776876267748,
+              "median_reprojection_error_px": 0.16123907268047333,
+              "p90_reprojection_error_px": 0.4447903037071228,
+              "homography_condition": 72076.89880777351,
+              "median_reference_displacement_px": 322.4286856604354,
+              "max_reference_displacement_px": 485.1624896653894,
+              "median_screen_motion_px": 336.01058968292347
+            }
+          },
+          {
+            "frame": 106,
+            "homography": [
+              [
+                47.82148640234267,
+                -10.938756362530826,
+                607.1424781784042
+              ],
+              [
+                0.5315930581504374,
+                -3.2082284782715513,
+                532.3984470315851
+              ],
+              [
+                0.002731937861796138,
+                -0.017406328295023966,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9927682146894148,
+            "tracking": {
+              "remaining_anchor_tracks": 486,
+              "tracked_features": 486,
+              "median_fb_error_px": 0.0018735621124505997,
+              "median_step_motion_px": 21.98560333251953,
+              "motion_model": "homography",
+              "tracks_for_model": 486,
+              "inliers": 451,
+              "inlier_ratio": 0.9279835390946503,
+              "median_reprojection_error_px": 0.16328220069408417,
+              "p90_reprojection_error_px": 0.39019638299942017,
+              "homography_condition": 73603.57239906579,
+              "median_reference_displacement_px": 345.53293542277265,
+              "max_reference_displacement_px": 516.6196104047103,
+              "median_screen_motion_px": 360.84538713359797
+            }
+          },
+          {
+            "frame": 107,
+            "homography": [
+              [
+                47.661688940104156,
+                -11.329033824635225,
+                629.2376659381366
+              ],
+              [
+                0.5085322570242943,
+                -3.2065576917415117,
+                531.7205785336065
+              ],
+              [
+                0.0025887583281917633,
+                -0.017404960564890132,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.992468093790844,
+            "tracking": {
+              "remaining_anchor_tracks": 479,
+              "tracked_features": 479,
+              "median_fb_error_px": 0.0017153926892206073,
+              "median_step_motion_px": 22.178287506103516,
+              "motion_model": "homography",
+              "tracks_for_model": 479,
+              "inliers": 444,
+              "inlier_ratio": 0.9269311064718163,
+              "median_reprojection_error_px": 0.17049673199653625,
+              "p90_reprojection_error_px": 0.39366382360458374,
+              "homography_condition": 75156.52003515283,
+              "median_reference_displacement_px": 368.86461608166854,
+              "max_reference_displacement_px": 547.9777343824421,
+              "median_screen_motion_px": 386.30064513550343
+            }
+          },
+          {
+            "frame": 108,
+            "homography": [
+              [
+                47.49809982876372,
+                -11.717675293958846,
+                651.3598376076369
+              ],
+              [
+                0.4837063938531927,
+                -3.206452527270574,
+                531.173221190568
+              ],
+              [
+                0.002444914841126749,
+                -0.017402951079995916,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.99228324220461,
+            "tracking": {
+              "remaining_anchor_tracks": 475,
+              "tracked_features": 475,
+              "median_fb_error_px": 0.0018655703170225024,
+              "median_step_motion_px": 22.16101837158203,
+              "motion_model": "homography",
+              "tracks_for_model": 475,
+              "inliers": 439,
+              "inlier_ratio": 0.9242105263157895,
+              "median_reprojection_error_px": 0.17462199926376343,
+              "p90_reprojection_error_px": 0.40735694766044617,
+              "homography_condition": 76757.3458258196,
+              "median_reference_displacement_px": 392.26685005748834,
+              "max_reference_displacement_px": 579.1798548332536,
+              "median_screen_motion_px": 412.0343344117516
+            }
+          },
+          {
+            "frame": 109,
+            "homography": [
+              [
+                47.345423043082754,
+                -12.100048660143296,
+                673.1036704210766
+              ],
+              [
+                0.46071890933702087,
+                -3.2048776813560593,
+                530.5446324076514
+              ],
+              [
+                0.0023111104191377504,
+                -0.017400631905834196,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9921163937304207,
+            "tracking": {
+              "remaining_anchor_tracks": 464,
+              "tracked_features": 464,
+              "median_fb_error_px": 0.0020375195890665054,
+              "median_step_motion_px": 21.868024826049805,
+              "motion_model": "homography",
+              "tracks_for_model": 464,
+              "inliers": 429,
+              "inlier_ratio": 0.9245689655172413,
+              "median_reprojection_error_px": 0.17830108106136322,
+              "p90_reprojection_error_px": 0.39872464537620544,
+              "homography_condition": 78342.21476700199,
+              "median_reference_displacement_px": 415.27590760297323,
+              "max_reference_displacement_px": 609.2431297036778,
+              "median_screen_motion_px": 436.5890749900288
+            }
+          },
+          {
+            "frame": 110,
+            "homography": [
+              [
+                47.2075636045551,
+                -12.486552730964892,
+                694.6199623931966
+              ],
+              [
+                0.4348581689102768,
+                -3.204775922946112,
+                530.1065274454968
+              ],
+              [
+                0.002166604616081682,
+                -0.017406318937359347,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9915630143542621,
+            "tracking": {
+              "remaining_anchor_tracks": 460,
+              "tracked_features": 460,
+              "median_fb_error_px": 0.001984419533982873,
+              "median_step_motion_px": 21.85687828063965,
+              "motion_model": "homography",
+              "tracks_for_model": 460,
+              "inliers": 426,
+              "inlier_ratio": 0.9260869565217391,
+              "median_reprojection_error_px": 0.19134379923343658,
+              "p90_reprojection_error_px": 0.6318977475166321,
+              "homography_condition": 79881.55054586791,
+              "median_reference_displacement_px": 438.68083117521644,
+              "max_reference_displacement_px": 638.7996620739775,
+              "median_screen_motion_px": 459.65218040544886
+            }
+          },
+          {
+            "frame": 111,
+            "homography": [
+              [
+                47.0313314811569,
+                -12.862438913125613,
+                716.1430182850405
+              ],
+              [
+                0.4058718903075615,
+                -3.2023235656152576,
+                529.4846195114171
+              ],
+              [
+                0.0020102028654459154,
+                -0.01740086153847859,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9911783119154135,
+            "tracking": {
+              "remaining_anchor_tracks": 450,
+              "tracked_features": 450,
+              "median_fb_error_px": 0.0019840290769934654,
+              "median_step_motion_px": 21.766616821289062,
+              "motion_model": "homography",
+              "tracks_for_model": 450,
+              "inliers": 416,
+              "inlier_ratio": 0.9244444444444444,
+              "median_reprojection_error_px": 0.200385183095932,
+              "p90_reprojection_error_px": 0.5482035279273987,
+              "homography_condition": 81479.98994404875,
+              "median_reference_displacement_px": 462.10127930532514,
+              "max_reference_displacement_px": 669.1261444195986,
+              "median_screen_motion_px": 482.38394518882393
+            }
+          },
+          {
+            "frame": 112,
+            "homography": [
+              [
+                46.910783071438495,
+                -13.232752367880675,
+                737.2994419112249
+              ],
+              [
+                0.38491945326189864,
+                -3.2028127486454387,
+                529.2737630854001
+              ],
+              [
+                0.0018777170040866929,
+                -0.017396754264153803,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9915910667702057,
+            "tracking": {
+              "remaining_anchor_tracks": 440,
+              "tracked_features": 440,
+              "median_fb_error_px": 0.00230240635573864,
+              "median_step_motion_px": 21.543275833129883,
+              "motion_model": "homography",
+              "tracks_for_model": 440,
+              "inliers": 406,
+              "inlier_ratio": 0.9227272727272727,
+              "median_reprojection_error_px": 0.1902676224708557,
+              "p90_reprojection_error_px": 0.463172048330307,
+              "homography_condition": 83091.1569207132,
+              "median_reference_displacement_px": 486.3694717068812,
+              "max_reference_displacement_px": 696.8898675663513,
+              "median_screen_motion_px": 504.478748508198
+            }
+          },
+          {
+            "frame": 113,
+            "homography": [
+              [
+                46.79206971613297,
+                -13.603481438461777,
+                758.2256998861744
+              ],
+              [
+                0.36428911475857934,
+                -3.2033967173436135,
+                529.0168801598687
+              ],
+              [
+                0.0017516221761540187,
+                -0.017396846691260494,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.991204910554841,
+            "tracking": {
+              "remaining_anchor_tracks": 432,
+              "tracked_features": 432,
+              "median_fb_error_px": 0.002370079979300499,
+              "median_step_motion_px": 21.300323486328125,
+              "motion_model": "homography",
+              "tracks_for_model": 432,
+              "inliers": 398,
+              "inlier_ratio": 0.9212962962962963,
+              "median_reprojection_error_px": 0.1992514729499817,
+              "p90_reprojection_error_px": 0.47290244698524475,
+              "homography_condition": 84677.94205205876,
+              "median_reference_displacement_px": 510.3102893349982,
+              "max_reference_displacement_px": 724.1710157410748,
+              "median_screen_motion_px": 526.5241399181199
+            }
+          },
+          {
+            "frame": 114,
+            "homography": [
+              [
+                46.67587830047595,
+                -13.978230083663366,
+                779.1954296928926
+              ],
+              [
+                0.3399230987047616,
+                -3.2037485883123367,
+                528.93386057578
+              ],
+              [
+                0.0016093939887493426,
+                -0.01739980580753748,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9910060719445104,
+            "tracking": {
+              "remaining_anchor_tracks": 429,
+              "tracked_features": 429,
+              "median_fb_error_px": 0.002423218684270978,
+              "median_step_motion_px": 21.514223098754883,
+              "motion_model": "homography",
+              "tracks_for_model": 429,
+              "inliers": 395,
+              "inlier_ratio": 0.9207459207459208,
+              "median_reprojection_error_px": 0.2038603276014328,
+              "p90_reprojection_error_px": 0.6339092254638672,
+              "homography_condition": 86235.63065134613,
+              "median_reference_displacement_px": 535.4511704410911,
+              "max_reference_displacement_px": 751.5222677186754,
+              "median_screen_motion_px": 548.6587969440152
+            }
+          },
+          {
+            "frame": 115,
+            "homography": [
+              [
+                46.55691131709144,
+                -14.340493030759163,
+                799.6965643552871
+              ],
+              [
+                0.31476543522747613,
+                -3.203334387052857,
+                528.720485509608
+              ],
+              [
+                0.001474722188932528,
+                -0.017398875252438186,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9911252599339075,
+            "tracking": {
+              "remaining_anchor_tracks": 429,
+              "tracked_features": 429,
+              "median_fb_error_px": 0.002445705933496356,
+              "median_step_motion_px": 20.975109100341797,
+              "motion_model": "homography",
+              "tracks_for_model": 429,
+              "inliers": 395,
+              "inlier_ratio": 0.9207459207459208,
+              "median_reprojection_error_px": 0.20102559030056,
+              "p90_reprojection_error_px": 0.6269134879112244,
+              "homography_condition": 87798.71749080873,
+              "median_reference_displacement_px": 559.87482066763,
+              "max_reference_displacement_px": 778.0544777583094,
+              "median_screen_motion_px": 570.1308389195167
+            }
+          },
+          {
+            "frame": 116,
+            "homography": [
+              [
+                46.44983597349597,
+                -14.707301463169301,
+                820.0327252982946
+              ],
+              [
+                0.29327877771293404,
+                -3.203715769044854,
+                528.658784155736
+              ],
+              [
+                0.0013391493411683158,
+                -0.017403945271191684,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9904848330621834,
+            "tracking": {
+              "remaining_anchor_tracks": 428,
+              "tracked_features": 428,
+              "median_fb_error_px": 0.0021340756211429834,
+              "median_step_motion_px": 20.95954132080078,
+              "motion_model": "homography",
+              "tracks_for_model": 428,
+              "inliers": 394,
+              "inlier_ratio": 0.9205607476635514,
+              "median_reprojection_error_px": 0.21653039753437042,
+              "p90_reprojection_error_px": 0.8292906880378723,
+              "homography_condition": 89304.36161551617,
+              "median_reference_displacement_px": 584.634222463865,
+              "max_reference_displacement_px": 804.0572480903328,
+              "median_screen_motion_px": 591.6681709669377
+            }
+          },
+          {
+            "frame": 117,
+            "homography": [
+              [
+                46.312256803399144,
+                -15.054708538208422,
+                840.3571604760327
+              ],
+              [
+                0.2702195270499751,
+                -3.1999056166408124,
+                528.3203880560951
+              ],
+              [
+                0.0012015347744310865,
+                -0.017392276365445266,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9904167186133697,
+            "tracking": {
+              "remaining_anchor_tracks": 425,
+              "tracked_features": 425,
+              "median_fb_error_px": 0.0021288609132170677,
+              "median_step_motion_px": 20.792470932006836,
+              "motion_model": "homography",
+              "tracks_for_model": 425,
+              "inliers": 391,
+              "inlier_ratio": 0.92,
+              "median_reprojection_error_px": 0.2181456983089447,
+              "p90_reprojection_error_px": 0.5527656674385071,
+              "homography_condition": 90893.22416569435,
+              "median_reference_displacement_px": 609.119752813673,
+              "max_reference_displacement_px": 830.3200164486742,
+              "median_screen_motion_px": 612.5334456580596
+            }
+          },
+          {
+            "frame": 118,
+            "homography": [
+              [
+                46.18901039941371,
+                -15.405913298660822,
+                860.2262350452262
+              ],
+              [
+                0.24412200278325988,
+                -3.203785906548632,
+                528.5148099158041
+              ],
+              [
+                0.0010573156120211192,
+                -0.017390915713950843,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9898050610137418,
+            "tracking": {
+              "remaining_anchor_tracks": 420,
+              "tracked_features": 420,
+              "median_fb_error_px": 0.002316191792488098,
+              "median_step_motion_px": 20.474451065063477,
+              "motion_model": "homography",
+              "tracks_for_model": 420,
+              "inliers": 387,
+              "inlier_ratio": 0.9214285714285714,
+              "median_reprojection_error_px": 0.23236648738384247,
+              "p90_reprojection_error_px": 0.5804651975631714,
+              "homography_condition": 92460.41519781554,
+              "median_reference_displacement_px": 634.0180303633456,
+              "max_reference_displacement_px": 855.8151351726766,
+              "median_screen_motion_px": 633.2976629665103
+            }
+          },
+          {
+            "frame": 119,
+            "homography": [
+              [
+                46.09932452511969,
+                -15.756009041731215,
+                879.9226523841711
+              ],
+              [
+                0.22571582050107405,
+                -3.2002227033848993,
+                528.3686358960213
+              ],
+              [
+                0.000936441863860878,
+                -0.017391518297761324,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9897738778914749,
+            "tracking": {
+              "remaining_anchor_tracks": 416,
+              "tracked_features": 416,
+              "median_fb_error_px": 0.002066357061266899,
+              "median_step_motion_px": 20.2725887298584,
+              "motion_model": "homography",
+              "tracks_for_model": 416,
+              "inliers": 383,
+              "inlier_ratio": 0.9206730769230769,
+              "median_reprojection_error_px": 0.23343659937381744,
+              "p90_reprojection_error_px": 0.565658450126648,
+              "homography_condition": 93918.90658323302,
+              "median_reference_displacement_px": 658.3791840035941,
+              "max_reference_displacement_px": 879.8514069560711,
+              "median_screen_motion_px": 653.7947702786287
+            }
+          },
+          {
+            "frame": 120,
+            "homography": [
+              [
+                46.008225060423506,
+                -16.099107486029453,
+                899.2122024592921
+              ],
+              [
+                0.2014123189041896,
+                -3.1990990810814335,
+                528.4229280439542
+              ],
+              [
+                0.0008068430441225762,
+                -0.01739157510080425,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9898403240781579,
+            "tracking": {
+              "remaining_anchor_tracks": 409,
+              "tracked_features": 409,
+              "median_fb_error_px": 0.0019815873820334673,
+              "median_step_motion_px": 19.991945266723633,
+              "motion_model": "homography",
+              "tracks_for_model": 409,
+              "inliers": 375,
+              "inlier_ratio": 0.9168704156479217,
+              "median_reprojection_error_px": 0.23197460174560547,
+              "p90_reprojection_error_px": 0.5658366680145264,
+              "homography_condition": 95381.47010461923,
+              "median_reference_displacement_px": 683.0682364054055,
+              "max_reference_displacement_px": 907.3119006105894,
+              "median_screen_motion_px": 673.867168529785
+            }
+          },
+          {
+            "frame": 121,
+            "homography": [
+              [
+                45.91457527925557,
+                -16.429225451200317,
+                918.2930480257193
+              ],
+              [
+                0.17991705164051222,
+                -3.2009313953710787,
+                528.622683397122
+              ],
+              [
+                0.0006869481624886582,
+                -0.01738777813251761,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9902548154948455,
+            "tracking": {
+              "remaining_anchor_tracks": 408,
+              "tracked_features": 408,
+              "median_fb_error_px": 0.0022759605199098587,
+              "median_step_motion_px": 19.54854965209961,
+              "motion_model": "homography",
+              "tracks_for_model": 408,
+              "inliers": 375,
+              "inlier_ratio": 0.9191176470588235,
+              "median_reprojection_error_px": 0.22177654504776,
+              "p90_reprojection_error_px": 0.6252045631408691,
+              "homography_condition": 96904.55003699365,
+              "median_reference_displacement_px": 707.0171814891851,
+              "max_reference_displacement_px": 942.0450688126757,
+              "median_screen_motion_px": 693.1786722456021
+            }
+          },
+          {
+            "frame": 122,
+            "homography": [
+              [
+                45.79136323346905,
+                -16.75399975240643,
+                936.4226468301136
+              ],
+              [
+                0.15880079978891734,
+                -3.1995572460928674,
+                528.6096235250219
+              ],
+              [
+                0.0005527797182608731,
+                -0.017386041604166444,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9891462814373903,
+            "tracking": {
+              "remaining_anchor_tracks": 401,
+              "tracked_features": 401,
+              "median_fb_error_px": 0.00260956515558064,
+              "median_step_motion_px": 18.996288299560547,
+              "motion_model": "homography",
+              "tracks_for_model": 401,
+              "inliers": 368,
+              "inlier_ratio": 0.9177057356608479,
+              "median_reprojection_error_px": 0.24761146306991577,
+              "p90_reprojection_error_px": 0.6075725555419922,
+              "homography_condition": 98269.72798973907,
+              "median_reference_displacement_px": 730.4087930991201,
+              "max_reference_displacement_px": 977.2954860513012,
+              "median_screen_motion_px": 712.4736221921048
+            }
+          },
+          {
+            "frame": 123,
+            "homography": [
+              [
+                45.74782774954495,
+                -17.083100303992797,
+                954.9504436018962
+              ],
+              [
+                0.13970682157318032,
+                -3.20151237537993,
+                528.7962247073374
+              ],
+              [
+                0.00044831500742557683,
+                -0.0173901850154762,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9898421136877305,
+            "tracking": {
+              "remaining_anchor_tracks": 396,
+              "tracked_features": 396,
+              "median_fb_error_px": 0.0021580259781330824,
+              "median_step_motion_px": 19.07101821899414,
+              "motion_model": "homography",
+              "tracks_for_model": 396,
+              "inliers": 362,
+              "inlier_ratio": 0.9141414141414141,
+              "median_reprojection_error_px": 0.23169833421707153,
+              "p90_reprojection_error_px": 0.6343005895614624,
+              "homography_condition": 99703.86654096993,
+              "median_reference_displacement_px": 754.4102314444028,
+              "max_reference_displacement_px": 1012.4548164527089,
+              "median_screen_motion_px": 731.2109895773566
+            }
+          },
+          {
+            "frame": 124,
+            "homography": [
+              [
+                45.62858107822114,
+                -17.398854010413206,
+                972.8589533105114
+              ],
+              [
+                0.12086396718066879,
+                -3.199725613173906,
+                528.9584777939752
+              ],
+              [
+                0.0003255603173374252,
+                -0.01738402607290818,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9884239050895965,
+            "tracking": {
+              "remaining_anchor_tracks": 391,
+              "tracked_features": 391,
+              "median_fb_error_px": 0.0021652565337717533,
+              "median_step_motion_px": 18.69728660583496,
+              "motion_model": "homography",
+              "tracks_for_model": 391,
+              "inliers": 357,
+              "inlier_ratio": 0.9130434782608695,
+              "median_reprojection_error_px": 0.2654104232788086,
+              "p90_reprojection_error_px": 0.6724498867988586,
+              "homography_condition": 101086.01011534134,
+              "median_reference_displacement_px": 777.3633299904823,
+              "max_reference_displacement_px": 1046.4131720936248,
+              "median_screen_motion_px": 750.093913740484
+            }
+          },
+          {
+            "frame": 125,
+            "homography": [
+              [
+                45.55941041531465,
+                -17.708245224856316,
+                990.7960998966096
+              ],
+              [
+                0.1061417067830537,
+                -3.2002741864519924,
+                528.9725631448146
+              ],
+              [
+                0.00021671842626279854,
+                -0.017383082364430657,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.990205028768006,
+            "tracking": {
+              "remaining_anchor_tracks": 373,
+              "tracked_features": 373,
+              "median_fb_error_px": 0.0017922420520335436,
+              "median_step_motion_px": 18.2043399810791,
+              "motion_model": "homography",
+              "tracks_for_model": 373,
+              "inliers": 339,
+              "inlier_ratio": 0.9088471849865952,
+              "median_reprojection_error_px": 0.22359345853328705,
+              "p90_reprojection_error_px": 0.5833680629730225,
+              "homography_condition": 102472.65165399549,
+              "median_reference_displacement_px": 800.679648331055,
+              "max_reference_displacement_px": 1081.1836512191744,
+              "median_screen_motion_px": 767.8336468119069
+            }
+          },
+          {
+            "frame": 126,
+            "homography": [
+              [
+                45.448003858819725,
+                -18.021963661667115,
+                1008.2183034406953
+              ],
+              [
+                0.08568662949408488,
+                -3.1981930898861424,
+                529.2360017859204
+              ],
+              [
+                9.32928993733008e-05,
+                -0.017381139264926734,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9891409741946923,
+            "tracking": {
+              "remaining_anchor_tracks": 366,
+              "tracked_features": 366,
+              "median_fb_error_px": 0.002976617543026805,
+              "median_step_motion_px": 18.362607955932617,
+              "motion_model": "homography",
+              "tracks_for_model": 366,
+              "inliers": 334,
+              "inlier_ratio": 0.912568306010929,
+              "median_reprojection_error_px": 0.2472495436668396,
+              "p90_reprojection_error_px": 0.6560351848602295,
+              "homography_condition": 103769.48540956229,
+              "median_reference_displacement_px": 823.6994149234934,
+              "max_reference_displacement_px": 1116.2226648966493,
+              "median_screen_motion_px": 786.427350945768
+            }
+          },
+          {
+            "frame": 127,
+            "homography": [
+              [
+                45.37058195910682,
+                -18.33188376722295,
+                1026.1683941340623
+              ],
+              [
+                0.06115904295583977,
+                -3.202390513475178,
+                529.3742588009201
+              ],
+              [
+                -1.687922054584316e-05,
+                -0.017379947144420742,
+                1
+              ]
+            ],
+            "source": "propagated_optical_flow_anchor",
+            "confidence": 0.9896368996474474,
+            "tracking": {
+              "remaining_anchor_tracks": 364,
+              "tracked_features": 364,
+              "median_fb_error_px": 0.0017447115387767553,
+              "median_step_motion_px": 18.238616943359375,
+              "motion_model": "homography",
+              "tracks_for_model": 364,
+              "inliers": 330,
+              "inlier_ratio": 0.9065934065934066,
+              "median_reprojection_error_px": 0.23711073398590088,
+              "p90_reprojection_error_px": 0.6526785492897034,
+              "homography_condition": 105251.07089796486,
+              "median_reference_displacement_px": 847.2071110864806,
+              "max_reference_displacement_px": 1151.645719056249,
+              "median_screen_motion_px": 804.2301258601561
+            }
+          }
+        ]
+      }
+    ],
+    "refinedSegments": []
   },
   "people": {}
 }
