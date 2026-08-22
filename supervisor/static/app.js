@@ -184,6 +184,22 @@ function refinedFrameForCurrentFrame() {
   return candidates[0]?.frame || null;
 }
 
+function existingProjectionForCurrentFrame() {
+  const refinedFrame = refinedFrameForCurrentFrame();
+  if (Array.isArray(refinedFrame?.homography)) {
+    return { homography: refinedFrame.homography, source: "refined" };
+  }
+  const propagatedFrame = propagatedFrameForCurrentFrame();
+  if (Array.isArray(propagatedFrame?.homography)) {
+    return { homography: propagatedFrame.homography, source: "propagated" };
+  }
+  return null;
+}
+
+function hasInitialHomography(calibration) {
+  return Array.isArray(calibration?.initialHomography) && calibration.initialHomography.length === 3;
+}
+
 function hasSolvedManualCalibration(calibration = calibrationForCurrentFrame()) {
   return calibration?.source === "manual"
     && Array.isArray(calibration.homography)
@@ -216,7 +232,7 @@ function setPropagationStatus(message = "") {
 function updatePropagationControl() {
   const enabled = !propagationInProgress && !refinementInProgress && hasSolvedManualCalibration();
   propagateFieldButton.disabled = !enabled;
-  propagateFieldButton.textContent = propagationInProgress ? "Propagando campo…" : "Propagar 5 s →";
+  propagateFieldButton.textContent = propagationInProgress ? "Propagando FIELD…" : "Propagar automáticamente →";
 }
 
 function isFieldEditInProgress() {
@@ -234,6 +250,24 @@ function previousManualCalibration(calibration = calibrationForCurrentFrame()) {
       && hasSolvedManualCalibration(item)
     ))
     .sort((first, second) => second.frame - first.frame)[0] || null;
+}
+
+function nextManualCalibration(calibration = calibrationForCurrentFrame()) {
+  if (!calibration || !selectedVideo) return null;
+  return fieldCalibrations
+    .filter((item) => (
+      item.video === selectedVideo.name
+      && item.frame > calibration.frame
+      && hasSolvedManualCalibration(item)
+    ))
+    .sort((first, second) => first.frame - second.frame)[0] || null;
+}
+
+function knownVideoFrameCount() {
+  const metadataFrameCount = Number(selectedVideo?.frame_count);
+  if (Number.isInteger(metadataFrameCount) && metadataFrameCount > 0) return metadataFrameCount;
+  const estimatedFrameCount = Math.ceil((video.duration || 0) * (selectedVideo?.fps || 0));
+  return Number.isInteger(estimatedFrameCount) && estimatedFrameCount > 0 ? estimatedFrameCount : null;
 }
 
 function updateRefinementControl() {
@@ -739,15 +773,19 @@ function renderCalibrationPitch() {
 function updateCalibrationStatus(message = null) {
   syncSemanticSelector();
   const calibration = calibrationForCurrentFrame();
+  const refiningExistingProjection = hasInitialHomography(calibration) || (!calibration && Boolean(existingProjectionForCurrentFrame()));
   renderCalibrationPitch();
   updateCurrentReferenceLabel();
-  calibrationHint.textContent = calibrationType === "point"
+  const drawingHint = calibrationType === "point"
     ? "Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo."
     : calibrationType === "line"
       ? "Elige una línea del diagrama y arrastra un tramo visible de esa línea en el vídeo."
       : "Elige el arco del diagrama y traza su parte visible en el vídeo.";
+  calibrationHint.textContent = refiningExistingProjection
+    ? `${drawingHint} Corrigiendo la proyección existente de este fotograma.`
+    : drawingHint;
   if (message) {
-    calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))} · ${message}`;
+    calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))}${refiningExistingProjection ? " · corrigiendo proyección existente" : ""} · ${message}`;
     return;
   }
   const constraints = calibrationConstraints(calibration);
@@ -757,7 +795,9 @@ function updateCalibrationStatus(message = null) {
   const hasMixedConstraints = constraints.some((item) => item.type !== "point");
   calibrationStatus.textContent = calibration?.homography
     ? `${constraintCountsLabel(constraints)} · campo proyectado${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
-    : hasMixedConstraints
+    : refiningExistingProjection
+      ? `${constraintCountsLabel(constraints)} · corrigiendo proyección existente`
+      : hasMixedConstraints
       ? `${constraintCountsLabel(constraints)} · solver mixto pendiente`
       : `${constraintCountsLabel(constraints)} / mínimo 4`;
 }
@@ -786,6 +826,7 @@ function exitCalibrationMode() {
 function ensureCurrentCalibration() {
   let calibration = calibrationForCurrentFrame();
   if (calibration) return calibration;
+  const initialProjection = existingProjectionForCurrentFrame();
   calibration = {
     id: `calibration-${Date.now()}`,
     video: selectedVideo.name,
@@ -796,6 +837,10 @@ function ensureCurrentCalibration() {
     homography: null,
     reprojectionError: null,
   };
+  if (initialProjection) {
+    calibration.initialHomography = JSON.parse(JSON.stringify(initialProjection.homography));
+    calibration.initialHomographySource = initialProjection.source;
+  }
   fieldCalibrations.push(calibration);
   return calibration;
 }
@@ -858,10 +903,13 @@ async function solveCalibration(calibration) {
   invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
   const pointCount = constraints.filter((item) => item.type === "point").length;
-  if (pointCount < 4 && !constraints.some((item) => item.type !== "point")) {
+  const isRefinement = hasInitialHomography(calibration);
+  if (!constraints.length || (!isRefinement && pointCount < 4 && !constraints.some((item) => item.type !== "point"))) {
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus();
+    updatePropagationControl();
+    updateRefinementControl();
     drawOverlay();
     return;
   }
@@ -871,7 +919,12 @@ async function solveCalibration(calibration) {
     const response = await fetch("/api/field-calibration/solve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ constraints, image_width: video.videoWidth, image_height: video.videoHeight }),
+      body: JSON.stringify({
+        constraints,
+        image_width: video.videoWidth,
+        image_height: video.videoHeight,
+        initial_homography: calibration.initialHomography || null,
+      }),
     });
     const result = await response.json();
     const solved = result.status === "solved" || result.status === "solved_with_warnings";
@@ -882,12 +935,16 @@ async function solveCalibration(calibration) {
     calibration.camera = result.camera || null;
     calibration.diagnostics = result.diagnostics || null;
     updateCalibrationStatus();
+    updatePropagationControl();
+    updateRefinementControl();
     drawOverlay();
   } catch (error) {
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus(error.message);
+    updatePropagationControl();
+    updateRefinementControl();
     drawOverlay();
   }
 }
@@ -1490,8 +1547,22 @@ async function propagateCurrentCalibration() {
   const anchorFrame = currentFrameNumber();
   const filename = selectedVideo.name;
   const homography = JSON.parse(JSON.stringify(calibration.homography));
+  const frameCount = knownVideoFrameCount();
+  const nextAnchor = nextManualCalibration(calibration);
+  if (!frameCount) {
+    setPropagationStatus("No se conoce el total de fotogramas del vídeo.");
+    return;
+  }
+  const horizonEnd = Math.min(frameCount, nextAnchor?.frame ?? frameCount);
+  const maxFrames = Math.max(0, horizonEnd - anchorFrame - 1);
+  if (!maxFrames) {
+    setPropagationStatus(nextAnchor
+      ? `La siguiente ancla manual está en el fotograma ${nextAnchor.frame}.`
+      : "La calibración manual ya está en el último fotograma.");
+    return;
+  }
   propagationInProgress = true;
-  setPropagationStatus("Propagando campo…");
+  setPropagationStatus("Propagando FIELD…");
   updatePropagationControl();
 
   try {
@@ -1502,7 +1573,7 @@ async function propagateCurrentCalibration() {
         filename,
         anchor_frame: anchorFrame,
         homography,
-        max_frames: 150,
+        max_frames: maxFrames,
         direction: 1,
       }),
     });
@@ -1542,13 +1613,15 @@ async function propagateCurrentCalibration() {
       });
     }
 
-    if (result.status === "partial" && frames.length) {
-      const lastFrame = frames[frames.length - 1].frame;
-      setPropagationStatus(`Propagado hasta el fotograma ${lastFrame}. Se necesita revisión: ${result.detail || "confianza insuficiente."}`);
-    } else if (frames.length) {
-      setPropagationStatus(`Campo propagado durante ${frames.length} fotogramas.`);
+    if (result.status === "ok") {
+      if (horizonEnd === frameCount) {
+        setPropagationStatus("FIELD propagado hasta el final del vídeo.");
+      } else {
+        setPropagationStatus(`FIELD propagado hasta la siguiente ancla manual (fotograma ${nextAnchor.frame}).`);
+      }
     } else {
-      setPropagationStatus(`No se pudo propagar el campo. Se necesita revisión: ${result.detail || "sin fotogramas fiables."}`);
+      const reviewFrame = result.stopped_frame ?? frames[frames.length - 1]?.frame ?? anchorFrame;
+      setPropagationStatus(`Propagado hasta el fotograma ${reviewFrame}. Se necesita revisión: ${result.detail || "confianza insuficiente."}`);
     }
     drawOverlay();
   } catch (error) {

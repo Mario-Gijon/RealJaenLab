@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_camera_calibration import solve_field_camera_calibration
+from supervisor.field_camera_refinement import refine_field_camera_calibration
 from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
 
@@ -172,6 +173,18 @@ def solve_calibration(payload: dict = Body()) -> dict:
         constraint_type = constraint.get("type")
         if constraint_type in grouped:
             grouped[constraint_type].append(constraint)
+
+    initial_homography = payload.get("initial_homography")
+    if initial_homography is not None:
+        return refine_field_camera_calibration(
+            initial_homography,
+            grouped["point"],
+            grouped["line"],
+            grouped["arc"],
+            payload.get("image_width"),
+            payload.get("image_height"),
+        )
+
     return solve_field_camera_calibration(
         grouped["point"],
         grouped["line"],
@@ -190,7 +203,7 @@ def propagate_calibration(payload: dict = Body()) -> dict:
 
     try:
         anchor_frame = int(payload["anchor_frame"])
-        max_frames = int(payload.get("max_frames", 150))
+        max_frames = int(payload["max_frames"])
         direction = int(payload.get("direction", 1))
         homography = payload["homography"]
     except (KeyError, TypeError, ValueError) as error:
