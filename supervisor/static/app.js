@@ -28,6 +28,7 @@ const calibratePitchButton = document.querySelector("#calibrate-pitch");
 const propagateFieldButton = document.querySelector("#propagate-field");
 const refineSegmentButton = document.querySelector("#refine-segment");
 const adaptationGuidanceButton = document.querySelector("#adaptation-guidance");
+const observeFieldLinesButton = document.querySelector("#observe-field-lines");
 const propagationStatus = document.querySelector("#field-propagation-status");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationLandmark = document.querySelector("#calibration-landmark");
@@ -78,6 +79,9 @@ let manualCalibrationRevision = 0;
 let adaptationGuidance = null;
 let adaptationRequestSequence = 0;
 let adaptationInProgress = false;
+let localObserverResult = null;
+let localObserverRequestSequence = 0;
+let localObserverInProgress = false;
 
 workArea.classList.add("field-editing");
 
@@ -295,6 +299,13 @@ function updateAdaptationGuidanceControl() {
   adaptationGuidanceButton.hidden = !visible;
   adaptationGuidanceButton.disabled = !visible || adaptationInProgress || !Array.isArray(fieldHomographyForCurrentFrame());
   adaptationGuidanceButton.textContent = adaptationInProgress ? "Consultando guía…" : "Ver guía FIELD";
+}
+
+function updateLocalObserverControl() {
+  const visible = debugOverlayEnabled && activeMode === "field";
+  observeFieldLinesButton.hidden = !visible;
+  observeFieldLinesButton.disabled = !visible || localObserverInProgress || !Array.isArray(fieldHomographyForCurrentFrame());
+  observeFieldLinesButton.textContent = localObserverInProgress ? "Observando líneas…" : "Observar líneas";
 }
 
 function invalidatePropagationsFromAnchor(calibration) {
@@ -917,6 +928,8 @@ function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
 async function solveCalibration(calibration) {
   adaptationRequestSequence += 1;
   adaptationGuidance = null;
+  localObserverRequestSequence += 1;
+  localObserverResult = null;
   manualCalibrationRevision += 1;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -999,6 +1012,8 @@ function clearCurrentCalibration() {
   if (!calibration) return;
   adaptationRequestSequence += 1;
   adaptationGuidance = null;
+  localObserverRequestSequence += 1;
+  localObserverResult = null;
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -1390,6 +1405,7 @@ function drawDebugOverlay() {
     overlayContext.fillText(label, labelX, labelY);
   }
   drawAdaptationGuidance(displayScale, fontSize, padding);
+  drawLocalObserverResults(displayScale, fontSize, padding);
   overlayContext.restore();
 }
 
@@ -1495,6 +1511,77 @@ function drawAdaptationGuidance(displayScale, fontSize, padding) {
   });
 }
 
+function visibleSegmentForImageLine(line) {
+  if (!Array.isArray(line) || line.length !== 3) return null;
+  const [a, b, c] = line.map(Number);
+  if (![a, b, c].every(Number.isFinite)) return null;
+  const points = [];
+  if (Math.abs(b) > 1e-9) {
+    [[0, -c / b], [video.videoWidth, -(a * video.videoWidth + c) / b]].forEach(([x, y]) => {
+      if (y >= 0 && y <= video.videoHeight) points.push({ x, y });
+    });
+  }
+  if (Math.abs(a) > 1e-9) {
+    [[-c / a, 0], [-(b * video.videoHeight + c) / a, video.videoHeight]].forEach(([x, y]) => {
+      if (x >= 0 && x <= video.videoWidth) points.push({ x, y });
+    });
+  }
+  const unique = points.filter((point, index) => points.slice(0, index).every((other) => (
+    Math.hypot(point.x - other.x, point.y - other.y) >= 1
+  )));
+  if (unique.length < 2) return null;
+  let best = [unique[0], unique[1]];
+  unique.forEach((first, firstIndex) => unique.slice(firstIndex + 1).forEach((second) => {
+    if (Math.hypot(first.x - second.x, first.y - second.y) > Math.hypot(best[0].x - best[1].x, best[0].y - best[1].y)) {
+      best = [first, second];
+    }
+  }));
+  return best;
+}
+
+function drawLocalObserverResults(displayScale, fontSize, padding) {
+  if (
+    !localObserverResult
+    || localObserverResult.video !== selectedVideo?.name
+    || localObserverResult.frame !== currentFrameNumber()
+  ) return;
+
+  const observer = localObserverResult.result?.observer;
+  if (observer?.status !== "ok") return;
+  const found = (observer.observations || []).filter((observation) => observation.status === "found");
+  overlayContext.fillStyle = "#a8f0be";
+  overlayContext.fillText(
+    `Observador local: ${found.length}/${observer.summary?.searched_lines || 0} líneas encontradas`,
+    padding,
+    padding + 40 / displayScale,
+  );
+
+  found.forEach((observation) => {
+    const segment = visibleSegmentForImageLine(observation.observed_line);
+    if (!segment) return;
+    overlayContext.save();
+    overlayContext.strokeStyle = "#42e47b";
+    overlayContext.lineWidth = 3 / displayScale;
+    overlayContext.beginPath();
+    overlayContext.moveTo(segment[0].x, segment[0].y);
+    overlayContext.lineTo(segment[1].x, segment[1].y);
+    overlayContext.stroke();
+
+    const offset = Number(observation.normal_offset_px || 0);
+    const offsetLabel = `${offset >= 0 ? "+" : ""}${Math.round(offset)} px`;
+    const angle = Number(observation.angle_offset_deg || 0);
+    const angleLabel = Math.abs(angle) >= 0.25 ? ` · ${angle >= 0 ? "+" : ""}${angle.toFixed(1)}°` : "";
+    overlayContext.fillStyle = "#bdf8cf";
+    overlayContext.font = `700 ${Math.max(9, fontSize - 1 / displayScale)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+    overlayContext.fillText(
+      `${semanticLabel(observation.semantic)} · ${Number(observation.confidence || 0).toFixed(2)} · ${offsetLabel}${angleLabel}`,
+      Math.min(segment[0].x + 6 / displayScale, video.videoWidth - 250 / displayScale),
+      Math.min(segment[0].y + 6 / displayScale, video.videoHeight - 14 / displayScale),
+    );
+    overlayContext.restore();
+  });
+}
+
 function drawOverlay() {
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   drawFieldAnnotations();
@@ -1503,6 +1590,7 @@ function drawOverlay() {
   updatePropagationControl();
   updateRefinementControl();
   updateAdaptationGuidanceControl();
+  updateLocalObserverControl();
   updateCurrentReferenceLabel();
 }
 
@@ -1580,10 +1668,13 @@ async function loadVideo(videoInfo) {
   propagationRequestSequence += 1;
   refinementRequestSequence += 1;
   adaptationRequestSequence += 1;
+  localObserverRequestSequence += 1;
   propagationInProgress = false;
   refinementInProgress = false;
   adaptationInProgress = false;
+  localObserverInProgress = false;
   adaptationGuidance = null;
+  localObserverResult = null;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1703,6 +1794,54 @@ async function requestAdaptationGuidance() {
     if (requestSequence === adaptationRequestSequence) {
       adaptationInProgress = false;
       updateAdaptationGuidanceControl();
+    }
+  }
+}
+
+async function observeCurrentFieldLines() {
+  const homography = fieldHomographyForCurrentFrame();
+  if (!debugOverlayEnabled || !selectedVideo || !Array.isArray(homography)) return;
+
+  const requestSequence = ++localObserverRequestSequence;
+  const filename = selectedVideo.name;
+  const frame = currentFrameNumber();
+  localObserverInProgress = true;
+  updateLocalObserverControl();
+
+  try {
+    const response = await fetch("/api/field-observer/lines", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        frame,
+        homography,
+        image_width: video.videoWidth,
+        image_height: video.videoHeight,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudieron observar las líneas FIELD");
+    if (requestSequence !== localObserverRequestSequence || selectedVideo?.name !== filename) return;
+    localObserverResult = { video: filename, frame, result };
+    adaptationGuidance = { video: filename, frame, result: {
+      ...result.guidance,
+      learning: result.learning,
+      corrected_view_frames: result.corrected_view_frames,
+    } };
+    drawOverlay();
+  } catch (error) {
+    if (requestSequence !== localObserverRequestSequence) return;
+    localObserverResult = {
+      video: filename,
+      frame,
+      result: { observer: { status: "error", detail: error.message || "No se pudieron observar las líneas FIELD" } },
+    };
+    drawOverlay();
+  } finally {
+    if (requestSequence === localObserverRequestSequence) {
+      localObserverInProgress = false;
+      updateLocalObserverControl();
     }
   }
 }
@@ -1980,6 +2119,7 @@ debugToggle.addEventListener("click", () => {
 });
 
 adaptationGuidanceButton.addEventListener("click", requestAdaptationGuidance);
+observeFieldLinesButton.addEventListener("click", observeCurrentFieldLines);
 
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };

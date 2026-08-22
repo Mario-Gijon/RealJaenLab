@@ -15,6 +15,7 @@ from supervisor.field_online_adaptation import (
     suggest_local_field_searches,
     summarize_field_learning,
 )
+from supervisor.field_local_observer import observe_field_lines
 from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
 
@@ -236,6 +237,67 @@ def field_adaptation_guidance(payload: dict = Body()) -> dict:
     })
     return {
         **guidance,
+        "learning": summarize_field_learning(profile),
+        "corrected_view_frames": corrected_view_frames,
+    }
+
+
+@app.post("/api/field-observer/lines")
+def observe_field_lines_for_frame(payload: dict = Body()) -> dict:
+    filename = payload.get("filename")
+    review_path, video_path = review_path_for(filename)
+    try:
+        frame_index = int(payload["frame"])
+        image_width = int(payload["image_width"])
+        image_height = int(payload["image_height"])
+        current_homography = payload["homography"]
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud del observador FIELD no válida") from error
+
+    if frame_index < 0:
+        raise HTTPException(status_code=400, detail="El fotograma solicitado no es válido")
+    if review_path.exists():
+        try:
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise HTTPException(status_code=500, detail="Saved review is not valid JSON") from error
+    else:
+        review = {}
+
+    calibrations = review.get("field", {}).get("calibrations", [])
+    if not isinstance(calibrations, list):
+        calibrations = []
+    profile = build_field_online_profile(calibrations, image_width, image_height)
+    guidance = suggest_local_field_searches(
+        profile,
+        current_homography,
+        image_width,
+        image_height,
+        only_seen_semantics=True,
+    )
+
+    capture = cv2.VideoCapture(str(video_path))
+    try:
+        if not capture.isOpened():
+            raise HTTPException(status_code=500, detail="OpenCV no pudo abrir el vídeo")
+        frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if frame_count and frame_index >= frame_count:
+            raise HTTPException(status_code=400, detail="El fotograma solicitado está fuera del vídeo")
+        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ok, frame_bgr = capture.read()
+        if not ok or frame_bgr is None:
+            raise HTTPException(status_code=400, detail="No se pudo leer el fotograma solicitado")
+    finally:
+        capture.release()
+
+    corrected_view_frames = sorted({
+        int(calibration.get("frame", 0))
+        for calibration in calibrations
+        if calibration.get("initialHomography") or calibration.get("initial_homography")
+    })
+    return {
+        "guidance": guidance,
+        "observer": observe_field_lines(frame_bgr, guidance),
         "learning": summarize_field_learning(profile),
         "corrected_view_frames": corrected_view_frames,
     }
