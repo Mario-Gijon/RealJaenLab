@@ -31,6 +31,8 @@ const adaptationGuidanceButton = document.querySelector("#adaptation-guidance");
 const observeFieldLinesButton = document.querySelector("#observe-field-lines");
 const propagationStatus = document.querySelector("#field-propagation-status");
 const calibrationPanel = document.querySelector("#calibration-panel");
+const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
+const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
 const calibrationLandmark = document.querySelector("#calibration-landmark");
 const calibrationPitchMarkers = document.querySelector("#calibration-pitch-markers");
 const calibrationPitchLines = document.querySelector("#calibration-pitch-lines");
@@ -82,6 +84,8 @@ let adaptationInProgress = false;
 let localObserverResult = null;
 let localObserverRequestSequence = 0;
 let localObserverInProgress = false;
+let calibrationPanelPosition = { x: 14, y: 60 };
+let calibrationPanelDrag = null;
 
 workArea.classList.add("field-editing");
 
@@ -105,6 +109,25 @@ function setReviewDirty(isDirty) {
   reviewIsDirty = isDirty;
   saveStatus.classList.toggle("is-saved", !isDirty);
   saveStatusLabel.textContent = isDirty ? "SIN GUARDAR" : "GUARDADO";
+}
+
+function clampCalibrationPanelPosition(position = calibrationPanelPosition) {
+  const maximumX = Math.max(0, workArea.clientWidth - calibrationPanel.offsetWidth);
+  const maximumY = Math.max(0, workArea.clientHeight - calibrationPanel.offsetHeight);
+  return {
+    x: Math.min(Math.max(position.x, 0), maximumX),
+    y: Math.min(Math.max(position.y, 0), maximumY),
+  };
+}
+
+function positionCalibrationPanel(position = calibrationPanelPosition) {
+  calibrationPanelPosition = clampCalibrationPanelPosition(position);
+  calibrationPanel.style.left = `${calibrationPanelPosition.x}px`;
+  calibrationPanel.style.top = `${calibrationPanelPosition.y}px`;
+}
+
+function clampVisibleCalibrationPanel() {
+  if (!calibrationPanel.hidden) positionCalibrationPanel();
 }
 
 // These helpers are the shared mapping boundary for future FIELD and PEOPLE overlays.
@@ -852,6 +875,7 @@ function enterCalibrationMode() {
   activeFieldTool = "select";
   fieldToolButtons.forEach((button) => button.classList.remove("is-active"));
   calibrationPanel.hidden = false;
+  positionCalibrationPanel();
   updateCalibrationStatus();
   drawOverlay();
 }
@@ -1632,6 +1656,7 @@ function syncOverlay() {
   overlay.style.height = `${displayedVideoRect.height}px`;
   overlay.classList.add("is-loaded");
   pointerVideoCoordinates = pointerBrowserPosition ? browserToVideoCoordinates(pointerBrowserPosition) : null;
+  clampVisibleCalibrationPanel();
   drawOverlay();
 }
 
@@ -2142,6 +2167,58 @@ debugToggle.addEventListener("click", () => {
 
 adaptationGuidanceButton.addEventListener("click", requestAdaptationGuidance);
 observeFieldLinesButton.addEventListener("click", observeCurrentFieldLines);
+
+calibrationPanel.addEventListener("pointerdown", (event) => {
+  event.stopPropagation();
+});
+calibrationPanel.addEventListener("pointerup", (event) => {
+  event.stopPropagation();
+});
+calibrationPanel.addEventListener("pointermove", (event) => {
+  event.stopPropagation();
+});
+
+calibrationPanelHeader.addEventListener("pointerdown", (event) => {
+  event.stopPropagation();
+  if (event.button !== 0 || event.target.closest("button")) return;
+  calibrationPanelDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    position: { ...calibrationPanelPosition },
+  };
+  calibrationPanelHeader.setPointerCapture(event.pointerId);
+  event.preventDefault();
+});
+
+calibrationPanelHeader.addEventListener("pointermove", (event) => {
+  if (!calibrationPanelDrag || event.pointerId !== calibrationPanelDrag.pointerId) return;
+  event.stopPropagation();
+  positionCalibrationPanel({
+    x: calibrationPanelDrag.position.x + event.clientX - calibrationPanelDrag.startX,
+    y: calibrationPanelDrag.position.y + event.clientY - calibrationPanelDrag.startY,
+  });
+  event.preventDefault();
+});
+
+function finishCalibrationPanelDrag(event) {
+  if (!calibrationPanelDrag || event.pointerId !== calibrationPanelDrag.pointerId) return;
+  event.stopPropagation();
+  calibrationPanelDrag = null;
+  if (calibrationPanelHeader.hasPointerCapture(event.pointerId)) {
+    calibrationPanelHeader.releasePointerCapture(event.pointerId);
+  }
+}
+
+calibrationPanelHeader.addEventListener("pointerup", finishCalibrationPanelDrag);
+calibrationPanelHeader.addEventListener("pointercancel", finishCalibrationPanelDrag);
+
+calibrationPanelToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const maximumX = Math.max(0, workArea.clientWidth - calibrationPanel.offsetWidth);
+  const moveToRight = calibrationPanelPosition.x <= maximumX / 2;
+  positionCalibrationPanel({ x: moveToRight ? maximumX : 0, y: 60 });
+});
 
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };

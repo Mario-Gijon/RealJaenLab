@@ -46,6 +46,45 @@
             <h1 id="workspace-title">Área de vídeo</h1>
             <p id="workspace-description">Selecciona un vídeo para empezar.</p>
           </div>
+          <div class="calibration-panel" id="calibration-panel" hidden>
+            <div class="calibration-panel-header" id="calibration-panel-header">
+              <span class="calibration-heading">REFERENCIA 105 × 68 M</span>
+              <button class="calibration-panel-toggle" id="calibration-panel-toggle" type="button" title="Mover el panel a la otra esquina" aria-label="Mover el panel a la otra esquina">⇆</button>
+            </div>
+            <div class="calibration-panel-content">
+              <div class="calibration-reference">
+                <span class="calibration-hint" id="calibration-hint">Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo.</span>
+                <svg id="calibration-pitch" viewBox="-58 -43 116 86" role="img" aria-label="Diagrama canónico del campo para seleccionar referencias">
+                  <rect x="-52.5" y="-34" width="105" height="68" class="pitch-diagram-line" />
+                  <line x1="0" y1="-34" x2="0" y2="34" class="pitch-diagram-line" />
+                  <circle cx="0" cy="0" r="9.15" class="pitch-diagram-line" />
+                  <path d="M -36 -7.3125 A 9.15 9.15 0 0 1 -36 7.3125 M 36 -7.3125 A 9.15 9.15 0 0 0 36 7.3125" class="pitch-diagram-line" />
+                  <path d="M -52.5 -20.16 H -36 V 20.16 H -52.5 M 52.5 -20.16 H 36 V 20.16 H 52.5" class="pitch-diagram-line" />
+                  <path d="M -52.5 -9.16 H -47 V 9.16 H -52.5 M 52.5 -9.16 H 47 V 9.16 H 52.5" class="pitch-diagram-line" />
+                  <g id="calibration-pitch-lines"></g>
+                  <g id="calibration-pitch-arcs"></g>
+                  <g id="calibration-pitch-markers"></g>
+                  <text x="0" y="-38" text-anchor="middle" class="pitch-diagram-direction">ARRIBA (DIAGRAMA)</text>
+                  <text x="-55" y="39" text-anchor="start" class="pitch-diagram-direction">IZQUIERDA</text>
+                  <text x="55" y="39" text-anchor="end" class="pitch-diagram-direction">DERECHA</text>
+                </svg>
+              </div>
+              <div class="calibration-actions">
+                <span id="calibration-status">0 puntos / mínimo 4</span>
+                <label for="calibration-constraint-type">Tipo de referencia</label>
+                <select id="calibration-constraint-type">
+                  <option value="point">Punto</option>
+                  <option value="line">Línea</option>
+                  <option value="arc">Arco</option>
+                </select>
+                <label for="calibration-landmark">Selector alternativo</label>
+                <select id="calibration-landmark"></select>
+                <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
+                <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
+                <button class="field-tool" id="exit-calibration" type="button">Listo</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="field-toolbar" id="field-toolbar" aria-label="Herramientas de edición del campo">
           <button class="field-tool is-active" type="button" data-field-tool="select">Seleccionar / mover</button>
@@ -62,40 +101,6 @@
           <button class="field-tool" id="delete-field-item" type="button">Eliminar</button>
           <button class="field-tool" id="undo-field-edit" type="button">Deshacer</button>
           <span class="field-propagation-status" id="field-propagation-status" hidden role="status"></span>
-        </div>
-        <div class="calibration-panel" id="calibration-panel" hidden>
-          <div class="calibration-reference">
-            <span class="calibration-heading">REFERENCIA 105 × 68 M</span>
-            <span class="calibration-hint" id="calibration-hint">Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo.</span>
-            <svg id="calibration-pitch" viewBox="-58 -43 116 86" role="img" aria-label="Diagrama canónico del campo para seleccionar referencias">
-              <rect x="-52.5" y="-34" width="105" height="68" class="pitch-diagram-line" />
-              <line x1="0" y1="-34" x2="0" y2="34" class="pitch-diagram-line" />
-              <circle cx="0" cy="0" r="9.15" class="pitch-diagram-line" />
-              <path d="M -36 -7.3125 A 9.15 9.15 0 0 1 -36 7.3125 M 36 -7.3125 A 9.15 9.15 0 0 0 36 7.3125" class="pitch-diagram-line" />
-              <path d="M -52.5 -20.16 H -36 V 20.16 H -52.5 M 52.5 -20.16 H 36 V 20.16 H 52.5" class="pitch-diagram-line" />
-              <path d="M -52.5 -9.16 H -47 V 9.16 H -52.5 M 52.5 -9.16 H 47 V 9.16 H 52.5" class="pitch-diagram-line" />
-              <g id="calibration-pitch-lines"></g>
-              <g id="calibration-pitch-arcs"></g>
-              <g id="calibration-pitch-markers"></g>
-              <text x="0" y="-38" text-anchor="middle" class="pitch-diagram-direction">ARRIBA (DIAGRAMA)</text>
-              <text x="-55" y="39" text-anchor="start" class="pitch-diagram-direction">IZQUIERDA</text>
-              <text x="55" y="39" text-anchor="end" class="pitch-diagram-direction">DERECHA</text>
-            </svg>
-          </div>
-          <div class="calibration-actions">
-            <span id="calibration-status">0 puntos / mínimo 4</span>
-            <label for="calibration-constraint-type">Tipo de referencia</label>
-            <select id="calibration-constraint-type">
-              <option value="point">Punto</option>
-              <option value="line">Línea</option>
-              <option value="arc">Arco</option>
-            </select>
-            <label for="calibration-landmark">Selector alternativo</label>
-            <select id="calibration-landmark"></select>
-            <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
-            <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
-            <button class="field-tool" id="exit-calibration" type="button">Listo</button>
-          </div>
         </div>
       </section>
 
