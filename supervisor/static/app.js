@@ -658,6 +658,20 @@ function calibrationLineDiagnostics(calibration) {
     .filter((diagnostic) => Number.isFinite(diagnostic.errorPx));
 }
 
+function calibrationStrategyLabel(calibration) {
+  const strategy = calibration?.diagnostics?.calibration_strategy;
+  if (!strategy?.selected_mode) return "";
+  const selected = strategy.selected_mode;
+  if (!debugOverlayEnabled) return selected === "full" ? "Calibración completa" : "Corrección parcial";
+
+  const evidence = strategy.evidence || {};
+  if (selected === "full") {
+    const score = Number(evidence.evidence_score || 0).toFixed(2);
+    return `FULL · ${evidence.points || 0} puntos · ${evidence.lines || 0} líneas · evidencia ${score}`;
+  }
+  return "REFINE · evidencia parcial";
+}
+
 function constraintCountsLabel(constraints) {
   const counts = { point: 0, line: 0, arc: 0 };
   constraints.forEach((constraint) => { if (counts[constraint.type] !== undefined) counts[constraint.type] += 1; });
@@ -820,9 +834,10 @@ function updateCalibrationStatus(message = null) {
   const lineWarning = calibrationLineDiagnostics(calibration).find((diagnostic) => (
     diagnostic.quality === "bad" || (!diagnostic.quality && diagnostic.errorPx > LINE_WARNING_ERROR_PX)
   ));
+  const strategyLabel = calibrationStrategyLabel(calibration);
   const hasMixedConstraints = constraints.some((item) => item.type !== "point");
   calibrationStatus.textContent = calibration?.homography
-    ? `${constraintCountsLabel(constraints)} · campo proyectado${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
+    ? `${constraintCountsLabel(constraints)} · campo proyectado${strategyLabel ? ` · ${strategyLabel}` : ""}${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
     : refiningExistingProjection
       ? `${constraintCountsLabel(constraints)} · corrigiendo proyección existente`
       : hasMixedConstraints
@@ -1395,6 +1410,13 @@ function drawDebugOverlay() {
   overlayContext.stroke();
 
   overlayContext.fillText(`${video.videoWidth} × ${video.videoHeight}`, padding, padding);
+
+  const strategyLabel = calibrationStrategyLabel(calibrationForCurrentFrame());
+  if (strategyLabel) {
+    overlayContext.fillStyle = "#d9c4ff";
+    overlayContext.fillText(strategyLabel, padding, padding + 60 / displayScale);
+    overlayContext.fillStyle = "#f0f2f4";
+  }
 
   if (pointerVideoCoordinates) {
     const x = Math.round(pointerVideoCoordinates.x);

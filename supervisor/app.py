@@ -8,8 +8,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from supervisor.field_camera_calibration import solve_field_camera_calibration
-from supervisor.field_camera_refinement import refine_field_camera_calibration
+from supervisor.field_calibration_strategy import solve_field_camera_adaptive
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
     suggest_local_field_searches,
@@ -180,23 +179,14 @@ def solve_calibration(payload: dict = Body()) -> dict:
         if constraint_type in grouped:
             grouped[constraint_type].append(constraint)
 
-    initial_homography = payload.get("initial_homography")
-    if initial_homography is not None:
-        return refine_field_camera_calibration(
-            initial_homography,
-            grouped["point"],
-            grouped["line"],
-            grouped["arc"],
-            payload.get("image_width"),
-            payload.get("image_height"),
-        )
-
-    return solve_field_camera_calibration(
+    return solve_field_camera_adaptive(
         grouped["point"],
         grouped["line"],
         grouped["arc"],
         payload.get("image_width"),
         payload.get("image_height"),
+        initial_homography=payload.get("initial_homography"),
+        mode="auto",
     )
 
 
