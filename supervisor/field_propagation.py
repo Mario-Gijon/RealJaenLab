@@ -105,6 +105,14 @@ class PropagationConfig:
 
     min_confidence: float = 0.32
 
+    # Automatic TRACKING keyframes. These are internal and never become manual
+    # FIELD anchors. They only refresh KLT features while the current FIELD
+    # geometry is still trustworthy.
+    reseed_below_tracks: int = 90
+    reseed_below_inlier_ratio: float = 0.58
+    max_tracking_anchor_age_frames: int = 180
+    min_reseed_features: int = 45
+
 
 def _normalise_homography(matrix: Any) -> np.ndarray | None:
     try:
@@ -776,23 +784,26 @@ def propagate_field_homography(
                 "frames": [],
             }
 
-        # These two arrays always share identity. `origin_points` NEVER moves;
-        # `previous_points` advances one frame at a time.
-        origin_points = anchor_points.reshape(-1, 2).copy()
+        # A manual FIELD anchor remains the authoritative geometry checkpoint.
+        # Separately, we maintain an INTERNAL tracking keyframe. Its KLT
+        # features may be refreshed many times without creating a manual anchor.
+        tracking_anchor_frame = int(anchor_frame)
+        tracking_anchor_h = anchor_h.copy()
+        tracking_origin_points = anchor_points.reshape(-1, 2).copy()
         previous_points = anchor_points.copy()
         previous_gray = anchor_gray
         previous_mask_pixels = int(cv2.countNonZero(anchor_mask))
 
-        anchor_ref_projection, anchor_ref_mask = (
+        tracking_ref_projection, tracking_ref_mask = (
             _visible_reference_mask(
-                anchor_h,
+                tracking_anchor_h,
                 native_width,
                 native_height,
                 cfg,
             )
         )
         if (
-            int(np.count_nonzero(anchor_ref_mask))
+            int(np.count_nonzero(tracking_ref_mask))
             < cfg.min_visible_references
         ):
             return {
@@ -814,8 +825,85 @@ def propagate_field_homography(
         ]
 
         current_index = int(anchor_frame)
+        current_h = anchor_h.copy()
+        current_mask = anchor_mask
         stopped_reason: str | None = None
         stopped_frame: int | None = None
+        tracking_reanchors: list[dict[str, Any]] = []
+
+        def reseed_tracking_at_current(
+            reason: str,
+        ) -> bool:
+            """Refresh KLT features at the last ACCEPTED FIELD frame.
+
+            This changes only the internal tracking reference. It never creates
+            a manual calibration and never changes the accepted homography.
+            """
+
+            nonlocal tracking_anchor_frame
+            nonlocal tracking_anchor_h
+            nonlocal tracking_origin_points
+            nonlocal previous_points
+            nonlocal tracking_ref_projection
+            nonlocal tracking_ref_mask
+            nonlocal previous_mask_pixels
+
+            fresh_mask = _make_pitch_mask(
+                previous_gray.shape,
+                _scaled_homography(
+                    current_h,
+                    cfg.working_scale,
+                ),
+                cfg,
+            )
+            if fresh_mask is None:
+                return False
+
+            fresh_points = _detect_features_grid(
+                previous_gray,
+                fresh_mask,
+                cfg,
+            )
+            if (
+                fresh_points is None
+                or len(fresh_points) < cfg.min_reseed_features
+            ):
+                return False
+
+            fresh_ref_projection, fresh_ref_mask = (
+                _visible_reference_mask(
+                    current_h,
+                    native_width,
+                    native_height,
+                    cfg,
+                )
+            )
+            if (
+                int(np.count_nonzero(fresh_ref_mask))
+                < cfg.min_visible_references
+            ):
+                return False
+
+            tracking_anchor_frame = int(current_index)
+            tracking_anchor_h = current_h.copy()
+            tracking_origin_points = (
+                fresh_points.reshape(-1, 2).copy()
+            )
+            previous_points = fresh_points.copy()
+            tracking_ref_projection = fresh_ref_projection
+            tracking_ref_mask = fresh_ref_mask
+            previous_mask_pixels = int(
+                cv2.countNonZero(fresh_mask)
+            )
+
+            tracking_reanchors.append(
+                {
+                    "frame": int(current_index),
+                    "reason": reason,
+                    "features": int(len(fresh_points)),
+                }
+            )
+            return True
 
         for _ in range(max_frames):
             target_index = current_index + direction
@@ -832,101 +920,184 @@ def propagate_field_homography(
                 stopped_frame = target_index
                 break
 
-            current_gray = _prepare_frame(
+            target_gray = _prepare_frame(
                 current_bgr,
                 cfg.working_scale,
             )
 
-            tracked = _track_features(
-                previous_gray,
-                current_gray,
-                previous_points,
-                cfg,
-            )
-            if tracked is None:
-                stopped_reason = (
-                    "El flujo óptico no produjo correspondencias."
+            # One retry is allowed after refreshing features at the last
+            # accepted frame. This is what lets a correct FIELD trajectory
+            # survive when the old KLT identities simply age out.
+            retried_after_reseed = False
+
+            while True:
+                tracked = _track_features(
+                    previous_gray,
+                    target_gray,
+                    previous_points,
+                    cfg,
                 )
-                stopped_frame = target_index
+
+                if tracked is None:
+                    if (
+                        not retried_after_reseed
+                        and reseed_tracking_at_current(
+                            "optical_flow_lost"
+                        )
+                    ):
+                        retried_after_reseed = True
+                        continue
+
+                    stopped_reason = (
+                        "El flujo óptico no produjo correspondencias "
+                        "ni siquiera después de renovar los tracks."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                (
+                    _previous_valid,
+                    current_valid,
+                    valid_mask,
+                    track_diag,
+                ) = tracked
+
+                surviving_origin = (
+                    tracking_origin_points[valid_mask]
+                )
+
+                if (
+                    len(surviving_origin) < cfg.min_tracks
+                    and not retried_after_reseed
+                    and reseed_tracking_at_current(
+                        "too_few_surviving_tracks"
+                    )
+                ):
+                    retried_after_reseed = True
+                    continue
+
+                if len(surviving_origin) < cfg.min_tracks:
+                    stopped_reason = (
+                        "Quedan muy pocos tracks incluso después "
+                        "de renovar automáticamente el tracking."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                if (
+                    float(track_diag["median_step_motion_px"])
+                    > cfg.max_step_motion_px
+                ):
+                    stopped_reason = (
+                        "El movimiento entre fotogramas es demasiado grande."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                motion_result = _estimate_anchor_motion(
+                    surviving_origin,
+                    current_valid,
+                    cfg,
+                )
+
+                if motion_result is None:
+                    if (
+                        not retried_after_reseed
+                        and reseed_tracking_at_current(
+                            "anchor_motion_failed"
+                        )
+                    ):
+                        retried_after_reseed = True
+                        continue
+
+                    stopped_reason = (
+                        "No se pudo estimar el movimiento ni después "
+                        "de renovar automáticamente el tracking."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                motion_scaled, motion_diag = motion_result
+
+                hard_tracking_failure = (
+                    int(motion_diag["inliers"])
+                    < cfg.min_inliers
+                    or float(motion_diag["inlier_ratio"])
+                    < cfg.min_inlier_ratio
+                    or float(
+                        motion_diag[
+                            "median_reprojection_error_px"
+                        ]
+                    )
+                    > cfg.max_median_reprojection_error_px
+                )
+
+                if (
+                    hard_tracking_failure
+                    and not retried_after_reseed
+                    and reseed_tracking_at_current(
+                        "tracking_quality_degraded"
+                    )
+                ):
+                    retried_after_reseed = True
+                    continue
+
+                if int(motion_diag["inliers"]) < cfg.min_inliers:
+                    stopped_reason = (
+                        "Muy pocos tracks apoyan el movimiento "
+                        "después del auto-reanclaje."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                if (
+                    float(motion_diag["inlier_ratio"])
+                    < cfg.min_inlier_ratio
+                ):
+                    stopped_reason = (
+                        "El movimiento sigue teniendo demasiados "
+                        "outliers después del auto-reanclaje."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                if (
+                    float(
+                        motion_diag[
+                            "median_reprojection_error_px"
+                        ]
+                    )
+                    > cfg.max_median_reprojection_error_px
+                ):
+                    stopped_reason = (
+                        "El movimiento mantiene demasiado error "
+                        "geométrico después del auto-reanclaje."
+                    )
+                    stopped_frame = target_index
+                    break
+
+                # Commit the surviving identities only after the current
+                # tracking model has passed the hard checks.
+                tracking_origin_points = surviving_origin
+                previous_points = current_valid.reshape(
+                    -1,
+                    1,
+                    2,
+                )
                 break
 
-            (
-                _previous_valid,
-                current_valid,
-                valid_mask,
-                track_diag,
-            ) = tracked
-
-            origin_points = origin_points[valid_mask]
-            previous_points = current_valid.reshape(-1, 1, 2)
-
-            if len(origin_points) < cfg.min_tracks:
-                stopped_reason = (
-                    "Quedan muy pocos tracks del fotograma ancla."
-                )
-                stopped_frame = target_index
-                break
-
-            if (
-                float(track_diag["median_step_motion_px"])
-                > cfg.max_step_motion_px
-            ):
-                stopped_reason = (
-                    "El movimiento entre fotogramas es demasiado grande."
-                )
-                stopped_frame = target_index
-                break
-
-            motion_result = _estimate_anchor_motion(
-                origin_points,
-                current_valid,
-                cfg,
-            )
-            if motion_result is None:
-                stopped_reason = (
-                    "No se pudo estimar el movimiento desde el ancla."
-                )
-                stopped_frame = target_index
-                break
-
-            motion_scaled, motion_diag = motion_result
-
-            if int(motion_diag["inliers"]) < cfg.min_inliers:
-                stopped_reason = (
-                    "Muy pocos tracks apoyan el movimiento desde el ancla."
-                )
-                stopped_frame = target_index
-                break
-            if (
-                float(motion_diag["inlier_ratio"])
-                < cfg.min_inlier_ratio
-            ):
-                stopped_reason = (
-                    "El movimiento desde el ancla tiene demasiados outliers."
-                )
-                stopped_frame = target_index
-                break
-            if (
-                float(
-                    motion_diag[
-                        "median_reprojection_error_px"
-                    ]
-                )
-                > cfg.max_median_reprojection_error_px
-            ):
-                stopped_reason = (
-                    "El movimiento desde el ancla tiene demasiado "
-                    "error geométrico."
-                )
-                stopped_frame = target_index
+            if stopped_reason is not None:
                 break
 
             motion_native = _motion_to_native(
                 motion_scaled,
                 cfg.working_scale,
             )
+
+            # IMPORTANT: this frame is reconstructed from the CURRENT INTERNAL
+            # tracking keyframe, not by multiplying the previous FIELD H.
             candidate_h = _normalise_homography(
-                motion_native @ anchor_h
+                motion_native @ tracking_anchor_h
             )
             if candidate_h is None:
                 stopped_reason = (
@@ -939,12 +1110,12 @@ def propagate_field_homography(
                 candidate_h,
                 cfg.working_scale,
             )
-            current_mask = _make_pitch_mask(
-                current_gray.shape,
+            target_mask = _make_pitch_mask(
+                target_gray.shape,
                 candidate_scaled,
                 cfg,
             )
-            if current_mask is None:
+            if target_mask is None:
                 stopped_reason = (
                     "La zona proyectada del campo dejó de ser "
                     "utilizable para tracking."
@@ -952,20 +1123,24 @@ def propagate_field_homography(
                 stopped_frame = target_index
                 break
 
-            current_mask_pixels = int(
-                cv2.countNonZero(current_mask)
+            target_mask_pixels = int(
+                cv2.countNonZero(target_mask)
             )
 
+            # Validate motion LOCALLY against the current tracking keyframe.
+            # The manual anchor can be hundreds/thousands of frames away after
+            # a large Veo pan, so comparing every future frame directly with
+            # that first viewport would create a false stop.
             valid, reason, validation_diag = (
                 _validate_candidate(
-                    anchor_h,
+                    tracking_anchor_h,
                     candidate_h,
                     anchor_reference_projection=(
-                        anchor_ref_projection
+                        tracking_ref_projection
                     ),
-                    anchor_reference_mask=anchor_ref_mask,
+                    anchor_reference_mask=tracking_ref_mask,
                     previous_mask_pixels=previous_mask_pixels,
-                    current_mask_pixels=current_mask_pixels,
+                    current_mask_pixels=target_mask_pixels,
                     native_width=native_width,
                     native_height=native_height,
                     config=cfg,
@@ -977,7 +1152,7 @@ def propagate_field_homography(
                 break
 
             confidence = _confidence(
-                len(origin_points),
+                len(tracking_origin_points),
                 int(motion_diag["inliers"]),
                 float(motion_diag["inlier_ratio"]),
                 float(
@@ -995,6 +1170,10 @@ def propagate_field_homography(
                 stopped_frame = target_index
                 break
 
+            tracking_anchor_used = int(
+                tracking_anchor_frame
+            )
+
             results.append(
                 {
                     "frame": int(target_index),
@@ -1002,8 +1181,12 @@ def propagate_field_homography(
                     "source": "propagated_optical_flow_anchor",
                     "confidence": confidence,
                     "tracking": {
-                        "remaining_anchor_tracks": int(
-                            len(origin_points)
+                        "tracking_anchor_frame": tracking_anchor_used,
+                        "remaining_tracking_tracks": int(
+                            len(tracking_origin_points)
+                        ),
+                        "auto_reanchors_so_far": int(
+                            len(tracking_reanchors)
                         ),
                         **track_diag,
                         **motion_diag,
@@ -1013,8 +1196,41 @@ def propagate_field_homography(
             )
 
             current_index = target_index
-            previous_gray = current_gray
-            previous_mask_pixels = current_mask_pixels
+            current_h = candidate_h
+            current_mask = target_mask
+            previous_gray = target_gray
+            previous_mask_pixels = target_mask_pixels
+
+            # Proactive refresh: renew features BEFORE they hit the hard stop.
+            tracking_anchor_age = abs(
+                current_index - tracking_anchor_frame
+            )
+            should_reseed = (
+                len(tracking_origin_points)
+                < cfg.reseed_below_tracks
+                or float(motion_diag["inlier_ratio"])
+                < cfg.reseed_below_inlier_ratio
+                or tracking_anchor_age
+                >= cfg.max_tracking_anchor_age_frames
+            )
+
+            if should_reseed:
+                if (
+                    len(tracking_origin_points)
+                    < cfg.reseed_below_tracks
+                ):
+                    reseed_reason = "low_track_count"
+                elif (
+                    float(motion_diag["inlier_ratio"])
+                    < cfg.reseed_below_inlier_ratio
+                ):
+                    reseed_reason = "lower_inlier_ratio"
+                else:
+                    reseed_reason = "tracking_keyframe_age"
+
+                reseed_tracking_at_current(
+                    reseed_reason
+                )
 
         propagated_count = max(0, len(results) - 1)
         status = (
@@ -1035,6 +1251,8 @@ def propagate_field_homography(
             "requested_frames": int(max_frames),
             "propagated_frames": propagated_count,
             "stopped_frame": stopped_frame,
+            "tracking_reanchors": tracking_reanchors,
+            "tracking_reanchor_count": len(tracking_reanchors),
             "config": asdict(cfg),
             "frames": results,
         }

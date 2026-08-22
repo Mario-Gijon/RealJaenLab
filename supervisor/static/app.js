@@ -27,6 +27,7 @@ const undoFieldEditButton = document.querySelector("#undo-field-edit");
 const calibratePitchButton = document.querySelector("#calibrate-pitch");
 const propagateFieldButton = document.querySelector("#propagate-field");
 const refineSegmentButton = document.querySelector("#refine-segment");
+const adaptationGuidanceButton = document.querySelector("#adaptation-guidance");
 const propagationStatus = document.querySelector("#field-propagation-status");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationLandmark = document.querySelector("#calibration-landmark");
@@ -74,6 +75,9 @@ let propagationRequestSequence = 0;
 let refinementInProgress = false;
 let refinementRequestSequence = 0;
 let manualCalibrationRevision = 0;
+let adaptationGuidance = null;
+let adaptationRequestSequence = 0;
+let adaptationInProgress = false;
 
 workArea.classList.add("field-editing");
 
@@ -206,6 +210,12 @@ function hasSolvedManualCalibration(calibration = calibrationForCurrentFrame()) 
     && calibration.homography.length === 3;
 }
 
+function fieldHomographyForCurrentFrame() {
+  const calibration = calibrationForCurrentFrame();
+  if (hasSolvedManualCalibration(calibration)) return calibration.homography;
+  return refinedFrameForCurrentFrame()?.homography || propagatedFrameForCurrentFrame()?.homography || null;
+}
+
 function cloneAnnotations() {
   return JSON.parse(JSON.stringify(fieldAnnotations));
 }
@@ -278,6 +288,13 @@ function updateRefinementControl() {
     && Boolean(previousManualCalibration());
   refineSegmentButton.disabled = !enabled;
   refineSegmentButton.textContent = refinementInProgress ? "Refinando tramo FIELD…" : "Refinar tramo anterior";
+}
+
+function updateAdaptationGuidanceControl() {
+  const visible = debugOverlayEnabled && activeMode === "field";
+  adaptationGuidanceButton.hidden = !visible;
+  adaptationGuidanceButton.disabled = !visible || adaptationInProgress || !Array.isArray(fieldHomographyForCurrentFrame());
+  adaptationGuidanceButton.textContent = adaptationInProgress ? "Consultando guía…" : "Ver guía FIELD";
 }
 
 function invalidatePropagationsFromAnchor(calibration) {
@@ -898,6 +915,8 @@ function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
 }
 
 async function solveCalibration(calibration) {
+  adaptationRequestSequence += 1;
+  adaptationGuidance = null;
   manualCalibrationRevision += 1;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -978,6 +997,8 @@ function removeSelectedCalibrationCorrespondence() {
 function clearCurrentCalibration() {
   const calibration = calibrationForCurrentFrame();
   if (!calibration) return;
+  adaptationRequestSequence += 1;
+  adaptationGuidance = null;
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -1368,7 +1389,110 @@ function drawDebugOverlay() {
     const labelY = Math.min(pointerVideoCoordinates.y + padding, video.videoHeight - 22 / displayScale);
     overlayContext.fillText(label, labelX, labelY);
   }
+  drawAdaptationGuidance(displayScale, fontSize, padding);
   overlayContext.restore();
+}
+
+function semanticLabel(semantic) {
+  return PITCH_MODEL.landmarksById[semantic]?.label
+    || PITCH_MODEL.calibrationLinesById[semantic]?.label
+    || PITCH_MODEL.calibrationArcsById[semantic]?.label
+    || semantic;
+}
+
+function drawAdaptationGuidance(displayScale, fontSize, padding) {
+  if (
+    !adaptationGuidance
+    || adaptationGuidance.video !== selectedVideo?.name
+    || adaptationGuidance.frame !== currentFrameNumber()
+  ) return;
+
+  const result = adaptationGuidance.result;
+  if (result?.status !== "ok") {
+    overlayContext.fillStyle = "#d4a414";
+    overlayContext.fillText(`Guía FIELD: ${result?.detail || "no disponible"}`, padding, padding + 20 / displayScale);
+    return;
+  }
+
+  const summary = result.learning || {};
+  const correctedViews = Array.isArray(result.corrected_view_frames) ? result.corrected_view_frames.length : 0;
+  overlayContext.fillStyle = "#b8d9ff";
+  overlayContext.fillText(
+    `FIELD aprendido: ${summary.total_human_examples || 0} referencias · ${correctedViews} vistas corregidas`,
+    padding,
+    padding + 20 / displayScale,
+  );
+
+  (result.searches || []).forEach((search) => {
+    const { expected = {}, adaptation = {}, search: searchRegion = {} } = search;
+    const label = semanticLabel(search.semantic);
+    let labelPoint = null;
+
+    overlayContext.save();
+    if (search.type === "point") {
+      const roi = searchRegion.roi;
+      if (!roi) {
+        overlayContext.restore();
+        return;
+      }
+      overlayContext.fillStyle = "rgba(125, 208, 255, .10)";
+      overlayContext.strokeStyle = "rgba(125, 208, 255, .72)";
+      overlayContext.lineWidth = 1.25 / displayScale;
+      overlayContext.fillRect(roi.x, roi.y, roi.width, roi.height);
+      overlayContext.strokeRect(roi.x, roi.y, roi.width, roi.height);
+      if (expected.x !== undefined && expected.y !== undefined) {
+        overlayContext.beginPath();
+        overlayContext.arc(expected.x, expected.y, searchRegion.radius_px || 0, 0, Math.PI * 2);
+        overlayContext.stroke();
+        labelPoint = expected;
+      }
+    } else if (search.type === "line") {
+      const start = expected.visible_start;
+      const end = expected.visible_end;
+      if (!start || !end) {
+        overlayContext.restore();
+        return;
+      }
+      overlayContext.strokeStyle = "rgba(125, 208, 255, .15)";
+      overlayContext.lineWidth = (searchRegion.half_width_px || 0) * 2;
+      overlayContext.beginPath();
+      overlayContext.moveTo(start.x, start.y);
+      overlayContext.lineTo(end.x, end.y);
+      overlayContext.stroke();
+      overlayContext.strokeStyle = "rgba(125, 208, 255, .9)";
+      overlayContext.lineWidth = 1.5 / displayScale;
+      overlayContext.beginPath();
+      overlayContext.moveTo(start.x, start.y);
+      overlayContext.lineTo(end.x, end.y);
+      overlayContext.stroke();
+      labelPoint = start;
+    } else if (search.type === "arc") {
+      const roi = searchRegion.roi;
+      if (!roi) {
+        overlayContext.restore();
+        return;
+      }
+      overlayContext.fillStyle = "rgba(180, 140, 255, .08)";
+      overlayContext.strokeStyle = "rgba(180, 140, 255, .72)";
+      overlayContext.lineWidth = 1.25 / displayScale;
+      overlayContext.fillRect(roi.x, roi.y, roi.width, roi.height);
+      overlayContext.strokeRect(roi.x, roi.y, roi.width, roi.height);
+      labelPoint = { x: roi.x, y: roi.y };
+    }
+
+    const frames = adaptation.learned_from_frames || [];
+    if (labelPoint && frames.length) {
+      const similarity = Number(adaptation.best_camera_similarity || 0).toFixed(2);
+      overlayContext.fillStyle = "#cfe9ff";
+      overlayContext.font = `600 ${Math.max(9, fontSize - 2 / displayScale)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      overlayContext.fillText(
+        `${label} · similitud ${similarity} · fotogramas ${frames.join(", ")}`,
+        Math.min(labelPoint.x + 5 / displayScale, video.videoWidth - 260 / displayScale),
+        Math.min(labelPoint.y + 5 / displayScale, video.videoHeight - 14 / displayScale),
+      );
+    }
+    overlayContext.restore();
+  });
 }
 
 function drawOverlay() {
@@ -1378,6 +1502,7 @@ function drawOverlay() {
   drawDebugOverlay();
   updatePropagationControl();
   updateRefinementControl();
+  updateAdaptationGuidanceControl();
   updateCurrentReferenceLabel();
 }
 
@@ -1454,8 +1579,11 @@ async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
   propagationRequestSequence += 1;
   refinementRequestSequence += 1;
+  adaptationRequestSequence += 1;
   propagationInProgress = false;
   refinementInProgress = false;
+  adaptationInProgress = false;
+  adaptationGuidance = null;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1534,6 +1662,48 @@ async function saveCurrentReview() {
     saveStatusLabel.textContent = "ERROR AL GUARDAR";
   } finally {
     saveButton.disabled = false;
+  }
+}
+
+async function requestAdaptationGuidance() {
+  const homography = fieldHomographyForCurrentFrame();
+  if (!debugOverlayEnabled || !selectedVideo || !Array.isArray(homography)) return;
+
+  const requestSequence = ++adaptationRequestSequence;
+  const filename = selectedVideo.name;
+  const frame = currentFrameNumber();
+  adaptationInProgress = true;
+  updateAdaptationGuidanceControl();
+
+  try {
+    const response = await fetch("/api/field-adaptation/guidance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        homography,
+        image_width: video.videoWidth,
+        image_height: video.videoHeight,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudo obtener la guía FIELD");
+    if (requestSequence !== adaptationRequestSequence || selectedVideo?.name !== filename) return;
+    adaptationGuidance = { video: filename, frame, result };
+    drawOverlay();
+  } catch (error) {
+    if (requestSequence !== adaptationRequestSequence) return;
+    adaptationGuidance = {
+      video: filename,
+      frame,
+      result: { status: "error", detail: error.message || "No se pudo obtener la guía FIELD" },
+    };
+    drawOverlay();
+  } finally {
+    if (requestSequence === adaptationRequestSequence) {
+      adaptationInProgress = false;
+      updateAdaptationGuidanceControl();
+    }
   }
 }
 
@@ -1808,6 +1978,8 @@ debugToggle.addEventListener("click", () => {
   debugToggle.setAttribute("aria-pressed", String(debugOverlayEnabled));
   drawOverlay();
 });
+
+adaptationGuidanceButton.addEventListener("click", requestAdaptationGuidance);
 
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };

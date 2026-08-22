@@ -10,6 +10,11 @@ from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_camera_calibration import solve_field_camera_calibration
 from supervisor.field_camera_refinement import refine_field_camera_calibration
+from supervisor.field_online_adaptation import (
+    build_field_online_profile,
+    suggest_local_field_searches,
+    summarize_field_learning,
+)
 from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
 
@@ -192,6 +197,48 @@ def solve_calibration(payload: dict = Body()) -> dict:
         payload.get("image_width"),
         payload.get("image_height"),
     )
+
+
+@app.post("/api/field-adaptation/guidance")
+def field_adaptation_guidance(payload: dict = Body()) -> dict:
+    filename = payload.get("filename")
+    review_path, _ = review_path_for(filename)
+    try:
+        image_width = int(payload["image_width"])
+        image_height = int(payload["image_height"])
+        current_homography = payload["homography"]
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud de guía FIELD no válida") from error
+
+    if review_path.exists():
+        try:
+            review = json.loads(review_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            raise HTTPException(status_code=500, detail="Saved review is not valid JSON") from error
+    else:
+        review = {}
+
+    calibrations = review.get("field", {}).get("calibrations", [])
+    if not isinstance(calibrations, list):
+        calibrations = []
+    profile = build_field_online_profile(calibrations, image_width, image_height)
+    guidance = suggest_local_field_searches(
+        profile,
+        current_homography,
+        image_width,
+        image_height,
+        only_seen_semantics=True,
+    )
+    corrected_view_frames = sorted({
+        int(calibration.get("frame", 0))
+        for calibration in calibrations
+        if calibration.get("initialHomography") or calibration.get("initial_homography")
+    })
+    return {
+        **guidance,
+        "learning": summarize_field_learning(profile),
+        "corrected_view_frames": corrected_view_frames,
+    }
 
 
 @app.post("/api/field-propagation")
