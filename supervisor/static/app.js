@@ -574,12 +574,24 @@ function lineConstraintError(constraint, homography, samples = 12) {
 
 function calibrationLineDiagnostics(calibration) {
   if (!hasSolvedManualCalibration(calibration)) return [];
+  const solverDiagnostics = calibration.diagnostics?.line_errors;
+  if (Array.isArray(solverDiagnostics)) {
+    return solverDiagnostics
+      .filter((diagnostic) => Number.isFinite(diagnostic.error_px))
+      .map((diagnostic) => ({
+        semantic: diagnostic.semantic,
+        label: PITCH_MODEL.calibrationLinesById[diagnostic.semantic]?.label || diagnostic.semantic,
+        errorPx: diagnostic.error_px,
+        quality: diagnostic.quality,
+      }));
+  }
   return calibrationConstraints(calibration)
     .filter((constraint) => constraint.type === "line")
     .map((constraint) => ({
       semantic: constraint.semantic,
       label: PITCH_MODEL.calibrationLinesById[constraint.semantic]?.label || constraint.semantic,
       errorPx: lineConstraintError(constraint, calibration.homography),
+      quality: null,
     }))
     .filter((diagnostic) => Number.isFinite(diagnostic.errorPx));
 }
@@ -600,7 +612,9 @@ function updateCurrentReferenceLabel() {
   const calibration = calibrationForCurrentFrame();
   const selectedOnCurrentFrame = selectedCalibrationConstraint?.calibrationId === calibration?.id;
   const shouldShow = Boolean(semantic && (calibrationMode || selectedOnCurrentFrame || calibrationLineDraft || calibrationArcDraft));
-  const warning = calibrationLineDiagnostics(calibration).find((diagnostic) => diagnostic.errorPx > LINE_WARNING_ERROR_PX);
+  const warning = calibrationLineDiagnostics(calibration).find((diagnostic) => (
+    diagnostic.quality === "bad" || (!diagnostic.quality && diagnostic.errorPx > LINE_WARNING_ERROR_PX)
+  ));
   currentReferenceLabel.hidden = !shouldShow && !warning;
   currentReferenceLabel.textContent = shouldShow
     ? `Referencia actual: ${semantic.label}`
@@ -737,7 +751,9 @@ function updateCalibrationStatus(message = null) {
     return;
   }
   const constraints = calibrationConstraints(calibration);
-  const lineWarning = calibrationLineDiagnostics(calibration).find((diagnostic) => diagnostic.errorPx > LINE_WARNING_ERROR_PX);
+  const lineWarning = calibrationLineDiagnostics(calibration).find((diagnostic) => (
+    diagnostic.quality === "bad" || (!diagnostic.quality && diagnostic.errorPx > LINE_WARNING_ERROR_PX)
+  ));
   const hasMixedConstraints = constraints.some((item) => item.type !== "point");
   calibrationStatus.textContent = calibration?.homography
     ? `${constraintCountsLabel(constraints)} · campo proyectado${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
@@ -858,10 +874,13 @@ async function solveCalibration(calibration) {
       body: JSON.stringify({ constraints, image_width: video.videoWidth, image_height: video.videoHeight }),
     });
     const result = await response.json();
-    if (!response.ok || result.status !== "solved") throw new Error(result.detail || "No se pudo calcular la proyección del campo");
+    const solved = result.status === "solved" || result.status === "solved_with_warnings";
+    if (!response.ok || !solved) throw new Error(result.detail || "No se pudo calcular la proyección del campo");
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
     calibration.homography = result.homography;
     calibration.reprojectionError = result.reprojection_error;
+    calibration.camera = result.camera || null;
+    calibration.diagnostics = result.diagnostics || null;
     updateCalibrationStatus();
     drawOverlay();
   } catch (error) {
@@ -974,41 +993,83 @@ function drawRawAssistedStroke(displayScale) {
   overlayContext.restore();
 }
 
-function projectWorldPoint(point, homography) {
+const PROJECTIVE_DENOMINATOR_EPSILON = 1e-8;
+
+function projectWorldPointDetailed(point, homography) {
   const [first, second, third] = homography;
   const denominator = third[0] * point.x + third[1] * point.y + third[2];
-  if (Math.abs(denominator) < 1e-8) return null;
+  if (!Number.isFinite(denominator) || Math.abs(denominator) < PROJECTIVE_DENOMINATOR_EPSILON) return null;
+  const x = (first[0] * point.x + first[1] * point.y + first[2]) / denominator;
+  const y = (second[0] * point.x + second[1] * point.y + second[2]) / denominator;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return {
-    x: (first[0] * point.x + first[1] * point.y + first[2]) / denominator,
-    y: (second[0] * point.x + second[1] * point.y + second[2]) / denominator,
+    x,
+    y,
+    denominator,
   };
 }
 
+function projectWorldPoint(point, homography) {
+  const projected = projectWorldPointDetailed(point, homography);
+  return projected ? { x: projected.x, y: projected.y } : null;
+}
+
+function sampleWorldPolyline(points, samplesPerSegment = 96) {
+  const samples = [];
+  for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex += 1) {
+    const start = points[segmentIndex - 1];
+    const end = points[segmentIndex];
+    for (let sampleIndex = 0; sampleIndex <= samplesPerSegment; sampleIndex += 1) {
+      if (segmentIndex > 1 && sampleIndex === 0) continue;
+      const ratio = sampleIndex / samplesPerSegment;
+      samples.push({
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio,
+      });
+    }
+  }
+  return samples;
+}
+
 function drawProjectedPath(points, homography, displayScale) {
+  const maximumJump = Math.hypot(video.videoWidth, video.videoHeight) * 2;
+  let previous = null;
   let started = false;
+  let hasPath = false;
   overlayContext.beginPath();
   points.forEach((point) => {
-    const projected = projectWorldPoint(point, homography);
-    if (!projected) return;
-    if (!started) {
+    const projected = projectWorldPointDetailed(point, homography);
+    if (!projected) {
+      previous = null;
+      started = false;
+      return;
+    }
+    const denominatorChangedSign = previous && Math.sign(previous.denominator) !== Math.sign(projected.denominator);
+    const jump = previous ? Math.hypot(projected.x - previous.x, projected.y - previous.y) : 0;
+    const discontinuity = !previous || denominatorChangedSign || jump > maximumJump;
+    if (discontinuity || !started) {
       overlayContext.moveTo(projected.x, projected.y);
       started = true;
     } else {
       overlayContext.lineTo(projected.x, projected.y);
     }
+    hasPath = true;
+    previous = projected;
   });
-  if (started) overlayContext.stroke();
+  if (hasPath) overlayContext.stroke();
 }
 
 function drawProjectedPitch(homography, displayScale) {
   overlayContext.strokeStyle = "#5aa9ff";
   overlayContext.lineWidth = 2 / displayScale;
-  PITCH_MODEL.segments.forEach((segment) => drawProjectedPath(segment, homography, displayScale));
+  PITCH_MODEL.segments.forEach((segment) => {
+    drawProjectedPath(sampleWorldPolyline(segment), homography, displayScale);
+  });
   PITCH_MODEL.calibrationArcs.forEach((arc) => {
     const { center, radius, startAngle, endAngle } = arc.world;
     const points = Number.isFinite(startAngle) && Number.isFinite(endAngle)
-      ? PITCH_MODEL.sampleArc(center, radius, startAngle, endAngle)
-      : PITCH_MODEL.sampleCircle(center, radius);
+      ? PITCH_MODEL.sampleArc(center, radius, startAngle, endAngle, 96)
+      : PITCH_MODEL.sampleCircle(center, radius, 128);
     drawProjectedPath(points, homography, displayScale);
   });
   [
@@ -1082,7 +1143,9 @@ function drawCalibrationOverlay() {
 
   const lineWarnings = new Map(
     calibrationLineDiagnostics(calibration)
-      .filter((diagnostic) => diagnostic.errorPx > LINE_WARNING_ERROR_PX)
+      .filter((diagnostic) => (
+        diagnostic.quality === "bad" || (!diagnostic.quality && diagnostic.errorPx > LINE_WARNING_ERROR_PX)
+      ))
       .map((diagnostic) => [diagnostic.semantic, diagnostic])
   );
   calibrationConstraints(calibration).forEach((constraint, index) => {

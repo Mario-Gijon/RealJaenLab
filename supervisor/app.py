@@ -8,9 +8,9 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from supervisor.field_camera_calibration import solve_field_camera_calibration
 from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
-from supervisor.field_solver import solve_field_calibration
 
 
 BASE_DIR = Path(__file__).parent
@@ -172,7 +172,7 @@ def solve_calibration(payload: dict = Body()) -> dict:
         constraint_type = constraint.get("type")
         if constraint_type in grouped:
             grouped[constraint_type].append(constraint)
-    return solve_field_calibration(
+    return solve_field_camera_calibration(
         grouped["point"],
         grouped["line"],
         grouped["arc"],
