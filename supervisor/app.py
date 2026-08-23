@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_calibration_strategy import solve_field_camera_adaptive
+from supervisor.field_camera_atlas import build_camera_atlas, summarize_camera_atlas
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -190,6 +191,30 @@ def solve_calibration(payload: dict = Body()) -> dict:
         initial_homography=payload.get("initial_homography"),
         mode="auto",
     )
+
+
+@app.post("/api/field-camera-atlas/analyze")
+def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
+    calibrations = payload.get("calibrations", [])
+    video_name = payload.get("video_name")
+    try:
+        image_width = int(payload["image_width"])
+        image_height = int(payload["image_height"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud de Camera Atlas no válida") from error
+
+    if not isinstance(calibrations, list):
+        raise HTTPException(status_code=400, detail="Las calibraciones de Camera Atlas no son válidas")
+    if not isinstance(video_name, str) or not video_name:
+        raise HTTPException(status_code=400, detail="El vídeo de Camera Atlas no es válido")
+
+    atlas = build_camera_atlas(
+        calibrations,
+        image_width,
+        image_height,
+        video_name=video_name,
+    )
+    return {"summary": summarize_camera_atlas(atlas), "atlas": atlas}
 
 
 @app.post("/api/field-adaptation/guidance")

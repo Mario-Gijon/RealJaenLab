@@ -27,7 +27,13 @@ const undoFieldEditButton = document.querySelector("#undo-field-edit");
 const createManualAnchorButton = document.querySelector("#create-manual-anchor");
 const fieldStatusArea = document.querySelector("#field-status-area");
 const strongAnchorCount = document.querySelector("#strong-anchor-count");
+const cameraAtlasState = document.querySelector("#camera-atlas-state");
 const fieldFrameProvenance = document.querySelector("#field-frame-provenance");
+const fieldAtlasDebug = document.querySelector("#field-atlas-debug");
+const atlasDimension95 = document.querySelector("#atlas-dimension-95");
+const atlasDimension99 = document.querySelector("#atlas-dimension-99");
+const atlasLoo = document.querySelector("#atlas-loo");
+const atlasVisiblePitch = document.querySelector("#atlas-visible-pitch");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -73,6 +79,8 @@ let calibrationArcDraft = null;
 let selectedCalibrationConstraint = null;
 let calibrationPanelPosition = { x: 14, y: 60 };
 let calibrationPanelDrag = null;
+let cameraAtlasResult = null;
+let cameraAtlasRequestSequence = 0;
 
 workArea.classList.add("field-editing");
 
@@ -231,17 +239,44 @@ function fieldHomographyForCurrentFrame() {
   return refinedFrameForCurrentFrame()?.homography || propagatedFrameForCurrentFrame()?.homography || null;
 }
 
-function strongManualAnchorsForSelectedVideo() {
-  return fieldCalibrations.filter((calibration) => (
-    calibration.video === selectedVideo?.name && hasSolvedManualCalibration(calibration)
-  ));
+function currentCameraAtlas() {
+  return cameraAtlasResult?.video === selectedVideo?.name ? cameraAtlasResult.result : null;
+}
+
+function currentAtlasAnchor() {
+  const frame = currentFrameNumber();
+  return currentCameraAtlas()?.atlas?.anchors?.find((anchor) => anchor.frame === frame) || null;
 }
 
 function updateFieldStatus() {
-  strongAnchorCount.textContent = String(strongManualAnchorsForSelectedVideo().length);
+  const atlas = currentCameraAtlas();
+  const strongAnchors = Number(atlas?.summary?.strong_anchor_count || 0);
+  strongAnchorCount.textContent = String(strongAnchors);
+  cameraAtlasState.textContent = atlas
+    ? `Estado: ${strongAnchors < 2 ? "Datos insuficientes" : "Analizado"}`
+    : "Estado: Pendiente";
+  fieldAtlasDebug.hidden = !debugOverlayEnabled || !atlas;
+  if (atlas) {
+    const summary = atlas.summary || {};
+    atlasDimension95.textContent = `Dimensión 95 %: ${summary.dimension_95 ?? "—"}`;
+    atlasDimension99.textContent = `Dimensión 99 %: ${summary.dimension_99 ?? "—"}`;
+    const loo = summary.leave_one_out?.median_of_median_error_px;
+    atlasLoo.textContent = Number.isFinite(loo) ? `LOO mediano: ${loo.toFixed(1)} px` : "LOO: pendiente";
+  }
   const calibration = calibrationForCurrentFrame();
-  if (hasSolvedManualCalibration(calibration)) {
+  const atlasAnchor = currentAtlasAnchor();
+  atlasVisiblePitch.hidden = true;
+  if (atlasAnchor) {
     fieldFrameProvenance.textContent = "ANCHOR FUERTE · HUMANO";
+    const fraction = Number(atlasAnchor.visibility?.visible_fraction);
+    if (debugOverlayEnabled && Number.isFinite(fraction)) {
+      atlasVisiblePitch.textContent = `Campo visible: ${(fraction * 100).toFixed(0)} %`;
+      atlasVisiblePitch.hidden = false;
+    }
+    return;
+  }
+  if (hasSolvedManualCalibration(calibration)) {
+    fieldFrameProvenance.textContent = "CALIBRACIÓN MANUAL · APOYO";
     return;
   }
   if (Array.isArray(refinedFrameForCurrentFrame()?.homography) || Array.isArray(propagatedFrameForCurrentFrame()?.homography)) {
@@ -249,6 +284,36 @@ function updateFieldStatus() {
     return;
   }
   fieldFrameProvenance.textContent = "SIN ESTADO FIELD";
+}
+
+async function analyzeCameraAtlas() {
+  if (!selectedVideo) return;
+  const imageWidth = video.videoWidth || selectedVideo.width;
+  const imageHeight = video.videoHeight || selectedVideo.height;
+  if (!imageWidth || !imageHeight) return;
+
+  const requestSequence = ++cameraAtlasRequestSequence;
+  const videoName = selectedVideo.name;
+  try {
+    const response = await fetch("/api/field-camera-atlas/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName),
+        image_width: imageWidth,
+        image_height: imageHeight,
+        video_name: videoName,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudo analizar Camera Atlas");
+    if (requestSequence !== cameraAtlasRequestSequence || selectedVideo?.name !== videoName) return;
+    cameraAtlasResult = { video: videoName, result };
+  } catch (error) {
+    if (requestSequence !== cameraAtlasRequestSequence) return;
+    cameraAtlasResult = null;
+  }
+  drawOverlay();
 }
 
 function cloneAnnotations() {
@@ -903,6 +968,8 @@ function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
 }
 
 async function solveCalibration(calibration) {
+  cameraAtlasRequestSequence += 1;
+  cameraAtlasResult = null;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
@@ -912,6 +979,7 @@ async function solveCalibration(calibration) {
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus();
+    analyzeCameraAtlas();
     drawOverlay();
     return;
   }
@@ -937,12 +1005,14 @@ async function solveCalibration(calibration) {
     calibration.camera = result.camera || null;
     calibration.diagnostics = result.diagnostics || null;
     updateCalibrationStatus();
+    analyzeCameraAtlas();
     drawOverlay();
   } catch (error) {
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus(error.message);
+    analyzeCameraAtlas();
     drawOverlay();
   }
 }
@@ -976,12 +1046,15 @@ function removeSelectedCalibrationCorrespondence() {
 function clearCurrentCalibration() {
   const calibration = calibrationForCurrentFrame();
   if (!calibration) return;
+  cameraAtlasRequestSequence += 1;
+  cameraAtlasResult = null;
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
   fieldCalibrations = fieldCalibrations.filter((item) => item.id !== calibration.id);
   calibrationSolveSequence += 1;
   updateCalibrationStatus();
+  analyzeCameraAtlas();
   drawOverlay();
 }
 
@@ -1459,6 +1532,8 @@ function resetPlaybackState() {
 
 async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
+  cameraAtlasRequestSequence += 1;
+  cameraAtlasResult = null;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1496,6 +1571,7 @@ async function loadVideo(videoInfo) {
     fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
+    analyzeCameraAtlas();
     drawOverlay();
   } catch (error) {
     if (loadSequence !== videoLoadSequence) return;
@@ -1764,6 +1840,7 @@ video.addEventListener("loadedmetadata", () => {
   setControlsEnabled(true);
   updatePlaybackDisplay();
   syncOverlay();
+  analyzeCameraAtlas();
 });
 
 video.addEventListener("timeupdate", () => {
