@@ -38,6 +38,8 @@ const atlasTimeCamera = document.querySelector("#atlas-time-camera");
 const atlasFarNeighbor = document.querySelector("#atlas-far-neighbor");
 const atlasGraph = document.querySelector("#atlas-graph");
 const atlasLocalReconstruction = document.querySelector("#atlas-local-reconstruction");
+const atlasCoverage = document.querySelector("#atlas-coverage");
+const atlasRecommendedAnchors = document.querySelector("#atlas-recommended-anchors");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -278,6 +280,18 @@ function updateFieldStatus() {
     atlasLocalReconstruction.textContent = Number.isFinite(reconstruction)
       ? `Reconstrucción local: ${reconstruction.toFixed(1)} px`
       : "Reconstrucción local: —";
+    const coverage = atlas.coverage_summary || {};
+    const probeCount = Number(coverage.probe_count || 0);
+    if (probeCount > 0 && Number.isFinite(coverage.coverage_median_px)) {
+      atlasCoverage.textContent = `Cobertura probes · Mediana: ${coverage.coverage_median_px.toFixed(1)} px · P90: ${coverage.coverage_p90_px.toFixed(1)} px · Máximo: ${coverage.coverage_max_px.toFixed(1)} px`;
+    } else {
+      atlasCoverage.textContent = "Cobertura: sin probes";
+    }
+    const recommendedFrames = Array.isArray(coverage.recommended_frames) ? coverage.recommended_frames : [];
+    atlasRecommendedAnchors.hidden = recommendedFrames.length === 0;
+    atlasRecommendedAnchors.textContent = recommendedFrames.length
+      ? `Nuevos anchors sugeridos: ${recommendedFrames.join(", ")}`
+      : "";
   }
   const calibration = calibrationForCurrentFrame();
   const atlasAnchor = currentAtlasAnchor();
@@ -316,6 +330,8 @@ async function analyzeCameraAtlas() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName),
+        propagations: fieldPropagations.filter((propagation) => propagation.video === videoName),
+        refined_segments: fieldRefinedSegments.filter((segment) => segment.video === videoName),
         image_width: imageWidth,
         image_height: imageHeight,
         video_name: videoName,

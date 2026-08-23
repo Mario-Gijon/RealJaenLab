@@ -14,6 +14,10 @@ from supervisor.field_camera_atlas_structure import (
     analyze_camera_atlas_structure,
     summarize_camera_atlas_structure,
 )
+from supervisor.field_camera_atlas_coverage import (
+    analyze_camera_atlas_coverage,
+    summarize_camera_atlas_coverage,
+)
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -200,6 +204,8 @@ def solve_calibration(payload: dict = Body()) -> dict:
 @app.post("/api/field-camera-atlas/analyze")
 def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
     calibrations = payload.get("calibrations", [])
+    propagations = payload.get("propagations", [])
+    refined_segments = payload.get("refined_segments", [])
     video_name = payload.get("video_name")
     try:
         image_width = int(payload["image_width"])
@@ -209,6 +215,8 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
 
     if not isinstance(calibrations, list):
         raise HTTPException(status_code=400, detail="Las calibraciones de Camera Atlas no son válidas")
+    if not isinstance(propagations, list) or not isinstance(refined_segments, list):
+        raise HTTPException(status_code=400, detail="Los probes de Camera Atlas no son válidos")
     if not isinstance(video_name, str) or not video_name:
         raise HTTPException(status_code=400, detail="El vídeo de Camera Atlas no es válido")
 
@@ -219,11 +227,21 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
         video_name=video_name,
     )
     structure = analyze_camera_atlas_structure(atlas, image_width, image_height)
+    coverage = analyze_camera_atlas_coverage(
+        atlas,
+        propagations,
+        refined_segments,
+        image_width,
+        image_height,
+        video_name=video_name,
+    )
     return {
         "summary": summarize_camera_atlas(atlas),
         "atlas": atlas,
         "structure_summary": summarize_camera_atlas_structure(structure),
         "structure": structure,
+        "coverage_summary": summarize_camera_atlas_coverage(coverage),
+        "coverage": coverage,
     }
 
 
