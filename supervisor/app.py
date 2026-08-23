@@ -10,6 +10,10 @@ from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_calibration_strategy import solve_field_camera_adaptive
 from supervisor.field_camera_atlas import build_camera_atlas, summarize_camera_atlas
+from supervisor.field_camera_atlas_structure import (
+    analyze_camera_atlas_structure,
+    summarize_camera_atlas_structure,
+)
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -214,7 +218,13 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
         image_height,
         video_name=video_name,
     )
-    return {"summary": summarize_camera_atlas(atlas), "atlas": atlas}
+    structure = analyze_camera_atlas_structure(atlas, image_width, image_height)
+    return {
+        "summary": summarize_camera_atlas(atlas),
+        "atlas": atlas,
+        "structure_summary": summarize_camera_atlas_structure(structure),
+        "structure": structure,
+    }
 
 
 @app.post("/api/field-adaptation/guidance")

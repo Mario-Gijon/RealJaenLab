@@ -34,6 +34,10 @@ const atlasDimension95 = document.querySelector("#atlas-dimension-95");
 const atlasDimension99 = document.querySelector("#atlas-dimension-99");
 const atlasLoo = document.querySelector("#atlas-loo");
 const atlasVisiblePitch = document.querySelector("#atlas-visible-pitch");
+const atlasTimeCamera = document.querySelector("#atlas-time-camera");
+const atlasFarNeighbor = document.querySelector("#atlas-far-neighbor");
+const atlasGraph = document.querySelector("#atlas-graph");
+const atlasLocalReconstruction = document.querySelector("#atlas-local-reconstruction");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -262,6 +266,18 @@ function updateFieldStatus() {
     atlasDimension99.textContent = `Dimensión 99 %: ${summary.dimension_99 ?? "—"}`;
     const loo = summary.leave_one_out?.median_of_median_error_px;
     atlasLoo.textContent = Number.isFinite(loo) ? `LOO mediano: ${loo.toFixed(1)} px` : "LOO: pendiente";
+    const structure = atlas.structure_summary || {};
+    const timeCamera = structure.time_camera_spearman;
+    const farNeighbor = structure.nearest_far_time_median_px;
+    const reconstruction = structure.local_reconstruction?.median_of_median_error_px;
+    atlasTimeCamera.textContent = Number.isFinite(timeCamera) ? `Temporal ↔ cámara ρ: ${timeCamera.toFixed(2)}` : "Temporal ↔ cámara ρ: —";
+    atlasFarNeighbor.textContent = Number.isFinite(farNeighbor) ? `Vecino lejano: ${farNeighbor.toFixed(1)} px` : "Vecino lejano: —";
+    atlasGraph.textContent = Number.isInteger(structure.graph_k) && Number.isInteger(structure.graph_components)
+      ? `Grafo: k=${structure.graph_k} · ${structure.graph_components} componente(s)`
+      : "Grafo: —";
+    atlasLocalReconstruction.textContent = Number.isFinite(reconstruction)
+      ? `Reconstrucción local: ${reconstruction.toFixed(1)} px`
+      : "Reconstrucción local: —";
   }
   const calibration = calibrationForCurrentFrame();
   const atlasAnchor = currentAtlasAnchor();
