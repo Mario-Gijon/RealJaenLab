@@ -78,6 +78,18 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .field-status-section strong { color: #d7dee4; font-weight: 750; }
 .field-atlas-selection { display: grid; gap: 4px; max-width: 330px; color: #b8c0c7; font-size: 9px; line-height: 1.35; }
 .field-atlas-selection strong { color: #d7dee4; }
+.guided-calibration-panel { position: absolute; z-index: 4; top: 42px; right: 42px; display: grid; width: min(310px, calc(100% - 84px)); gap: 8px; padding: 9px; border: 1px solid #4d5f6a; border-radius: 5px; background: rgba(20, 26, 31, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .28); }
+.guided-calibration-panel[hidden] { display: none; }
+.guided-calibration-header { display: flex; align-items: center; justify-content: space-between; color: #a8d9d4; font-size: 10px; font-weight: 750; letter-spacing: .09em; }
+.guided-close { width: 20px; height: 20px; color: #aeb7be; border: 0; border-radius: 3px; padding: 0; background: transparent; cursor: pointer; font-size: 17px; line-height: 1; }
+.guided-close:hover { color: #f0f2f4; background: #292e33; }
+.guided-calibration-content { display: grid; gap: 4px; color: #b8c0c7; font-size: 10px; line-height: 1.35; }
+.guided-calibration-content strong { color: #e0e5e8; font-weight: 750; }
+.guided-calibration-content .guided-heading { margin-top: 3px; color: #8c9aa4; font-size: 9px; font-weight: 750; letter-spacing: .08em; }
+.guided-calibration-content .guided-warning { color: #d8b56f; }
+.guided-calibration-content button { color: #a8d9d4; border: 0; padding: 0; background: transparent; cursor: pointer; font: inherit; text-align: left; }
+.guided-calibration-content button:hover { color: #e2f2ef; }
+.guided-calibration-actions { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 2px; border-top: 1px solid #303940; }
 .calibration-panel { position: absolute; z-index: 3; top: 60px; left: 14px; width: min(450px, calc(100% - 16px)); box-sizing: border-box; padding: 10px; border: 1px solid #2f5654; border-radius: 5px; background: rgba(16, 35, 35, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 .calibration-panel[hidden] { display: none; }
 .calibration-panel-header { display: flex; align-items: center; justify-content: space-between; min-height: 18px; cursor: grab; touch-action: none; user-select: none; }

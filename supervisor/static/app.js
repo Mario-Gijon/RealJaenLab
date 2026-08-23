@@ -25,6 +25,7 @@ const fieldToolButtons = document.querySelectorAll("[data-field-tool]");
 const deleteFieldItemButton = document.querySelector("#delete-field-item");
 const undoFieldEditButton = document.querySelector("#undo-field-edit");
 const createManualAnchorButton = document.querySelector("#create-manual-anchor");
+const startGuidedCalibrationButton = document.querySelector("#start-guided-calibration");
 const fieldStatusArea = document.querySelector("#field-status-area");
 const strongAnchorCount = document.querySelector("#strong-anchor-count");
 const cameraAtlasState = document.querySelector("#camera-atlas-state");
@@ -42,6 +43,15 @@ const atlasCoverage = document.querySelector("#atlas-coverage");
 const atlasRecommendedAnchors = document.querySelector("#atlas-recommended-anchors");
 const suggestManualAnchorsButton = document.querySelector("#suggest-manual-anchors");
 const fieldAtlasSelection = document.querySelector("#field-atlas-selection");
+const guidedCalibrationPanel = document.querySelector("#guided-calibration-panel");
+const guidedCalibrationContent = document.querySelector("#guided-calibration-content");
+const exitGuidedCalibrationButton = document.querySelector("#exit-guided-calibration");
+const guidedContextButton = document.querySelector("#guided-context");
+const guidedReturnButton = document.querySelector("#guided-return");
+const guidedSkipButton = document.querySelector("#guided-skip");
+const guidedConfirmButton = document.querySelector("#guided-confirm");
+const guidedContinueButton = document.querySelector("#guided-continue");
+const guidedCoverageCheckButton = document.querySelector("#guided-coverage-check");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -91,6 +101,7 @@ let cameraAtlasResult = null;
 let cameraAtlasRequestSequence = 0;
 let anchorSelectionResult = null;
 let anchorSelectionInProgress = false;
+let guidedCalibration = null;
 
 workArea.classList.add("field-editing");
 
@@ -107,6 +118,7 @@ modeTabs.forEach((tab) => {
     assistedDraft = null;
     calibrationMode = false;
     calibrationPanel.hidden = true;
+    if (activeMode !== "field") exitGuidedCalibration();
     drawOverlay();
   });
 });
@@ -371,10 +383,10 @@ function updateAnchorSelectorDebug() {
 }
 
 async function analyzeCameraAtlas() {
-  if (!selectedVideo) return;
+  if (!selectedVideo) return null;
   const imageWidth = video.videoWidth || selectedVideo.width;
   const imageHeight = video.videoHeight || selectedVideo.height;
-  if (!imageWidth || !imageHeight) return;
+  if (!imageWidth || !imageHeight) return null;
 
   const requestSequence = ++cameraAtlasRequestSequence;
   const videoName = selectedVideo.name;
@@ -400,9 +412,10 @@ async function analyzeCameraAtlas() {
     cameraAtlasResult = null;
   }
   drawOverlay();
+  return cameraAtlasResult?.video === videoName ? cameraAtlasResult.result : null;
 }
 
-async function suggestManualAnchors() {
+async function requestAnchorSelection() {
   if (!selectedVideo || anchorSelectionInProgress) return;
   const imageWidth = video.videoWidth || selectedVideo.width;
   const imageHeight = video.videoHeight || selectedVideo.height;
@@ -426,13 +439,199 @@ async function suggestManualAnchors() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "No se pudieron sugerir anchors");
-    if (selectedVideo?.name === videoName) anchorSelectionResult = { video: videoName, result };
+    if (selectedVideo?.name === videoName) {
+      anchorSelectionResult = { video: videoName, result };
+      return result;
+    }
   } catch (error) {
     if (selectedVideo?.name === videoName) anchorSelectionResult = null;
   } finally {
     if (selectedVideo?.name === videoName) anchorSelectionInProgress = false;
     drawOverlay();
   }
+  return null;
+}
+
+async function suggestManualAnchors() {
+  await requestAnchorSelection();
+}
+
+function seekToFrame(frame) {
+  if (!selectedVideo?.fps || !Number.isFinite(frame)) return;
+  video.pause();
+  video.currentTime = Math.min(Math.max((frame + 0.01) / selectedVideo.fps, 0), Math.max(video.duration || 0, 0));
+}
+
+function atlasCoverageSnapshot(atlas = currentCameraAtlas()) {
+  const coverage = atlas?.coverage_summary || {};
+  return {
+    strongAnchors: Number(atlas?.summary?.strong_anchor_count || 0),
+    median: coverage.coverage_median_px ?? null,
+    p90: coverage.coverage_p90_px ?? null,
+    max: coverage.coverage_max_px ?? null,
+    thresholds: coverage.threshold_coverage || {},
+    recommendations: (anchorSelectionResult?.video === selectedVideo?.name
+      ? anchorSelectionResult.result?.selection?.recommendations
+      : []) || [],
+  };
+}
+
+function activeGuidedRecommendation() {
+  return guidedCalibration?.recommendation || null;
+}
+
+function nextGuidedRecommendation(selection) {
+  const skipped = guidedCalibration?.skippedFrames || new Set();
+  return (selection?.recommendations || []).find((item) => !skipped.has(item.frame)) || null;
+}
+
+function formatGuidedNumber(value, suffix = "px") {
+  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)} ${suffix}` : "—";
+}
+
+function updateGuidedCalibrationPanel() {
+  const active = Boolean(guidedCalibration?.active && activeMode === "field");
+  guidedCalibrationPanel.hidden = !active;
+  if (!active) return;
+
+  const fragment = document.createDocumentFragment();
+  const add = (text, emphasis = false, className = "") => {
+    const element = document.createElement(emphasis ? "strong" : "span");
+    if (className) element.className = className;
+    element.textContent = text;
+    fragment.append(element);
+  };
+  const recommendation = activeGuidedRecommendation();
+  if (guidedCalibration.running) {
+    add("Analizando vistas…", true);
+  } else if (recommendation) {
+    const view = recommendation.view || {};
+    const nearest = recommendation.nearest_anchor || {};
+    add(`Frame recomendado: ${recommendation.frame}`, true);
+    add(`Cobertura: ${formatGuidedNumber(recommendation.coverage_distance_px)} · Calidad visual: ${(Number(recommendation.quality_score || 0) * 100).toFixed(0)} %`);
+    add(`Vista: ${view.side || "—"} · Zoom: ${view.zoom || "—"} · Campo visible: ${(Number(view.visible_fraction || 0) * 100).toFixed(0)} %`);
+    add(`Líneas visibles: ${view.visible_lines ?? 0}${nearest.frame !== undefined ? ` · HUMAN más cercano: ${nearest.frame} (${formatGuidedNumber(nearest.median_px)})` : ""}`);
+  } else if (guidedCalibration.checked) {
+    add("No quedan candidatos prioritarios detectados.", true);
+  } else {
+    add("Sin recomendación disponible.", true);
+  }
+
+  const impact = guidedCalibration.impact;
+  if (impact) {
+    add("IMPACTO DEL ANCHOR", true, "guided-heading");
+    add(`HUMAN anchors: ${impact.before.strongAnchors} → ${impact.after.strongAnchors}`);
+    add(`Cobertura mediana: ${formatGuidedNumber(impact.before.median)} → ${formatGuidedNumber(impact.after.median)}`);
+    add(`P90: ${formatGuidedNumber(impact.before.p90)} → ${formatGuidedNumber(impact.after.p90)} · Máximo: ${formatGuidedNumber(impact.before.max)} → ${formatGuidedNumber(impact.after.max)}`);
+    if (impact.disappeared.length) add(`Desaparecen: ${impact.disappeared.join(", ")}`);
+    if (impact.lowered.length) add(`Bajan de prioridad: ${impact.lowered.join(", ")}`);
+    if (impact.emerged.length) add(`Nuevas: ${impact.emerged.join(", ")}`);
+  }
+
+  const coverage = currentCameraAtlas()?.coverage_summary;
+  if (guidedCalibration.checked && coverage) {
+    add("COBERTURA FIELD", true, "guided-heading");
+    add(`HUMAN: ${coverage.anchor_count ?? 0} · Mediana: ${formatGuidedNumber(coverage.coverage_median_px)} · P90: ${formatGuidedNumber(coverage.coverage_p90_px)} · Máximo: ${formatGuidedNumber(coverage.coverage_max_px)}`);
+    const thresholds = coverage.threshold_coverage || {};
+    add(`≤50: ${(Number(thresholds["50"] || 0) * 100).toFixed(0)} % · ≤100: ${(Number(thresholds["100"] || 0) * 100).toFixed(0)} % · ≤200: ${(Number(thresholds["200"] || 0) * 100).toFixed(0)} % · ≤400: ${(Number(thresholds["400"] || 0) * 100).toFixed(0)} %`);
+    add(`Candidatos prioritarios: ${(anchorSelectionResult?.result?.selection?.recommendations || []).length}`);
+  }
+
+  const reviews = anchorSelectionResult?.result?.selection?.isolated_anchor_reviews || [];
+  if (reviews.length) {
+    add("ANCHORS HUMAN A REVISAR", true, "guided-heading");
+    reviews.forEach((review) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.guidedReviewFrame = review.frame;
+      button.textContent = `Anchor HUMAN aislado: frame ${review.frame} · cercano ${review.nearest_anchor_frame} (${formatGuidedNumber(review.nearest_anchor_distance_px)})`;
+      fragment.append(button);
+    });
+  }
+  guidedCalibrationContent.replaceChildren(fragment);
+  guidedContextButton.disabled = !recommendation || guidedCalibration.running;
+  guidedReturnButton.disabled = !recommendation || guidedCalibration.running;
+  guidedSkipButton.disabled = !recommendation || guidedCalibration.running;
+  const currentIsSolvedRecommendation = recommendation
+    && currentFrameNumber() === recommendation.frame
+    && hasSolvedManualCalibration(calibrationForCurrentFrame());
+  guidedConfirmButton.disabled = !currentIsSolvedRecommendation || guidedCalibration.running;
+  guidedContinueButton.hidden = !impact;
+  guidedContinueButton.disabled = !recommendation || guidedCalibration.running;
+}
+
+function comparisonImpact(before, after) {
+  const beforeRanks = new Map(before.recommendations.map((item) => [item.frame, item.rank]));
+  const afterRanks = new Map(after.recommendations.map((item) => [item.frame, item.rank]));
+  return {
+    before,
+    after,
+    disappeared: [...beforeRanks.keys()].filter((frame) => !afterRanks.has(frame)),
+    lowered: [...beforeRanks].filter(([frame, rank]) => afterRanks.has(frame) && afterRanks.get(frame) >= rank + 2).map(([frame]) => frame),
+    emerged: [...afterRanks.keys()].filter((frame) => !beforeRanks.has(frame)),
+  };
+}
+
+async function refreshGuidedRecommendations({ seek = false, impactBefore = null, checked = false } = {}) {
+  if (!guidedCalibration?.active) return;
+  guidedCalibration.running = true;
+  updateGuidedCalibrationPanel();
+  const atlas = await analyzeCameraAtlas();
+  if (!guidedCalibration?.active) return;
+  const selectionResult = await requestAnchorSelection();
+  if (!guidedCalibration?.active) return;
+  guidedCalibration.checked = checked || guidedCalibration.checked;
+  const selection = selectionResult?.selection || anchorSelectionResult?.result?.selection || null;
+  const after = atlasCoverageSnapshot(atlas);
+  guidedCalibration.recommendation = nextGuidedRecommendation(selection);
+  guidedCalibration.running = false;
+  if (impactBefore) guidedCalibration.impact = comparisonImpact(impactBefore, after);
+  else if (guidedCalibration.recommendation) guidedCalibration.preAnchorSnapshot = after;
+  updateGuidedCalibrationPanel();
+  if (seek && guidedCalibration.recommendation) seekToFrame(guidedCalibration.recommendation.frame);
+}
+
+async function startGuidedCalibration() {
+  if (!selectedVideo) return;
+  video.pause();
+  guidedCalibration = { active: true, running: false, skippedFrames: new Set(), recommendation: null, impact: null, checked: false };
+  await refreshGuidedRecommendations({ seek: true });
+}
+
+function exitGuidedCalibration() {
+  if (!guidedCalibration) return;
+  guidedCalibration = null;
+  updateGuidedCalibrationPanel();
+}
+
+function playGuidedContext() {
+  const recommendation = activeGuidedRecommendation();
+  if (!recommendation || !selectedVideo?.fps) return;
+  const contextSeconds = 3;
+  guidedCalibration.contextEndTime = Math.min((recommendation.frame / selectedVideo.fps) + contextSeconds, video.duration || Infinity);
+  video.currentTime = Math.max(0, (recommendation.frame / selectedVideo.fps) - contextSeconds);
+  video.play();
+}
+
+function returnToGuidedRecommendation() {
+  const recommendation = activeGuidedRecommendation();
+  if (recommendation) seekToFrame(recommendation.frame);
+}
+
+async function skipGuidedRecommendation() {
+  const recommendation = activeGuidedRecommendation();
+  if (!recommendation || !guidedCalibration) return;
+  guidedCalibration.skippedFrames.add(recommendation.frame);
+  guidedCalibration.impact = null;
+  await refreshGuidedRecommendations({ seek: true });
+}
+
+async function confirmGuidedAnchor() {
+  const recommendation = activeGuidedRecommendation();
+  if (!recommendation || currentFrameNumber() !== recommendation.frame || !hasSolvedManualCalibration(calibrationForCurrentFrame())) return;
+  const before = guidedCalibration.preAnchorSnapshot || atlasCoverageSnapshot();
+  guidedCalibration.preAnchorSnapshot = null;
+  await refreshGuidedRecommendations({ impactBefore: before });
 }
 
 function cloneAnnotations() {
@@ -1579,6 +1778,7 @@ function drawOverlay() {
   drawDebugOverlay();
   updateFieldStatus();
   updateAnchorSelectorDebug();
+  updateGuidedCalibrationPanel();
   updateCurrentReferenceLabel();
 }
 
@@ -1658,6 +1858,7 @@ async function loadVideo(videoInfo) {
   cameraAtlasResult = null;
   anchorSelectionResult = null;
   anchorSelectionInProgress = false;
+  guidedCalibration = null;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1968,6 +2169,10 @@ video.addEventListener("loadedmetadata", () => {
 });
 
 video.addEventListener("timeupdate", () => {
+  if (guidedCalibration?.contextEndTime && video.currentTime >= guidedCalibration.contextEndTime) {
+    video.pause();
+    guidedCalibration.contextEndTime = null;
+  }
   updatePlaybackDisplay();
   drawOverlay();
 });
@@ -2351,7 +2556,21 @@ fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
 });
 createManualAnchorButton.addEventListener("click", enterCalibrationMode);
+startGuidedCalibrationButton.addEventListener("click", startGuidedCalibration);
 suggestManualAnchorsButton.addEventListener("click", suggestManualAnchors);
+exitGuidedCalibrationButton.addEventListener("click", exitGuidedCalibration);
+guidedContextButton.addEventListener("click", playGuidedContext);
+guidedReturnButton.addEventListener("click", returnToGuidedRecommendation);
+guidedSkipButton.addEventListener("click", skipGuidedRecommendation);
+guidedConfirmButton.addEventListener("click", confirmGuidedAnchor);
+guidedContinueButton.addEventListener("click", () => {
+  if (activeGuidedRecommendation()) seekToFrame(activeGuidedRecommendation().frame);
+});
+guidedCoverageCheckButton.addEventListener("click", () => refreshGuidedRecommendations({ checked: true }));
+guidedCalibrationContent.addEventListener("click", (event) => {
+  const frame = Number(event.target.dataset.guidedReviewFrame);
+  if (Number.isFinite(frame)) seekToFrame(frame);
+});
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
 clearCalibrationButton.addEventListener("click", clearCurrentCalibration);

@@ -89,6 +89,7 @@
         <div class="field-toolbar" id="field-toolbar" aria-label="Herramientas de edición del campo">
           <button class="field-tool is-active" type="button" data-field-tool="select">Seleccionar / mover</button>
           <button class="field-tool calibration-action" id="create-manual-anchor" type="button">Crear anchor manual</button>
+          <button class="field-tool field-tool-secondary" id="start-guided-calibration" type="button">Calibración guiada</button>
           <span class="field-current-reference" id="field-current-reference" hidden></span>
           <button class="field-tool" id="delete-field-item" type="button">Eliminar</button>
           <button class="field-tool" id="undo-field-edit" type="button">Deshacer</button>
@@ -116,6 +117,21 @@
             <span id="atlas-recommended-anchors" hidden></span>
             <button class="field-tool field-tool-secondary" id="suggest-manual-anchors" type="button" hidden>Sugerir anchors</button>
             <div class="field-atlas-selection" id="field-atlas-selection" hidden></div>
+          </div>
+        </aside>
+        <aside class="guided-calibration-panel" id="guided-calibration-panel" hidden aria-label="Calibración guiada">
+          <div class="guided-calibration-header">
+            <span>CALIBRACIÓN GUIADA</span>
+            <button class="guided-close" id="exit-guided-calibration" type="button" aria-label="Salir de calibración guiada">×</button>
+          </div>
+          <div class="guided-calibration-content" id="guided-calibration-content"></div>
+          <div class="guided-calibration-actions">
+            <button class="field-tool" id="guided-context" type="button">Ver contexto</button>
+            <button class="field-tool" id="guided-return" type="button">Volver al frame recomendado</button>
+            <button class="field-tool" id="guided-skip" type="button">Omitir</button>
+            <button class="field-tool calibration-action" id="guided-confirm" type="button">Confirmar anchor</button>
+            <button class="field-tool" id="guided-continue" type="button" hidden>Continuar calibración</button>
+            <button class="field-tool field-tool-secondary" id="guided-coverage-check" type="button">Comprobar cobertura FIELD</button>
           </div>
         </aside>
       </section>
