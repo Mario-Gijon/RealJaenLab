@@ -76,6 +76,8 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .field-status-section { display: grid; gap: 1px; min-width: 132px; }
 .field-status-heading { color: #7d8993; font-size: 9px; font-weight: 750; letter-spacing: .09em; }
 .field-status-section strong { color: #d7dee4; font-weight: 750; }
+.field-atlas-selection { display: grid; gap: 4px; max-width: 330px; color: #b8c0c7; font-size: 9px; line-height: 1.35; }
+.field-atlas-selection strong { color: #d7dee4; }
 .calibration-panel { position: absolute; z-index: 3; top: 60px; left: 14px; width: min(450px, calc(100% - 16px)); box-sizing: border-box; padding: 10px; border: 1px solid #2f5654; border-radius: 5px; background: rgba(16, 35, 35, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 .calibration-panel[hidden] { display: none; }
 .calibration-panel-header { display: flex; align-items: center; justify-content: space-between; min-height: 18px; cursor: grab; touch-action: none; user-select: none; }

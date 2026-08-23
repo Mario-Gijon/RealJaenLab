@@ -18,6 +18,10 @@ from supervisor.field_camera_atlas_coverage import (
     analyze_camera_atlas_coverage,
     summarize_camera_atlas_coverage,
 )
+from supervisor.field_anchor_selector import (
+    select_manual_anchor_frames,
+    summarize_anchor_selection,
+)
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -242,6 +246,55 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
         "structure": structure,
         "coverage_summary": summarize_camera_atlas_coverage(coverage),
         "coverage": coverage,
+    }
+
+
+@app.post("/api/field-anchor-selector/analyze")
+def analyze_field_anchor_selector(payload: dict = Body()) -> dict:
+    filename = payload.get("filename")
+    video_path = available_videos().get(filename)
+    if video_path is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    calibrations = payload.get("calibrations", [])
+    propagations = payload.get("propagations", [])
+    refined_segments = payload.get("refined_segments", [])
+    try:
+        image_width = int(payload["image_width"])
+        image_height = int(payload["image_height"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="Solicitud del selector de anchors no válida") from error
+
+    if not all(isinstance(items, list) for items in (calibrations, propagations, refined_segments)):
+        raise HTTPException(status_code=400, detail="Los datos del selector de anchors no son válidos")
+
+    atlas = build_camera_atlas(
+        calibrations,
+        image_width,
+        image_height,
+        video_name=filename,
+    )
+    coverage = analyze_camera_atlas_coverage(
+        atlas,
+        propagations,
+        refined_segments,
+        image_width,
+        image_height,
+        video_name=filename,
+    )
+    selection = select_manual_anchor_frames(
+        video_path,
+        atlas,
+        coverage,
+        propagations,
+        refined_segments,
+        image_width,
+        image_height,
+        video_name=filename,
+    )
+    return {
+        "selection": selection,
+        "selection_summary": summarize_anchor_selection(selection),
     }
 
 

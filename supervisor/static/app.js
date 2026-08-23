@@ -40,6 +40,8 @@ const atlasGraph = document.querySelector("#atlas-graph");
 const atlasLocalReconstruction = document.querySelector("#atlas-local-reconstruction");
 const atlasCoverage = document.querySelector("#atlas-coverage");
 const atlasRecommendedAnchors = document.querySelector("#atlas-recommended-anchors");
+const suggestManualAnchorsButton = document.querySelector("#suggest-manual-anchors");
+const fieldAtlasSelection = document.querySelector("#field-atlas-selection");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -87,6 +89,8 @@ let calibrationPanelPosition = { x: 14, y: 60 };
 let calibrationPanelDrag = null;
 let cameraAtlasResult = null;
 let cameraAtlasRequestSequence = 0;
+let anchorSelectionResult = null;
+let anchorSelectionInProgress = false;
 
 workArea.classList.add("field-editing");
 
@@ -316,6 +320,56 @@ function updateFieldStatus() {
   fieldFrameProvenance.textContent = "SIN ESTADO FIELD";
 }
 
+function appendAnchorSelectionLine(fragment, text, emphasis = false) {
+  const line = document.createElement(emphasis ? "strong" : "span");
+  line.textContent = text;
+  fragment.append(line);
+}
+
+function updateAnchorSelectorDebug() {
+  const visible = debugOverlayEnabled && activeMode === "field";
+  suggestManualAnchorsButton.hidden = !visible;
+  suggestManualAnchorsButton.disabled = !visible || !selectedVideo || anchorSelectionInProgress;
+  suggestManualAnchorsButton.textContent = anchorSelectionInProgress ? "Analizando vistas…" : "Sugerir anchors";
+
+  const selection = anchorSelectionResult?.video === selectedVideo?.name
+    ? anchorSelectionResult.result?.selection
+    : null;
+  fieldAtlasSelection.hidden = !visible || !selection;
+  if (!visible || !selection) return;
+
+  const fragment = document.createDocumentFragment();
+  const recommendations = Array.isArray(selection.recommendations) ? selection.recommendations : [];
+  if (recommendations.length) {
+    appendAnchorSelectionLine(fragment, "ANCHORS SUGERIDOS", true);
+    recommendations.forEach((item) => {
+      const nearest = item.nearest_anchor || {};
+      const view = item.view || {};
+      const visual = item.visual_diagnostics || {};
+      const visiblePercent = Number(view.visible_fraction);
+      const qualityPercent = Number(item.quality_score);
+      appendAnchorSelectionLine(
+        fragment,
+        `#${item.rank} · f ${item.frame} · Cobertura: ${Number(item.coverage_distance_px).toFixed(1)} px · Calidad visual: ${Number.isFinite(qualityPercent) ? (qualityPercent * 100).toFixed(0) : "—"} % · Vista: ${view.side || "desconocida"} · Zoom: ${view.zoom || "desconocido"} · Campo visible: ${Number.isFinite(visiblePercent) ? (visiblePercent * 100).toFixed(0) : "—"} % · Líneas visibles: ${view.visible_lines ?? 0}${nearest.frame !== undefined ? ` · Anchor HUMAN: ${nearest.frame} (${Number(nearest.median_px).toFixed(1)} px)` : ""}`,
+      );
+      const semantics = Array.isArray(view.visible_line_semantics) && view.visible_line_semantics.length
+        ? `Líneas: ${view.visible_line_semantics.join(", ")}`
+        : "Líneas: —";
+      appendAnchorSelectionLine(fragment, `  ${semantics}`);
+      appendAnchorSelectionLine(fragment, `  Verde: ${(Number(visual.green_fraction || 0) * 100).toFixed(1)} % · Línea: ${(Number(visual.line_like_fraction || 0) * 100).toFixed(2)} % · Nitidez: ${Number(visual.sharpness || 0).toFixed(2)}`);
+    });
+  }
+  const reviews = Array.isArray(selection.isolated_anchor_reviews) ? selection.isolated_anchor_reviews : [];
+  if (reviews.length) {
+    appendAnchorSelectionLine(fragment, "ANCHORS HUMAN A REVISAR", true);
+    reviews.forEach((item) => appendAnchorSelectionLine(
+      fragment,
+      `Frame ${item.frame} · HUMAN más cercano: ${item.nearest_anchor_frame} · ${Number(item.nearest_anchor_distance_px).toFixed(1)} px · revisar o confirmar vista única`,
+    ));
+  }
+  fieldAtlasSelection.replaceChildren(fragment);
+}
+
 async function analyzeCameraAtlas() {
   if (!selectedVideo) return;
   const imageWidth = video.videoWidth || selectedVideo.width;
@@ -346,6 +400,39 @@ async function analyzeCameraAtlas() {
     cameraAtlasResult = null;
   }
   drawOverlay();
+}
+
+async function suggestManualAnchors() {
+  if (!selectedVideo || anchorSelectionInProgress) return;
+  const imageWidth = video.videoWidth || selectedVideo.width;
+  const imageHeight = video.videoHeight || selectedVideo.height;
+  if (!imageWidth || !imageHeight) return;
+
+  const videoName = selectedVideo.name;
+  anchorSelectionInProgress = true;
+  updateAnchorSelectorDebug();
+  try {
+    const response = await fetch("/api/field-anchor-selector/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename: videoName,
+        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName),
+        propagations: fieldPropagations.filter((propagation) => propagation.video === videoName),
+        refined_segments: fieldRefinedSegments.filter((segment) => segment.video === videoName),
+        image_width: imageWidth,
+        image_height: imageHeight,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudieron sugerir anchors");
+    if (selectedVideo?.name === videoName) anchorSelectionResult = { video: videoName, result };
+  } catch (error) {
+    if (selectedVideo?.name === videoName) anchorSelectionResult = null;
+  } finally {
+    if (selectedVideo?.name === videoName) anchorSelectionInProgress = false;
+    drawOverlay();
+  }
 }
 
 function cloneAnnotations() {
@@ -1002,6 +1089,7 @@ function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
 async function solveCalibration(calibration) {
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
+  anchorSelectionResult = null;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
@@ -1080,6 +1168,7 @@ function clearCurrentCalibration() {
   if (!calibration) return;
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
+  anchorSelectionResult = null;
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -1489,6 +1578,7 @@ function drawOverlay() {
   drawCalibrationOverlay();
   drawDebugOverlay();
   updateFieldStatus();
+  updateAnchorSelectorDebug();
   updateCurrentReferenceLabel();
 }
 
@@ -1566,6 +1656,8 @@ async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
+  anchorSelectionResult = null;
+  anchorSelectionInProgress = false;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -2259,6 +2351,7 @@ fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
 });
 createManualAnchorButton.addEventListener("click", enterCalibrationMode);
+suggestManualAnchorsButton.addEventListener("click", suggestManualAnchors);
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
 clearCalibrationButton.addEventListener("click", clearCurrentCalibration);
