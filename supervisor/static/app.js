@@ -24,13 +24,10 @@ const fieldToolbar = document.querySelector("#field-toolbar");
 const fieldToolButtons = document.querySelectorAll("[data-field-tool]");
 const deleteFieldItemButton = document.querySelector("#delete-field-item");
 const undoFieldEditButton = document.querySelector("#undo-field-edit");
-const calibratePitchButton = document.querySelector("#calibrate-pitch");
-const propagateFieldButton = document.querySelector("#propagate-field");
-const refineSegmentButton = document.querySelector("#refine-segment");
-const adaptationGuidanceButton = document.querySelector("#adaptation-guidance");
-const observeFieldLinesButton = document.querySelector("#observe-field-lines");
-const simulateAutoRefinementButton = document.querySelector("#simulate-auto-refinement");
-const propagationStatus = document.querySelector("#field-propagation-status");
+const createManualAnchorButton = document.querySelector("#create-manual-anchor");
+const fieldStatusArea = document.querySelector("#field-status-area");
+const strongAnchorCount = document.querySelector("#strong-anchor-count");
+const fieldFrameProvenance = document.querySelector("#field-frame-provenance");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -74,19 +71,6 @@ const selectedSemanticByType = { point: calibrationSemantic, line: null, arc: nu
 let calibrationLineDraft = null;
 let calibrationArcDraft = null;
 let selectedCalibrationConstraint = null;
-let propagationInProgress = false;
-let propagationRequestSequence = 0;
-let refinementInProgress = false;
-let refinementRequestSequence = 0;
-let manualCalibrationRevision = 0;
-let adaptationGuidance = null;
-let adaptationRequestSequence = 0;
-let adaptationInProgress = false;
-let localObserverResult = null;
-let localObserverRequestSequence = 0;
-let localObserverInProgress = false;
-let autoRefinementPreview = null;
-let autoRefinementPreviewVisible = false;
 let calibrationPanelPosition = { x: 14, y: 60 };
 let calibrationPanelDrag = null;
 
@@ -98,6 +82,7 @@ modeTabs.forEach((tab) => {
     activeMode = tab.dataset.mode;
     modeLabel.textContent = activeMode === "field" ? "MODO CAMPO" : "MODO PERSONAS";
     fieldToolbar.hidden = activeMode !== "field";
+    fieldStatusArea.hidden = activeMode !== "field";
     workArea.classList.toggle("field-editing", activeMode === "field");
     selectedFieldItem = null;
     lineDraft = null;
@@ -112,16 +97,6 @@ function setReviewDirty(isDirty) {
   reviewIsDirty = isDirty;
   saveStatus.classList.toggle("is-saved", !isDirty);
   saveStatusLabel.textContent = isDirty ? "SIN GUARDAR" : "GUARDADO";
-}
-
-function invalidateAutoRefinementPreview() {
-  autoRefinementPreview = null;
-  autoRefinementPreviewVisible = false;
-}
-
-function autoRefinementPreviewIsCurrent() {
-  return autoRefinementPreview?.video === selectedVideo?.name
-    && autoRefinementPreview.frame === currentFrameNumber();
 }
 
 function clampCalibrationPanelPosition(position = calibrationPanelPosition) {
@@ -256,6 +231,26 @@ function fieldHomographyForCurrentFrame() {
   return refinedFrameForCurrentFrame()?.homography || propagatedFrameForCurrentFrame()?.homography || null;
 }
 
+function strongManualAnchorsForSelectedVideo() {
+  return fieldCalibrations.filter((calibration) => (
+    calibration.video === selectedVideo?.name && hasSolvedManualCalibration(calibration)
+  ));
+}
+
+function updateFieldStatus() {
+  strongAnchorCount.textContent = String(strongManualAnchorsForSelectedVideo().length);
+  const calibration = calibrationForCurrentFrame();
+  if (hasSolvedManualCalibration(calibration)) {
+    fieldFrameProvenance.textContent = "ANCHOR FUERTE · HUMANO";
+    return;
+  }
+  if (Array.isArray(refinedFrameForCurrentFrame()?.homography) || Array.isArray(propagatedFrameForCurrentFrame()?.homography)) {
+    fieldFrameProvenance.textContent = "APOYO AUTOMÁTICO · NO VALIDADO";
+    return;
+  }
+  fieldFrameProvenance.textContent = "SIN ESTADO FIELD";
+}
+
 function cloneAnnotations() {
   return JSON.parse(JSON.stringify(fieldAnnotations));
 }
@@ -272,85 +267,6 @@ function cloneFieldState() {
 function rememberFieldEdit() {
   fieldUndoStack.push(cloneFieldState());
   setReviewDirty(true);
-}
-
-function setPropagationStatus(message = "") {
-  propagationStatus.textContent = message;
-  propagationStatus.hidden = !message;
-}
-
-function updatePropagationControl() {
-  const enabled = !propagationInProgress && !refinementInProgress && hasSolvedManualCalibration();
-  propagateFieldButton.disabled = !enabled;
-  propagateFieldButton.textContent = propagationInProgress ? "Propagando FIELD…" : "Propagar automáticamente →";
-}
-
-function isFieldEditInProgress() {
-  return Boolean(
-    fieldDragState || calibrationDragState || lineDraft || assistedDraft || calibrationLineDraft || calibrationArcDraft
-  );
-}
-
-function previousManualCalibration(calibration = calibrationForCurrentFrame()) {
-  if (!calibration || !selectedVideo) return null;
-  return fieldCalibrations
-    .filter((item) => (
-      item.video === selectedVideo.name
-      && item.frame < calibration.frame
-      && hasSolvedManualCalibration(item)
-    ))
-    .sort((first, second) => second.frame - first.frame)[0] || null;
-}
-
-function nextManualCalibration(calibration = calibrationForCurrentFrame()) {
-  if (!calibration || !selectedVideo) return null;
-  return fieldCalibrations
-    .filter((item) => (
-      item.video === selectedVideo.name
-      && item.frame > calibration.frame
-      && hasSolvedManualCalibration(item)
-    ))
-    .sort((first, second) => first.frame - second.frame)[0] || null;
-}
-
-function knownVideoFrameCount() {
-  const metadataFrameCount = Number(selectedVideo?.frame_count);
-  if (Number.isInteger(metadataFrameCount) && metadataFrameCount > 0) return metadataFrameCount;
-  const estimatedFrameCount = Math.ceil((video.duration || 0) * (selectedVideo?.fps || 0));
-  return Number.isInteger(estimatedFrameCount) && estimatedFrameCount > 0 ? estimatedFrameCount : null;
-}
-
-function updateRefinementControl() {
-  const enabled = !propagationInProgress
-    && !refinementInProgress
-    && !isFieldEditInProgress()
-    && hasSolvedManualCalibration()
-    && Boolean(previousManualCalibration());
-  refineSegmentButton.disabled = !enabled;
-  refineSegmentButton.textContent = refinementInProgress ? "Refinando tramo FIELD…" : "Refinar tramo anterior";
-}
-
-function updateAdaptationGuidanceControl() {
-  const visible = debugOverlayEnabled && activeMode === "field";
-  adaptationGuidanceButton.hidden = !visible;
-  adaptationGuidanceButton.disabled = !visible || adaptationInProgress || !Array.isArray(fieldHomographyForCurrentFrame());
-  adaptationGuidanceButton.textContent = adaptationInProgress ? "Consultando guía…" : "Ver guía FIELD";
-}
-
-function updateLocalObserverControl() {
-  const visible = debugOverlayEnabled && activeMode === "field";
-  observeFieldLinesButton.hidden = !visible;
-  observeFieldLinesButton.disabled = !visible || localObserverInProgress || !Array.isArray(fieldHomographyForCurrentFrame());
-  observeFieldLinesButton.textContent = localObserverInProgress ? "Observando líneas…" : "Observar líneas";
-}
-
-function updateAutoRefinementPreviewControl() {
-  const visible = debugOverlayEnabled && activeMode === "field";
-  simulateAutoRefinementButton.hidden = !visible;
-  simulateAutoRefinementButton.disabled = !visible || !autoRefinementPreviewIsCurrent();
-  simulateAutoRefinementButton.textContent = autoRefinementPreviewVisible
-    ? "Ocultar simulación"
-    : "Simular corrección";
 }
 
 function invalidatePropagationsFromAnchor(calibration) {
@@ -579,7 +495,6 @@ function setActiveFieldTool(tool) {
 function undoFieldEdit() {
   const previousState = fieldUndoStack.pop();
   if (!previousState) return;
-  invalidateAutoRefinementPreview();
   fieldAnnotations = previousState.annotations;
   fieldCalibrations = previousState.calibrations;
   fieldPropagations = previousState.propagations || [];
@@ -988,12 +903,6 @@ function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
 }
 
 async function solveCalibration(calibration) {
-  adaptationRequestSequence += 1;
-  adaptationGuidance = null;
-  localObserverRequestSequence += 1;
-  localObserverResult = null;
-  invalidateAutoRefinementPreview();
-  manualCalibrationRevision += 1;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
@@ -1003,8 +912,6 @@ async function solveCalibration(calibration) {
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus();
-    updatePropagationControl();
-    updateRefinementControl();
     drawOverlay();
     return;
   }
@@ -1030,16 +937,12 @@ async function solveCalibration(calibration) {
     calibration.camera = result.camera || null;
     calibration.diagnostics = result.diagnostics || null;
     updateCalibrationStatus();
-    updatePropagationControl();
-    updateRefinementControl();
     drawOverlay();
   } catch (error) {
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus(error.message);
-    updatePropagationControl();
-    updateRefinementControl();
     drawOverlay();
   }
 }
@@ -1073,15 +976,9 @@ function removeSelectedCalibrationCorrespondence() {
 function clearCurrentCalibration() {
   const calibration = calibrationForCurrentFrame();
   if (!calibration) return;
-  adaptationRequestSequence += 1;
-  adaptationGuidance = null;
-  localObserverRequestSequence += 1;
-  localObserverResult = null;
-  invalidateAutoRefinementPreview();
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
-  manualCalibrationRevision += 1;
   fieldCalibrations = fieldCalibrations.filter((item) => item.id !== calibration.id);
   calibrationSolveSequence += 1;
   updateCalibrationStatus();
@@ -1478,225 +1375,7 @@ function drawDebugOverlay() {
     const labelY = Math.min(pointerVideoCoordinates.y + padding, video.videoHeight - 22 / displayScale);
     overlayContext.fillText(label, labelX, labelY);
   }
-  drawAutoRefinementPreview(displayScale, padding);
-  drawAdaptationGuidance(displayScale, fontSize, padding);
-  drawLocalObserverResults(displayScale, fontSize, padding);
   overlayContext.restore();
-}
-
-function autoRefinementPreviewLabel(preview) {
-  if (preview?.status === "proposed") {
-    const proposal = preview.proposal || {};
-    const usedLines = proposal.used_semantics?.length || preview.evidence?.usable_observations || 0;
-    const quality = proposal.quality === "cautious"
-      ? "cauta"
-      : proposal.quality === "strong" ? "sólida" : proposal.quality || "";
-    const delta = preview.validation?.support_displacement?.median_px;
-    return `AUTO PREVIEW · ${usedLines} líneas · ${quality}${Number.isFinite(delta) ? ` · Δ ${delta.toFixed(1)} px` : ""}`;
-  }
-  if (preview?.status === "insufficient_consensus") return "AUTO · sin consenso suficiente";
-  if (preview?.status === "no_material_change") return "AUTO · FIELD ya estaba ajustado";
-  if (preview?.status === "proposal_rejected" || preview?.status === "refinement_rejected") return "AUTO · propuesta rechazada";
-  return preview?.detail ? `AUTO · ${preview.detail}` : "AUTO · sin propuesta";
-}
-
-function drawAutoRefinementPreview(displayScale, padding) {
-  if (activeMode !== "field" || !autoRefinementPreviewVisible || !autoRefinementPreviewIsCurrent()) return;
-  const preview = autoRefinementPreview.preview;
-  const proposedHomography = preview?.status === "proposed" ? preview.proposal?.homography : null;
-  if (Array.isArray(proposedHomography)) {
-    overlayContext.save();
-    drawProjectedPitch(proposedHomography, displayScale, {
-      color: "#f0c84b",
-      lineWidth: 1.5 / displayScale,
-      lineDash: [8 / displayScale, 5 / displayScale],
-    });
-    overlayContext.restore();
-  }
-  overlayContext.fillStyle = "#f0d77a";
-  overlayContext.fillText(autoRefinementPreviewLabel(preview), padding, padding + 80 / displayScale);
-}
-
-function semanticLabel(semantic) {
-  return PITCH_MODEL.landmarksById[semantic]?.label
-    || PITCH_MODEL.calibrationLinesById[semantic]?.label
-    || PITCH_MODEL.calibrationArcsById[semantic]?.label
-    || semantic;
-}
-
-function drawAdaptationGuidance(displayScale, fontSize, padding) {
-  if (
-    !adaptationGuidance
-    || adaptationGuidance.video !== selectedVideo?.name
-    || adaptationGuidance.frame !== currentFrameNumber()
-  ) return;
-
-  const result = adaptationGuidance.result;
-  if (result?.status !== "ok") {
-    overlayContext.fillStyle = "#d4a414";
-    overlayContext.fillText(`Guía FIELD: ${result?.detail || "no disponible"}`, padding, padding + 20 / displayScale);
-    return;
-  }
-
-  const summary = result.learning || {};
-  const correctedViews = Array.isArray(result.corrected_view_frames) ? result.corrected_view_frames.length : 0;
-  overlayContext.fillStyle = "#b8d9ff";
-  overlayContext.fillText(
-    `FIELD aprendido: ${summary.total_human_examples || 0} referencias · ${correctedViews} vistas corregidas`,
-    padding,
-    padding + 20 / displayScale,
-  );
-
-  (result.searches || []).forEach((search) => {
-    const { expected = {}, adaptation = {}, search: searchRegion = {} } = search;
-    const label = semanticLabel(search.semantic);
-    let labelPoint = null;
-
-    overlayContext.save();
-    if (search.type === "point") {
-      const roi = searchRegion.roi;
-      if (!roi) {
-        overlayContext.restore();
-        return;
-      }
-      overlayContext.fillStyle = "rgba(125, 208, 255, .10)";
-      overlayContext.strokeStyle = "rgba(125, 208, 255, .72)";
-      overlayContext.lineWidth = 1.25 / displayScale;
-      overlayContext.fillRect(roi.x, roi.y, roi.width, roi.height);
-      overlayContext.strokeRect(roi.x, roi.y, roi.width, roi.height);
-      if (expected.x !== undefined && expected.y !== undefined) {
-        overlayContext.beginPath();
-        overlayContext.arc(expected.x, expected.y, searchRegion.radius_px || 0, 0, Math.PI * 2);
-        overlayContext.stroke();
-        labelPoint = expected;
-      }
-    } else if (search.type === "line") {
-      const start = expected.visible_start;
-      const end = expected.visible_end;
-      if (!start || !end) {
-        overlayContext.restore();
-        return;
-      }
-      overlayContext.strokeStyle = "rgba(125, 208, 255, .15)";
-      overlayContext.lineWidth = (searchRegion.half_width_px || 0) * 2;
-      overlayContext.beginPath();
-      overlayContext.moveTo(start.x, start.y);
-      overlayContext.lineTo(end.x, end.y);
-      overlayContext.stroke();
-      overlayContext.strokeStyle = "rgba(125, 208, 255, .9)";
-      overlayContext.lineWidth = 1.5 / displayScale;
-      overlayContext.beginPath();
-      overlayContext.moveTo(start.x, start.y);
-      overlayContext.lineTo(end.x, end.y);
-      overlayContext.stroke();
-      labelPoint = start;
-    } else if (search.type === "arc") {
-      const roi = searchRegion.roi;
-      if (!roi) {
-        overlayContext.restore();
-        return;
-      }
-      overlayContext.fillStyle = "rgba(180, 140, 255, .08)";
-      overlayContext.strokeStyle = "rgba(180, 140, 255, .72)";
-      overlayContext.lineWidth = 1.25 / displayScale;
-      overlayContext.fillRect(roi.x, roi.y, roi.width, roi.height);
-      overlayContext.strokeRect(roi.x, roi.y, roi.width, roi.height);
-      labelPoint = { x: roi.x, y: roi.y };
-    }
-
-    const frames = adaptation.learned_from_frames || [];
-    if (labelPoint && frames.length) {
-      const similarity = Number(adaptation.best_camera_similarity || 0).toFixed(2);
-      overlayContext.fillStyle = "#cfe9ff";
-      overlayContext.font = `600 ${Math.max(9, fontSize - 2 / displayScale)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-      overlayContext.fillText(
-        `${label} · similitud ${similarity} · fotogramas ${frames.join(", ")}`,
-        Math.min(labelPoint.x + 5 / displayScale, video.videoWidth - 260 / displayScale),
-        Math.min(labelPoint.y + 5 / displayScale, video.videoHeight - 14 / displayScale),
-      );
-    }
-    overlayContext.restore();
-  });
-}
-
-function visibleSegmentForImageLine(line) {
-  if (!Array.isArray(line) || line.length !== 3) return null;
-  const [a, b, c] = line.map(Number);
-  if (![a, b, c].every(Number.isFinite)) return null;
-  const points = [];
-  if (Math.abs(b) > 1e-9) {
-    [[0, -c / b], [video.videoWidth, -(a * video.videoWidth + c) / b]].forEach(([x, y]) => {
-      if (y >= 0 && y <= video.videoHeight) points.push({ x, y });
-    });
-  }
-  if (Math.abs(a) > 1e-9) {
-    [[-c / a, 0], [-(b * video.videoHeight + c) / a, video.videoHeight]].forEach(([x, y]) => {
-      if (x >= 0 && x <= video.videoWidth) points.push({ x, y });
-    });
-  }
-  const unique = points.filter((point, index) => points.slice(0, index).every((other) => (
-    Math.hypot(point.x - other.x, point.y - other.y) >= 1
-  )));
-  if (unique.length < 2) return null;
-  let best = [unique[0], unique[1]];
-  unique.forEach((first, firstIndex) => unique.slice(firstIndex + 1).forEach((second) => {
-    if (Math.hypot(first.x - second.x, first.y - second.y) > Math.hypot(best[0].x - best[1].x, best[0].y - best[1].y)) {
-      best = [first, second];
-    }
-  }));
-  return best;
-}
-
-function drawLocalObserverResults(displayScale, fontSize, padding) {
-  if (
-    !localObserverResult
-    || localObserverResult.video !== selectedVideo?.name
-    || localObserverResult.frame !== currentFrameNumber()
-  ) return;
-
-  const observer = localObserverResult.result?.observer;
-  if (observer?.status !== "ok") return;
-  const found = (observer.observations || []).filter((observation) => observation.status === "found");
-  overlayContext.fillStyle = "#a8f0be";
-  overlayContext.fillText(
-    `Observador local: ${found.length}/${observer.summary?.searched_lines || 0} líneas encontradas`,
-    padding,
-    padding + 40 / displayScale,
-  );
-
-  found.forEach((observation) => {
-    const finiteStart = observation.observed_segment_start;
-    const finiteEnd = observation.observed_segment_end;
-    const segment = (
-      Number.isFinite(finiteStart?.x)
-      && Number.isFinite(finiteStart?.y)
-      && Number.isFinite(finiteEnd?.x)
-      && Number.isFinite(finiteEnd?.y)
-    )
-      ? [finiteStart, finiteEnd]
-      : visibleSegmentForImageLine(observation.observed_line);
-    if (!segment) return;
-    overlayContext.save();
-    overlayContext.strokeStyle = "#42e47b";
-    overlayContext.lineWidth = 3 / displayScale;
-    overlayContext.beginPath();
-    overlayContext.moveTo(segment[0].x, segment[0].y);
-    overlayContext.lineTo(segment[1].x, segment[1].y);
-    overlayContext.stroke();
-
-    const offset = Number(observation.normal_offset_px || 0);
-    const offsetLabel = `${offset >= 0 ? "+" : ""}${Math.round(offset)} px`;
-    const angle = Number(observation.angle_offset_deg || 0);
-    const angleLabel = Math.abs(angle) >= 0.25 ? ` · ${angle >= 0 ? "+" : ""}${angle.toFixed(1)}°` : "";
-    overlayContext.fillStyle = "#bdf8cf";
-    overlayContext.font = `700 ${Math.max(9, fontSize - 1 / displayScale)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-    overlayContext.fillText(
-      `${semanticLabel(observation.semantic)} · ${Number(observation.confidence || 0).toFixed(2)} · ${offsetLabel}${angleLabel}`,
-      Math.min(segment[0].x + 6 / displayScale, video.videoWidth - 250 / displayScale),
-      Math.min(segment[0].y + 6 / displayScale, video.videoHeight - 14 / displayScale),
-    );
-    overlayContext.restore();
-  });
 }
 
 function drawOverlay() {
@@ -1704,11 +1383,7 @@ function drawOverlay() {
   drawFieldAnnotations();
   drawCalibrationOverlay();
   drawDebugOverlay();
-  updatePropagationControl();
-  updateRefinementControl();
-  updateAdaptationGuidanceControl();
-  updateLocalObserverControl();
-  updateAutoRefinementPreviewControl();
+  updateFieldStatus();
   updateCurrentReferenceLabel();
 }
 
@@ -1784,17 +1459,6 @@ function resetPlaybackState() {
 
 async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
-  propagationRequestSequence += 1;
-  refinementRequestSequence += 1;
-  adaptationRequestSequence += 1;
-  localObserverRequestSequence += 1;
-  propagationInProgress = false;
-  refinementInProgress = false;
-  adaptationInProgress = false;
-  localObserverInProgress = false;
-  adaptationGuidance = null;
-  localObserverResult = null;
-  invalidateAutoRefinementPreview();
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1810,9 +1474,6 @@ async function loadVideo(videoInfo) {
   calibrationDragState = null;
   calibrationLineDraft = null;
   calibrationArcDraft = null;
-  setPropagationStatus();
-  updatePropagationControl();
-  updateRefinementControl();
   setReviewDirty(false);
   resetPlaybackState();
   setControlsEnabled(false);
@@ -1873,103 +1534,6 @@ async function saveCurrentReview() {
     saveStatusLabel.textContent = "ERROR AL GUARDAR";
   } finally {
     saveButton.disabled = false;
-  }
-}
-
-async function requestAdaptationGuidance() {
-  const homography = fieldHomographyForCurrentFrame();
-  if (!debugOverlayEnabled || !selectedVideo || !Array.isArray(homography)) return;
-
-  const requestSequence = ++adaptationRequestSequence;
-  const filename = selectedVideo.name;
-  const frame = currentFrameNumber();
-  adaptationInProgress = true;
-  updateAdaptationGuidanceControl();
-
-  try {
-    const response = await fetch("/api/field-adaptation/guidance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename,
-        homography,
-        image_width: video.videoWidth,
-        image_height: video.videoHeight,
-      }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.detail || "No se pudo obtener la guía FIELD");
-    if (requestSequence !== adaptationRequestSequence || selectedVideo?.name !== filename) return;
-    adaptationGuidance = { video: filename, frame, result };
-    drawOverlay();
-  } catch (error) {
-    if (requestSequence !== adaptationRequestSequence) return;
-    adaptationGuidance = {
-      video: filename,
-      frame,
-      result: { status: "error", detail: error.message || "No se pudo obtener la guía FIELD" },
-    };
-    drawOverlay();
-  } finally {
-    if (requestSequence === adaptationRequestSequence) {
-      adaptationInProgress = false;
-      updateAdaptationGuidanceControl();
-    }
-  }
-}
-
-async function observeCurrentFieldLines() {
-  const homography = fieldHomographyForCurrentFrame();
-  if (!debugOverlayEnabled || !selectedVideo || !Array.isArray(homography)) return;
-
-  invalidateAutoRefinementPreview();
-  updateAutoRefinementPreviewControl();
-  const requestSequence = ++localObserverRequestSequence;
-  const filename = selectedVideo.name;
-  const frame = currentFrameNumber();
-  localObserverInProgress = true;
-  updateLocalObserverControl();
-
-  try {
-    const response = await fetch("/api/field-observer/lines", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename,
-        frame,
-        homography,
-        image_width: video.videoWidth,
-        image_height: video.videoHeight,
-      }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.detail || "No se pudieron observar las líneas FIELD");
-    if (requestSequence !== localObserverRequestSequence || selectedVideo?.name !== filename) return;
-    localObserverResult = { video: filename, frame, result };
-    autoRefinementPreview = {
-      video: filename,
-      frame,
-      preview: result.auto_refinement_preview || null,
-    };
-    adaptationGuidance = { video: filename, frame, result: {
-      ...result.guidance,
-      learning: result.learning,
-      corrected_view_frames: result.corrected_view_frames,
-    } };
-    drawOverlay();
-  } catch (error) {
-    if (requestSequence !== localObserverRequestSequence) return;
-    localObserverResult = {
-      video: filename,
-      frame,
-      result: { observer: { status: "error", detail: error.message || "No se pudieron observar las líneas FIELD" } },
-    };
-    drawOverlay();
-  } finally {
-    if (requestSequence === localObserverRequestSequence) {
-      localObserverInProgress = false;
-      updateLocalObserverControl();
-    }
   }
 }
 
@@ -2204,12 +1768,10 @@ video.addEventListener("loadedmetadata", () => {
 
 video.addEventListener("timeupdate", () => {
   updatePlaybackDisplay();
-  if (autoRefinementPreview && !autoRefinementPreviewIsCurrent()) invalidateAutoRefinementPreview();
   drawOverlay();
 });
 video.addEventListener("seeked", () => {
   updatePlaybackDisplay();
-  if (autoRefinementPreview && !autoRefinementPreviewIsCurrent()) invalidateAutoRefinementPreview();
   if (calibrationMode) updateCalibrationStatus();
   drawOverlay();
 });
@@ -2246,14 +1808,6 @@ debugToggle.addEventListener("click", () => {
   debugOverlayEnabled = !debugOverlayEnabled;
   debugToggle.classList.toggle("is-active", debugOverlayEnabled);
   debugToggle.setAttribute("aria-pressed", String(debugOverlayEnabled));
-  drawOverlay();
-});
-
-adaptationGuidanceButton.addEventListener("click", requestAdaptationGuidance);
-observeFieldLinesButton.addEventListener("click", observeCurrentFieldLines);
-simulateAutoRefinementButton.addEventListener("click", () => {
-  if (!autoRefinementPreviewIsCurrent()) return;
-  autoRefinementPreviewVisible = !autoRefinementPreviewVisible;
   drawOverlay();
 });
 
@@ -2595,9 +2149,7 @@ workArea.addEventListener("pointerup", (event) => {
 fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
 });
-calibratePitchButton.addEventListener("click", enterCalibrationMode);
-propagateFieldButton.addEventListener("click", propagateCurrentCalibration);
-refineSegmentButton.addEventListener("click", refinePreviousSegment);
+createManualAnchorButton.addEventListener("click", enterCalibrationMode);
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
 clearCalibrationButton.addEventListener("click", clearCurrentCalibration);

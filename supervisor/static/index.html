@@ -88,21 +88,22 @@
         </div>
         <div class="field-toolbar" id="field-toolbar" aria-label="Herramientas de edición del campo">
           <button class="field-tool is-active" type="button" data-field-tool="select">Seleccionar / mover</button>
-          <button class="field-tool" type="button" data-field-tool="point">Añadir punto</button>
-          <button class="field-tool field-tool-primary" type="button" data-field-tool="line">Añadir línea</button>
-          <button class="field-tool field-tool-secondary" type="button" data-field-tool="smart-line">Línea asistida</button>
-          <button class="field-tool" type="button" data-field-tool="ellipse">Arco / elipse</button>
-          <button class="field-tool calibration-action" id="calibrate-pitch" type="button">Calibrar campo</button>
-          <button class="field-tool propagation-action" id="propagate-field" type="button" disabled>Propagar automáticamente →</button>
-          <button class="field-tool refinement-action" id="refine-segment" type="button" disabled>Refinar tramo anterior</button>
-          <button class="field-tool field-tool-secondary" id="adaptation-guidance" type="button" hidden>Ver guía FIELD</button>
-          <button class="field-tool field-tool-secondary" id="observe-field-lines" type="button" hidden>Observar líneas</button>
-          <button class="field-tool field-tool-secondary" id="simulate-auto-refinement" type="button" hidden>Simular corrección</button>
+          <button class="field-tool calibration-action" id="create-manual-anchor" type="button">Crear anchor manual</button>
           <span class="field-current-reference" id="field-current-reference" hidden></span>
           <button class="field-tool" id="delete-field-item" type="button">Eliminar</button>
           <button class="field-tool" id="undo-field-edit" type="button">Deshacer</button>
-          <span class="field-propagation-status" id="field-propagation-status" hidden role="status"></span>
         </div>
+        <aside class="field-status-area" id="field-status-area" aria-label="Estado de FIELD">
+          <div class="field-status-section">
+            <span class="field-status-heading">CAMERA ATLAS</span>
+            <span>Anchors fuertes: <strong id="strong-anchor-count">0</strong></span>
+            <span>Estado: Pendiente</span>
+          </div>
+          <div class="field-status-section">
+            <span class="field-status-heading">FRAME ACTUAL</span>
+            <strong id="field-frame-provenance">SIN ESTADO FIELD</strong>
+          </div>
+        </aside>
       </section>
 
       <footer class="controls" aria-label="Controles de vídeo">
