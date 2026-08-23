@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_calibration_strategy import solve_field_camera_adaptive
+from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
     suggest_local_field_searches,
@@ -17,6 +18,7 @@ from supervisor.field_online_adaptation import (
 from supervisor.field_local_observer import observe_field_lines
 from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
+from supervisor.field_spatial_gating import apply_field_spatial_gating
 
 
 BASE_DIR = Path(__file__).parent
@@ -220,6 +222,12 @@ def field_adaptation_guidance(payload: dict = Body()) -> dict:
         image_height,
         only_seen_semantics=True,
     )
+    guidance = apply_field_spatial_gating(
+        guidance,
+        current_homography,
+        image_width,
+        image_height,
+    )
     corrected_view_frames = sorted({
         int(calibration.get("frame", 0))
         for calibration in calibrations
@@ -265,6 +273,12 @@ def observe_field_lines_for_frame(payload: dict = Body()) -> dict:
         image_height,
         only_seen_semantics=True,
     )
+    guidance = apply_field_spatial_gating(
+        guidance,
+        current_homography,
+        image_width,
+        image_height,
+    )
 
     capture = cv2.VideoCapture(str(video_path))
     try:
@@ -285,9 +299,17 @@ def observe_field_lines_for_frame(payload: dict = Body()) -> dict:
         for calibration in calibrations
         if calibration.get("initialHomography") or calibration.get("initial_homography")
     })
+    observer_result = observe_field_lines(frame_bgr, guidance)
+    auto_refinement_preview = propose_field_auto_refinement(
+        current_homography,
+        observer_result,
+        image_width,
+        image_height,
+    )
     return {
         "guidance": guidance,
-        "observer": observe_field_lines(frame_bgr, guidance),
+        "observer": observer_result,
+        "auto_refinement_preview": auto_refinement_preview,
         "learning": summarize_field_learning(profile),
         "corrected_view_frames": corrected_view_frames,
     }

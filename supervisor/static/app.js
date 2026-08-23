@@ -29,6 +29,7 @@ const propagateFieldButton = document.querySelector("#propagate-field");
 const refineSegmentButton = document.querySelector("#refine-segment");
 const adaptationGuidanceButton = document.querySelector("#adaptation-guidance");
 const observeFieldLinesButton = document.querySelector("#observe-field-lines");
+const simulateAutoRefinementButton = document.querySelector("#simulate-auto-refinement");
 const propagationStatus = document.querySelector("#field-propagation-status");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
@@ -84,6 +85,8 @@ let adaptationInProgress = false;
 let localObserverResult = null;
 let localObserverRequestSequence = 0;
 let localObserverInProgress = false;
+let autoRefinementPreview = null;
+let autoRefinementPreviewVisible = false;
 let calibrationPanelPosition = { x: 14, y: 60 };
 let calibrationPanelDrag = null;
 
@@ -109,6 +112,16 @@ function setReviewDirty(isDirty) {
   reviewIsDirty = isDirty;
   saveStatus.classList.toggle("is-saved", !isDirty);
   saveStatusLabel.textContent = isDirty ? "SIN GUARDAR" : "GUARDADO";
+}
+
+function invalidateAutoRefinementPreview() {
+  autoRefinementPreview = null;
+  autoRefinementPreviewVisible = false;
+}
+
+function autoRefinementPreviewIsCurrent() {
+  return autoRefinementPreview?.video === selectedVideo?.name
+    && autoRefinementPreview.frame === currentFrameNumber();
 }
 
 function clampCalibrationPanelPosition(position = calibrationPanelPosition) {
@@ -329,6 +342,15 @@ function updateLocalObserverControl() {
   observeFieldLinesButton.hidden = !visible;
   observeFieldLinesButton.disabled = !visible || localObserverInProgress || !Array.isArray(fieldHomographyForCurrentFrame());
   observeFieldLinesButton.textContent = localObserverInProgress ? "Observando líneas…" : "Observar líneas";
+}
+
+function updateAutoRefinementPreviewControl() {
+  const visible = debugOverlayEnabled && activeMode === "field";
+  simulateAutoRefinementButton.hidden = !visible;
+  simulateAutoRefinementButton.disabled = !visible || !autoRefinementPreviewIsCurrent();
+  simulateAutoRefinementButton.textContent = autoRefinementPreviewVisible
+    ? "Ocultar simulación"
+    : "Simular corrección";
 }
 
 function invalidatePropagationsFromAnchor(calibration) {
@@ -557,6 +579,7 @@ function setActiveFieldTool(tool) {
 function undoFieldEdit() {
   const previousState = fieldUndoStack.pop();
   if (!previousState) return;
+  invalidateAutoRefinementPreview();
   fieldAnnotations = previousState.annotations;
   fieldCalibrations = previousState.calibrations;
   fieldPropagations = previousState.propagations || [];
@@ -969,6 +992,7 @@ async function solveCalibration(calibration) {
   adaptationGuidance = null;
   localObserverRequestSequence += 1;
   localObserverResult = null;
+  invalidateAutoRefinementPreview();
   manualCalibrationRevision += 1;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -1053,6 +1077,7 @@ function clearCurrentCalibration() {
   adaptationGuidance = null;
   localObserverRequestSequence += 1;
   localObserverResult = null;
+  invalidateAutoRefinementPreview();
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -1191,9 +1216,11 @@ function drawProjectedPath(points, homography, displayScale) {
   if (hasPath) overlayContext.stroke();
 }
 
-function drawProjectedPitch(homography, displayScale) {
-  overlayContext.strokeStyle = "#5aa9ff";
-  overlayContext.lineWidth = 2 / displayScale;
+function drawProjectedPitch(homography, displayScale, style = {}) {
+  const color = style.color || "#5aa9ff";
+  overlayContext.strokeStyle = color;
+  overlayContext.lineWidth = style.lineWidth || 2 / displayScale;
+  overlayContext.setLineDash(style.lineDash || []);
   PITCH_MODEL.segments.forEach((segment) => {
     drawProjectedPath(sampleWorldPolyline(segment), homography, displayScale);
   });
@@ -1213,9 +1240,10 @@ function drawProjectedPitch(homography, displayScale) {
     if (!point) return;
     overlayContext.beginPath();
     overlayContext.arc(point.x, point.y, 3.5 / displayScale, 0, Math.PI * 2);
-    overlayContext.fillStyle = "#5aa9ff";
+    overlayContext.fillStyle = color;
     overlayContext.fill();
   });
+  overlayContext.setLineDash([]);
 }
 
 function drawCalibrationHandle({ x, y }, displayScale) {
@@ -1450,9 +1478,43 @@ function drawDebugOverlay() {
     const labelY = Math.min(pointerVideoCoordinates.y + padding, video.videoHeight - 22 / displayScale);
     overlayContext.fillText(label, labelX, labelY);
   }
+  drawAutoRefinementPreview(displayScale, padding);
   drawAdaptationGuidance(displayScale, fontSize, padding);
   drawLocalObserverResults(displayScale, fontSize, padding);
   overlayContext.restore();
+}
+
+function autoRefinementPreviewLabel(preview) {
+  if (preview?.status === "proposed") {
+    const proposal = preview.proposal || {};
+    const usedLines = proposal.used_semantics?.length || preview.evidence?.usable_observations || 0;
+    const quality = proposal.quality === "cautious"
+      ? "cauta"
+      : proposal.quality === "strong" ? "sólida" : proposal.quality || "";
+    const delta = preview.validation?.support_displacement?.median_px;
+    return `AUTO PREVIEW · ${usedLines} líneas · ${quality}${Number.isFinite(delta) ? ` · Δ ${delta.toFixed(1)} px` : ""}`;
+  }
+  if (preview?.status === "insufficient_consensus") return "AUTO · sin consenso suficiente";
+  if (preview?.status === "no_material_change") return "AUTO · FIELD ya estaba ajustado";
+  if (preview?.status === "proposal_rejected" || preview?.status === "refinement_rejected") return "AUTO · propuesta rechazada";
+  return preview?.detail ? `AUTO · ${preview.detail}` : "AUTO · sin propuesta";
+}
+
+function drawAutoRefinementPreview(displayScale, padding) {
+  if (activeMode !== "field" || !autoRefinementPreviewVisible || !autoRefinementPreviewIsCurrent()) return;
+  const preview = autoRefinementPreview.preview;
+  const proposedHomography = preview?.status === "proposed" ? preview.proposal?.homography : null;
+  if (Array.isArray(proposedHomography)) {
+    overlayContext.save();
+    drawProjectedPitch(proposedHomography, displayScale, {
+      color: "#f0c84b",
+      lineWidth: 1.5 / displayScale,
+      lineDash: [8 / displayScale, 5 / displayScale],
+    });
+    overlayContext.restore();
+  }
+  overlayContext.fillStyle = "#f0d77a";
+  overlayContext.fillText(autoRefinementPreviewLabel(preview), padding, padding + 80 / displayScale);
 }
 
 function semanticLabel(semantic) {
@@ -1603,7 +1665,16 @@ function drawLocalObserverResults(displayScale, fontSize, padding) {
   );
 
   found.forEach((observation) => {
-    const segment = visibleSegmentForImageLine(observation.observed_line);
+    const finiteStart = observation.observed_segment_start;
+    const finiteEnd = observation.observed_segment_end;
+    const segment = (
+      Number.isFinite(finiteStart?.x)
+      && Number.isFinite(finiteStart?.y)
+      && Number.isFinite(finiteEnd?.x)
+      && Number.isFinite(finiteEnd?.y)
+    )
+      ? [finiteStart, finiteEnd]
+      : visibleSegmentForImageLine(observation.observed_line);
     if (!segment) return;
     overlayContext.save();
     overlayContext.strokeStyle = "#42e47b";
@@ -1637,6 +1708,7 @@ function drawOverlay() {
   updateRefinementControl();
   updateAdaptationGuidanceControl();
   updateLocalObserverControl();
+  updateAutoRefinementPreviewControl();
   updateCurrentReferenceLabel();
 }
 
@@ -1722,6 +1794,7 @@ async function loadVideo(videoInfo) {
   localObserverInProgress = false;
   adaptationGuidance = null;
   localObserverResult = null;
+  invalidateAutoRefinementPreview();
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1849,6 +1922,8 @@ async function observeCurrentFieldLines() {
   const homography = fieldHomographyForCurrentFrame();
   if (!debugOverlayEnabled || !selectedVideo || !Array.isArray(homography)) return;
 
+  invalidateAutoRefinementPreview();
+  updateAutoRefinementPreviewControl();
   const requestSequence = ++localObserverRequestSequence;
   const filename = selectedVideo.name;
   const frame = currentFrameNumber();
@@ -1871,6 +1946,11 @@ async function observeCurrentFieldLines() {
     if (!response.ok) throw new Error(result.detail || "No se pudieron observar las líneas FIELD");
     if (requestSequence !== localObserverRequestSequence || selectedVideo?.name !== filename) return;
     localObserverResult = { video: filename, frame, result };
+    autoRefinementPreview = {
+      video: filename,
+      frame,
+      preview: result.auto_refinement_preview || null,
+    };
     adaptationGuidance = { video: filename, frame, result: {
       ...result.guidance,
       learning: result.learning,
@@ -1968,6 +2048,7 @@ async function propagateCurrentCalibration() {
         frames,
       });
     }
+    invalidateAutoRefinementPreview();
 
     if (result.status === "ok") {
       if (horizonEnd === frameCount) {
@@ -2065,6 +2146,7 @@ async function refinePreviousSegment() {
       config: result.config,
       frames: result.frames || [],
     });
+    invalidateAutoRefinementPreview();
 
     const missingRanges = formatFrameRanges(result.missing_ranges);
     const reviewRanges = formatFrameRanges(result.review_ranges);
@@ -2122,10 +2204,12 @@ video.addEventListener("loadedmetadata", () => {
 
 video.addEventListener("timeupdate", () => {
   updatePlaybackDisplay();
+  if (autoRefinementPreview && !autoRefinementPreviewIsCurrent()) invalidateAutoRefinementPreview();
   drawOverlay();
 });
 video.addEventListener("seeked", () => {
   updatePlaybackDisplay();
+  if (autoRefinementPreview && !autoRefinementPreviewIsCurrent()) invalidateAutoRefinementPreview();
   if (calibrationMode) updateCalibrationStatus();
   drawOverlay();
 });
@@ -2167,6 +2251,11 @@ debugToggle.addEventListener("click", () => {
 
 adaptationGuidanceButton.addEventListener("click", requestAdaptationGuidance);
 observeFieldLinesButton.addEventListener("click", observeCurrentFieldLines);
+simulateAutoRefinementButton.addEventListener("click", () => {
+  if (!autoRefinementPreviewIsCurrent()) return;
+  autoRefinementPreviewVisible = !autoRefinementPreviewVisible;
+  drawOverlay();
+});
 
 calibrationPanel.addEventListener("pointerdown", (event) => {
   event.stopPropagation();
