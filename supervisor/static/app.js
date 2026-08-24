@@ -255,9 +255,13 @@ function annotationsForCurrentFrame() {
 }
 
 function calibrationForCurrentFrame() {
-  return fieldCalibrations.find((calibration) => (
+  const calibrations = fieldCalibrations.filter((calibration) => (
     calibration.video === selectedVideo?.name && calibration.frame === currentFrameNumber()
   ));
+  if (isPitchSetupMeasurementFrame()) {
+    return calibrations.find((calibration) => calibration.purpose === "pitch_setup") || null;
+  }
+  return calibrations.find((calibration) => calibration.purpose !== "pitch_setup") || calibrations[0] || null;
 }
 
 function propagatedFrameForCurrentFrame() {
@@ -452,7 +456,7 @@ async function analyzeCameraAtlas() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName),
+        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName && calibration.purpose !== "pitch_setup"),
         propagations: fieldPropagations.filter((propagation) => propagation.video === videoName),
         refined_segments: fieldRefinedSegments.filter((segment) => segment.video === videoName),
         image_width: imageWidth,
@@ -492,7 +496,7 @@ async function requestAnchorSelection() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         filename: videoName,
-        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName),
+        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName && calibration.purpose !== "pitch_setup"),
         propagations: fieldPropagations.filter((propagation) => propagation.video === videoName),
         refined_segments: fieldRefinedSegments.filter((segment) => segment.video === videoName),
         image_width: imageWidth,
@@ -544,12 +548,20 @@ function pitchSetupCurrentFrame() {
   return pitchSetupMeasurementFrames().find((frame) => !pitchSetupUsedFrames().includes(frame)) ?? null;
 }
 
+function isPitchSetupMeasurementFrame(frame = currentFrameNumber()) {
+  return fieldPitchSetup?.video === selectedVideo?.name
+    && fieldPitchSetup.status === "measuring"
+    && pitchSetupMeasurementFrames().includes(frame)
+    && !pitchSetupUsedFrames().includes(frame);
+}
+
 function pitchSetupObservations() {
   const usedFrames = new Set(pitchSetupUsedFrames());
   return fieldCalibrations
     .filter((calibration) => (
       calibration.video === selectedVideo?.name
       && calibration.source === "manual"
+      && calibration.purpose === "pitch_setup"
       && usedFrames.has(Number(calibration.frame))
       && hasSolvedManualCalibration(calibration)
     ))
@@ -708,10 +720,18 @@ async function completePitchSetupMeasurement() {
   if (!state || state.status !== "measuring" || frame === null || frame !== currentFrameNumber()) return;
   if (!hasSolvedManualCalibration(calibrationForCurrentFrame()) || calibrationSolvePending) return;
   state.used_frames = [...pitchSetupUsedFrames(), frame];
-  state.processing = "estimate";
+  const nextQueuedFrame = pitchSetupCurrentFrame();
+  state.processing = null;
   setReviewDirty(true);
   updatePitchSetupWorkflow();
   await saveCurrentReview();
+  if (nextQueuedFrame !== null) {
+    openPitchSetupMeasurement(nextQueuedFrame);
+    return;
+  }
+
+  state.processing = "estimate";
+  updatePitchSetupWorkflow();
   try {
     const response = await fetch("/api/field-pitch-setup/estimate", {
       method: "POST",
@@ -733,7 +753,7 @@ async function completePitchSetupMeasurement() {
       const nextPayload = await nextResponse.json();
       if (!nextResponse.ok) throw new Error(nextPayload.detail || "No se pudo seleccionar otra medición.");
       const nextFrame = nextPayload.recommendation?.frame;
-      if (Number.isFinite(nextFrame)) {
+      if (Number.isFinite(nextFrame) && !pitchSetupMeasurementFrames().includes(nextFrame)) {
         state.measurement_frames = [...pitchSetupMeasurementFrames(), nextFrame];
         state.status = "measuring";
         state.processing = null;
@@ -758,10 +778,43 @@ async function completePitchSetupMeasurement() {
   updatePitchSetupWorkflow();
 }
 
+function canonicalWorldForSemantic(type, semantic) {
+  if (type === "point") return PITCH_MODEL.landmarksById[semantic]?.world || null;
+  if (type === "line") return PITCH_MODEL.calibrationLinesById[semantic]?.world || null;
+  if (type === "arc") return PITCH_MODEL.calibrationArcsById[semantic]?.world || null;
+  return null;
+}
+
+function alignPitchSetupCalibrationsWithConfirmedModel(result) {
+  const finalFrames = result?.diagnostics?.final_model?.frames;
+  const finalByFrame = new Map(
+    Array.isArray(finalFrames)
+      ? finalFrames.filter((item) => Number.isFinite(item?.frame)).map((item) => [Number(item.frame), item])
+      : [],
+  );
+  const usedFrames = new Set(pitchSetupUsedFrames());
+  fieldCalibrations.forEach((calibration) => {
+    if (calibration.video !== selectedVideo?.name || calibration.purpose !== "pitch_setup" || !usedFrames.has(Number(calibration.frame))) return;
+    calibrationConstraints(calibration).forEach((constraint) => {
+      const world = canonicalWorldForSemantic(constraint.type, constraint.semantic);
+      if (world) constraint.world = JSON.parse(JSON.stringify(world));
+    });
+    syncLegacyPointCorrespondences(calibration);
+    delete calibration.initialHomography;
+    delete calibration.initialHomographySource;
+    const finalFrame = finalByFrame.get(Number(calibration.frame));
+    if (Array.isArray(finalFrame?.homography)) {
+      calibration.homography = JSON.parse(JSON.stringify(finalFrame.homography));
+      calibration.pitchSetupFinalDiagnostic = JSON.parse(JSON.stringify(finalFrame));
+    }
+  });
+}
+
 async function confirmPitchSetup() {
   const result = fieldPitchSetup?.result;
   if (fieldPitchSetup?.status !== "ready_to_confirm" || !result?.pitch_model) return;
   applyPitchModel({ ...result.pitch_model, status: "confirmed" });
+  alignPitchSetupCalibrationsWithConfirmedModel(result);
   fieldPitchSetup.status = "confirmed";
   fieldPitchSetup.processing = null;
   setReviewDirty(true);
@@ -1756,9 +1809,16 @@ function exitCalibrationMode() {
 }
 
 function ensureCurrentCalibration() {
-  let calibration = calibrationForCurrentFrame();
+  const pitchSetupMeasurement = isPitchSetupMeasurementFrame();
+  let calibration = pitchSetupMeasurement
+    ? fieldCalibrations.find((item) => (
+      item.video === selectedVideo?.name
+      && item.frame === currentFrameNumber()
+      && item.purpose === "pitch_setup"
+    ))
+    : calibrationForCurrentFrame();
   if (calibration) return calibration;
-  const initialProjection = existingProjectionForCurrentFrame();
+  const initialProjection = pitchSetupMeasurement ? null : existingProjectionForCurrentFrame();
   calibration = {
     id: `calibration-${Date.now()}`,
     video: selectedVideo.name,
@@ -1769,6 +1829,7 @@ function ensureCurrentCalibration() {
     homography: null,
     reprojectionError: null,
   };
+  if (pitchSetupMeasurement) calibration.purpose = "pitch_setup";
   if (initialProjection) {
     calibration.initialHomography = JSON.parse(JSON.stringify(initialProjection.homography));
     calibration.initialHomographySource = initialProjection.source;

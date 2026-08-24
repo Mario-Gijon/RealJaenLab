@@ -277,6 +277,13 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
     if not isinstance(video_name, str) or not video_name:
         raise HTTPException(status_code=400, detail="El vídeo de Camera Atlas no es válido")
 
+    calibrations = [
+        calibration
+        for calibration in calibrations
+        if isinstance(calibration, dict)
+        and calibration.get("purpose") != "pitch_setup"
+    ]
+
     atlas = build_camera_atlas(
         calibrations,
         image_width,
@@ -320,6 +327,13 @@ def analyze_field_anchor_selector(payload: dict = Body()) -> dict:
 
     if not all(isinstance(items, list) for items in (calibrations, propagations, refined_segments)):
         raise HTTPException(status_code=400, detail="Los datos del selector de anchors no son válidos")
+
+    calibrations = [
+        calibration
+        for calibration in calibrations
+        if isinstance(calibration, dict)
+        and calibration.get("purpose") != "pitch_setup"
+    ]
 
     atlas = build_camera_atlas(
         calibrations,
