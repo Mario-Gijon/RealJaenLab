@@ -1,11 +1,9 @@
 """Visible FIELD footprint derived from a world->image homography.
 
-The canonical pitch is always complete and stable. This module answers:
-
-    Given the current camera homography, which part of the real 105 x 68 m
-    playing surface is inside the video viewport?
-
-H maps world pitch coordinates -> image pixels.
+The canonical pitch is complete and stable, but its total dimensions can be
+supplied per video. This module answers which part of that finite playing
+surface is inside the video viewport. H maps world pitch coordinates -> image
+pixels.
 """
 
 from __future__ import annotations
@@ -15,64 +13,52 @@ from typing import Any
 
 import numpy as np
 
-
-PITCH_LENGTH = 105.0
-PITCH_WIDTH = 68.0
-HALF_LENGTH = PITCH_LENGTH / 2.0
-HALF_WIDTH = PITCH_WIDTH / 2.0
-PITCH_AREA_M2 = PITCH_LENGTH * PITCH_WIDTH
-
-PITCH_POLYGON_WORLD = np.asarray(
-    [
-        (-HALF_LENGTH, -HALF_WIDTH),
-        (HALF_LENGTH, -HALF_WIDTH),
-        (HALF_LENGTH, HALF_WIDTH),
-        (-HALF_LENGTH, HALF_WIDTH),
-    ],
-    dtype=np.float64,
+from supervisor.field_pitch_model import (
+    DEFAULT_PITCH_LENGTH_M,
+    DEFAULT_PITCH_WIDTH_M,
+    build_pitch_model,
 )
 
-PITCH_LINES = {
-    "top_touchline": ((-52.5, -34.0), (52.5, -34.0)),
-    "bottom_touchline": ((-52.5, 34.0), (52.5, 34.0)),
-    "left_goal_line": ((-52.5, -34.0), (-52.5, 34.0)),
-    "right_goal_line": ((52.5, -34.0), (52.5, 34.0)),
-    "halfway_line": ((0.0, -34.0), (0.0, 34.0)),
-    "left_penalty_top": ((-52.5, -20.16), (-36.0, -20.16)),
-    "left_penalty_front": ((-36.0, -20.16), (-36.0, 20.16)),
-    "left_penalty_bottom": ((-36.0, 20.16), (-52.5, 20.16)),
-    "right_penalty_top": ((52.5, -20.16), (36.0, -20.16)),
-    "right_penalty_front": ((36.0, -20.16), (36.0, 20.16)),
-    "right_penalty_bottom": ((36.0, 20.16), (52.5, 20.16)),
-    "left_goal_top": ((-52.5, -9.16), (-47.0, -9.16)),
-    "left_goal_front": ((-47.0, -9.16), (-47.0, 9.16)),
-    "left_goal_bottom": ((-47.0, 9.16), (-52.5, 9.16)),
-    "right_goal_top": ((52.5, -9.16), (47.0, -9.16)),
-    "right_goal_front": ((47.0, -9.16), (47.0, 9.16)),
-    "right_goal_bottom": ((47.0, 9.16), (52.5, 9.16)),
-}
 
-PITCH_LANDMARKS = {
-    "top_left_corner": (-52.5, -34.0),
-    "top_right_corner": (52.5, -34.0),
-    "bottom_right_corner": (52.5, 34.0),
-    "bottom_left_corner": (-52.5, 34.0),
-    "halfway_top": (0.0, -34.0),
-    "halfway_bottom": (0.0, 34.0),
-    "centre_mark": (0.0, 0.0),
-    "left_penalty_top": (-36.0, -20.16),
-    "left_penalty_bottom": (-36.0, 20.16),
-    "right_penalty_top": (36.0, -20.16),
-    "right_penalty_bottom": (36.0, 20.16),
-    "left_goal_top": (-47.0, -9.16),
-    "left_goal_bottom": (-47.0, 9.16),
-    "right_goal_top": (47.0, -9.16),
-    "right_goal_bottom": (47.0, 9.16),
-    "left_penalty_spot": (-41.5, 0.0),
-    "right_penalty_spot": (41.5, 0.0),
-    "centre_circle_halfway_top": (0.0, -9.15),
-    "centre_circle_halfway_bottom": (0.0, 9.15),
-}
+PITCH_LENGTH = DEFAULT_PITCH_LENGTH_M
+PITCH_WIDTH = DEFAULT_PITCH_WIDTH_M
+HALF_LENGTH = PITCH_LENGTH / 2.0
+HALF_WIDTH = PITCH_WIDTH / 2.0
+
+
+def _visibility_geometry(pitch_model: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Normalise optional compact review dimensions into geometry for a call."""
+    if not isinstance(pitch_model, dict):
+        model = build_pitch_model()
+    else:
+        model = build_pitch_model(
+            pitch_model.get("length_m", DEFAULT_PITCH_LENGTH_M),
+            pitch_model.get("width_m", DEFAULT_PITCH_WIDTH_M),
+        )
+    return {
+        "half_length": model["half_length_m"],
+        "half_width": model["half_width_m"],
+        "area_m2": model["pitch_area_m2"],
+        "polygon": np.asarray([(point["x"], point["y"]) for point in model["pitch_polygon"]], dtype=np.float64),
+        "lines": {
+            item["id"]: (
+                (item["world"]["start"]["x"], item["world"]["start"]["y"]),
+                (item["world"]["end"]["x"], item["world"]["end"]["y"]),
+            )
+            for item in model["calibration_lines"]
+        },
+        "landmarks": {
+            item["id"]: (item["world"]["x"], item["world"]["y"])
+            for item in model["landmarks"]
+        },
+    }
+
+
+_DEFAULT_VISIBILITY_GEOMETRY = _visibility_geometry()
+PITCH_AREA_M2 = _DEFAULT_VISIBILITY_GEOMETRY["area_m2"]
+PITCH_POLYGON_WORLD = _DEFAULT_VISIBILITY_GEOMETRY["polygon"]
+PITCH_LINES = _DEFAULT_VISIBILITY_GEOMETRY["lines"]
+PITCH_LANDMARKS = _DEFAULT_VISIBILITY_GEOMETRY["landmarks"]
 
 
 def _as_h(matrix: Any) -> np.ndarray | None:
@@ -236,7 +222,7 @@ def point_in_polygon(point_xy, polygon_xy, *, tolerance=1e-9):
     return inside
 
 
-def pitch_membership(point_world, *, borderline_margin_m=1.5):
+def pitch_membership(point_world, *, borderline_margin_m=1.5, pitch_model: dict[str, Any] | None = None):
     try:
         x, y = map(float, point_world)
     except (TypeError, ValueError):
@@ -245,12 +231,15 @@ def pitch_membership(point_world, *, borderline_margin_m=1.5):
     if not math.isfinite(x) or not math.isfinite(y):
         return {"status": "invalid", "distance_outside_m": None}
 
-    dx = max(abs(x) - HALF_LENGTH, 0.0)
-    dy = max(abs(y) - HALF_WIDTH, 0.0)
+    geometry = _visibility_geometry(pitch_model)
+    half_length = geometry["half_length"]
+    half_width = geometry["half_width"]
+    dx = max(abs(x) - half_length, 0.0)
+    dy = max(abs(y) - half_width, 0.0)
     outside = math.hypot(dx, dy)
 
     if dx == 0.0 and dy == 0.0:
-        to_boundary = min(HALF_LENGTH - abs(x), HALF_WIDTH - abs(y))
+        to_boundary = min(half_length - abs(x), half_width - abs(y))
         return {
             "status": "borderline" if to_boundary <= borderline_margin_m else "inside",
             "distance_outside_m": 0.0,
@@ -264,8 +253,21 @@ def pitch_membership(point_world, *, borderline_margin_m=1.5):
     }
 
 
-def compute_visible_pitch_footprint(homography, image_width, image_height):
+def compute_visible_pitch_footprint(
+    homography,
+    image_width,
+    image_height,
+    *,
+    pitch_model: dict[str, Any] | None = None,
+):
     """Return the exact visible part of the finite pitch under H."""
+    geometry = _visibility_geometry(pitch_model)
+    half_length = geometry["half_length"]
+    half_width = geometry["half_width"]
+    pitch_area_m2 = geometry["area_m2"]
+    pitch_polygon_world = geometry["polygon"]
+    pitch_lines = geometry["lines"]
+    pitch_landmarks = geometry["landmarks"]
     h = _as_h(homography)
     try:
         width = int(image_width)
@@ -278,7 +280,7 @@ def compute_visible_pitch_footprint(homography, image_width, image_height):
     if width <= 0 or height <= 0:
         return {"status": "invalid_image_size", "polygon_world": [], "polygon_image": []}
 
-    projected_pitch, valid = _project_points(PITCH_POLYGON_WORLD, h)
+    projected_pitch, valid = _project_points(pitch_polygon_world, h)
     if not np.all(valid):
         return {"status": "pitch_projection_failed", "polygon_world": [], "polygon_image": []}
 
@@ -307,13 +309,13 @@ def compute_visible_pitch_footprint(homography, image_width, image_height):
             "polygon_image": clipped_image.tolist(),
         }
 
-    clipped_world[:, 0] = np.clip(clipped_world[:, 0], -HALF_LENGTH, HALF_LENGTH)
-    clipped_world[:, 1] = np.clip(clipped_world[:, 1], -HALF_WIDTH, HALF_WIDTH)
+    clipped_world[:, 0] = np.clip(clipped_world[:, 0], -half_length, half_length)
+    clipped_world[:, 1] = np.clip(clipped_world[:, 1], -half_width, half_width)
 
-    visible_area = min(PITCH_AREA_M2, _polygon_area(clipped_world))
+    visible_area = min(pitch_area_m2, _polygon_area(clipped_world))
     visible_lines = []
 
-    for semantic, (world_start, world_end) in PITCH_LINES.items():
+    for semantic, (world_start, world_end) in pitch_lines.items():
         projected, line_valid = _project_points(np.asarray([world_start, world_end]), h)
         if not np.all(line_valid):
             continue
@@ -339,8 +341,8 @@ def compute_visible_pitch_footprint(homography, image_width, image_height):
         })
 
     visible_landmarks = []
-    names = list(PITCH_LANDMARKS)
-    world = np.asarray([PITCH_LANDMARKS[name] for name in names])
+    names = list(pitch_landmarks)
+    world = np.asarray([pitch_landmarks[name] for name in names])
     image, valid = _project_points(world, h)
     for index, name in enumerate(names):
         if not valid[index]:
@@ -362,7 +364,7 @@ def compute_visible_pitch_footprint(homography, image_width, image_height):
         "polygon_world": clipped_world.tolist(),
         "polygon_image": clipped_image.tolist(),
         "visible_area_m2": float(visible_area),
-        "visible_fraction": float(max(0.0, min(1.0, visible_area / PITCH_AREA_M2))),
+        "visible_fraction": float(max(0.0, min(1.0, visible_area / pitch_area_m2))),
         "world_centroid": centroid.tolist(),
         "world_bbox": {
             "min_x": float(minimum[0]),

@@ -52,10 +52,16 @@ const guidedSkipButton = document.querySelector("#guided-skip");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
+const calibrationHeading = document.querySelector("#calibration-heading");
 const calibrationLandmark = document.querySelector("#calibration-landmark");
+const calibrationPitch = document.querySelector("#calibration-pitch");
+const calibrationPitchGeometry = document.querySelector("#calibration-pitch-geometry");
 const calibrationPitchMarkers = document.querySelector("#calibration-pitch-markers");
 const calibrationPitchLines = document.querySelector("#calibration-pitch-lines");
 const calibrationPitchArcs = document.querySelector("#calibration-pitch-arcs");
+const pitchDiagramTopLabel = document.querySelector("#pitch-diagram-top-label");
+const pitchDiagramLeftLabel = document.querySelector("#pitch-diagram-left-label");
+const pitchDiagramRightLabel = document.querySelector("#pitch-diagram-right-label");
 const calibrationStatus = document.querySelector("#calibration-status");
 const calibrationSolverLoading = document.querySelector("#calibration-solver-loading");
 const calibrationHint = document.querySelector("#calibration-hint");
@@ -76,6 +82,7 @@ let fieldAnnotations = [];
 let fieldCalibrations = [];
 let fieldPropagations = [];
 let fieldRefinedSegments = [];
+let fieldPitchModel = { length_m: PITCH_DEFAULTS.lengthM, width_m: PITCH_DEFAULTS.widthM, status: "default" };
 let fieldUndoStack = [];
 let selectedFieldItem = null;
 let fieldDragState = null;
@@ -145,6 +152,37 @@ function setCalibrationMode(enabled) {
   calibrationMode = Boolean(enabled);
   workspace.classList.toggle("is-calibrating", calibrationMode);
   workArea.classList.toggle("field-editing", activeMode === "guided" && calibrationMode);
+}
+
+function normalisePitchModel(value) {
+  const length = Number(value?.length_m);
+  const width = Number(value?.width_m);
+  const hasValidLength = Number.isFinite(length) && length > PITCH_DEFAULTS.penaltyAreaDepthM * 2;
+  const hasValidWidth = Number.isFinite(width)
+    && width > (PITCH_DEFAULTS.goalHalfWidthM + PITCH_DEFAULTS.penaltyAreaDepthM) * 2;
+  const status = hasValidLength && hasValidWidth && ["default", "estimated", "confirmed"].includes(value?.status)
+    ? value.status
+    : "default";
+  return {
+    length_m: hasValidLength ? length : PITCH_DEFAULTS.lengthM,
+    width_m: hasValidWidth ? width : PITCH_DEFAULTS.widthM,
+    status,
+  };
+}
+
+function formatPitchDimension(value) {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+}
+
+function applyPitchModel(value) {
+  fieldPitchModel = normalisePitchModel(value);
+  PITCH_MODEL = buildPitchModel(fieldPitchModel.length_m, fieldPitchModel.width_m);
+  if (!semanticDefinitionsForType(calibrationType).some((item) => item.id === calibrationSemantic)) {
+    calibrationSemantic = PITCH_MODEL.landmarks[0]?.id || null;
+  }
+  if (calibrationHeading) {
+    calibrationHeading.textContent = `REFERENCIA ${formatPitchDimension(PITCH_MODEL.lengthM)} × ${formatPitchDimension(PITCH_MODEL.widthM)} M`;
+  }
 }
 
 function clampCalibrationPanelPosition(position = calibrationPanelPosition) {
@@ -1244,10 +1282,51 @@ function updateCurrentReferenceLabel() {
       : "";
 }
 
+function renderCalibrationPitchGeometry() {
+  const svgNamespace = "http://www.w3.org/2000/svg";
+  const horizontalMargin = Math.max(5, PITCH_MODEL.lengthM * 0.05);
+  const verticalMargin = Math.max(9, PITCH_MODEL.widthM * 0.13);
+  calibrationPitch.setAttribute(
+    "viewBox",
+    `${-PITCH_MODEL.halfLength - horizontalMargin} ${-PITCH_MODEL.halfWidth - verticalMargin} ${PITCH_MODEL.lengthM + horizontalMargin * 2} ${PITCH_MODEL.widthM + verticalMargin * 2}`,
+  );
+  calibrationPitchGeometry.replaceChildren();
+  PITCH_MODEL.segments.forEach((segment) => {
+    const path = document.createElementNS(svgNamespace, "polyline");
+    path.setAttribute("points", segment.map((point) => `${point.x},${point.y}`).join(" "));
+    path.classList.add("pitch-diagram-line");
+    calibrationPitchGeometry.append(path);
+  });
+  PITCH_MODEL.calibrationArcs.forEach((arc) => {
+    const { center, radius, startAngle, endAngle } = arc.world;
+    const element = document.createElementNS(svgNamespace, Number.isFinite(startAngle) ? "path" : "circle");
+    element.classList.add("pitch-diagram-line");
+    if (Number.isFinite(startAngle) && Number.isFinite(endAngle)) {
+      const start = { x: center.x + radius * Math.cos(startAngle), y: center.y + radius * Math.sin(startAngle) };
+      const end = { x: center.x + radius * Math.cos(endAngle), y: center.y + radius * Math.sin(endAngle) };
+      const largeArc = Math.abs(endAngle - startAngle) > Math.PI ? 1 : 0;
+      const sweep = endAngle >= startAngle ? 1 : 0;
+      element.setAttribute("d", `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} ${sweep} ${end.x} ${end.y}`);
+    } else {
+      element.setAttribute("cx", center.x);
+      element.setAttribute("cy", center.y);
+      element.setAttribute("r", radius);
+    }
+    calibrationPitchGeometry.append(element);
+  });
+  pitchDiagramTopLabel.setAttribute("x", "0");
+  pitchDiagramTopLabel.setAttribute("y", String(-PITCH_MODEL.halfWidth - verticalMargin * 0.45));
+  pitchDiagramLeftLabel.setAttribute("x", String(-PITCH_MODEL.halfLength - horizontalMargin * 0.9));
+  pitchDiagramLeftLabel.setAttribute("y", String(PITCH_MODEL.halfWidth + verticalMargin * 0.5));
+  pitchDiagramRightLabel.setAttribute("x", String(PITCH_MODEL.halfLength + horizontalMargin * 0.9));
+  pitchDiagramRightLabel.setAttribute("y", String(PITCH_MODEL.halfWidth + verticalMargin * 0.5));
+}
+
 function renderCalibrationPitch() {
   const svgNamespace = "http://www.w3.org/2000/svg";
   const calibration = calibrationForCurrentFrame();
   const constraints = calibrationConstraints(calibration);
+  renderCalibrationPitchGeometry();
   calibrationPitchMarkers.replaceChildren();
   calibrationPitchLines.replaceChildren();
   calibrationPitchArcs.replaceChildren();
@@ -1749,11 +1828,7 @@ function drawProjectedPitch(homography, displayScale, style = {}) {
       : PITCH_MODEL.sampleCircle(center, radius, 128);
     drawProjectedPath(points, homography, displayScale);
   });
-  [
-    { x: 0, y: 0 },
-    { x: -41.5, y: 0 },
-    { x: 41.5, y: 0 },
-  ].forEach((worldPoint) => {
+  PITCH_MODEL.markPoints.forEach((worldPoint) => {
     const point = projectWorldPoint(worldPoint, homography);
     if (!point) return;
     overlayContext.beginPath();
@@ -2093,6 +2168,7 @@ async function loadVideo(videoInfo) {
   fieldCalibrations = [];
   fieldPropagations = [];
   fieldRefinedSegments = [];
+  applyPitchModel(null);
   fieldUndoStack = [];
   selectedFieldItem = null;
   selectedCalibrationConstraint = null;
@@ -2124,6 +2200,7 @@ async function loadVideo(videoInfo) {
     fieldCalibrations = Array.isArray(review?.field?.calibrations) ? review.field.calibrations : [];
     fieldPropagations = Array.isArray(review?.field?.propagations) ? review.field.propagations : [];
     fieldRefinedSegments = Array.isArray(review?.field?.refinedSegments) ? review.field.refinedSegments : [];
+    applyPitchModel(review?.field?.pitch_model);
     fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
@@ -2148,6 +2225,7 @@ async function saveCurrentReview() {
       )),
       propagations: fieldPropagations.filter((propagation) => propagation.video === selectedVideo.name),
       refinedSegments: fieldRefinedSegments.filter((segment) => segment.video === selectedVideo.name),
+      pitch_model: { ...fieldPitchModel },
     },
     people: {},
   };

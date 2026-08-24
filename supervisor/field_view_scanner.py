@@ -82,9 +82,22 @@ def _pitch_lines(img, green, white, cfg):
     found = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD).detect(gray)[0]
     if found is None:
         return []
+
+    # OpenCV's Python bindings are not shape-stable across builds:
+    # some return LSD segments as (N, 1, 4), others as (N, 4).
+    # Normalize both forms to a single (N, 4) array.
+    found = np.asarray(found)
+    if found.size == 0:
+        return []
+    if found.ndim not in (2, 3) or found.shape[-1] != 4:
+        raise ValueError(
+            f"Unexpected LineSegmentDetector output shape: {found.shape}"
+        )
+    found = found.reshape(-1, 4)
+
     green_ctx = cv2.dilate(green, np.ones((11,11),np.uint8))
     out=[]
-    for raw in found[:,0,:]:
+    for raw in found:
         seg = raw.astype(float)
         x1,y1,x2,y2 = seg
         length = math.hypot(x2-x1,y2-y1)
