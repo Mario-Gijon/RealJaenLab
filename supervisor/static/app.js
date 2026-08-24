@@ -61,6 +61,7 @@ const calibrationPitchMarkers = document.querySelector("#calibration-pitch-marke
 const calibrationPitchLines = document.querySelector("#calibration-pitch-lines");
 const calibrationPitchArcs = document.querySelector("#calibration-pitch-arcs");
 const calibrationStatus = document.querySelector("#calibration-status");
+const calibrationSolverLoading = document.querySelector("#calibration-solver-loading");
 const calibrationHint = document.querySelector("#calibration-hint");
 const currentReferenceLabel = document.querySelector("#field-current-reference");
 const calibrationConstraintType = document.querySelector("#calibration-constraint-type");
@@ -90,6 +91,8 @@ let videoLoadSequence = 0;
 let calibrationMode = false;
 let calibrationDragState = null;
 let calibrationSolveSequence = 0;
+let calibrationSolvePending = null;
+let calibrationSolveError = null;
 let calibrationType = "point";
 let calibrationSemantic = PITCH_MODEL.landmarks[0]?.id || null;
 const selectedSemanticByType = { point: calibrationSemantic, line: null, arc: null };
@@ -578,7 +581,8 @@ function updateGuidedCalibrationPanel() {
   guidedSkipButton.disabled = !recommendation || guidedCalibration.running;
   const currentIsSolvedRecommendation = recommendation
     && currentFrameNumber() === recommendation.frame
-    && hasSolvedManualCalibration(calibrationForCurrentFrame());
+    && hasSolvedManualCalibration(calibrationForCurrentFrame())
+    && !calibrationSolvePending;
   guidedConfirmButton.disabled = !currentIsSolvedRecommendation || guidedCalibration.running;
   guidedContinueButton.hidden = !impact;
   guidedContinueButton.disabled = !recommendation || guidedCalibration.running;
@@ -1197,9 +1201,23 @@ function renderCalibrationPitch() {
   });
 }
 
+function calibrationSolveIsPending(calibration = calibrationForCurrentFrame()) {
+  return Boolean(calibration && calibrationSolvePending?.calibrationId === calibration.id);
+}
+
+function calibrationSolveErrorFor(calibration = calibrationForCurrentFrame()) {
+  return calibration && calibrationSolveError?.calibrationId === calibration.id
+    ? calibrationSolveError.message
+    : null;
+}
+
 function updateCalibrationStatus(message = null) {
   syncSemanticSelector();
   const calibration = calibrationForCurrentFrame();
+  const pending = calibrationSolveIsPending(calibration);
+  const solveError = calibrationSolveErrorFor(calibration);
+  calibrationSolverLoading.hidden = !pending;
+  exitCalibrationButton.disabled = Boolean(calibrationSolvePending);
   const refiningExistingProjection = hasInitialHomography(calibration) || (!calibration && Boolean(existingProjectionForCurrentFrame()));
   renderCalibrationPitch();
   updateCurrentReferenceLabel();
@@ -1211,8 +1229,16 @@ function updateCalibrationStatus(message = null) {
   calibrationHint.textContent = refiningExistingProjection
     ? `${drawingHint} Corrigiendo la proyección existente de este fotograma.`
     : drawingHint;
+  if (pending) {
+    calibrationStatus.textContent = constraintCountsLabel(calibrationConstraints(calibration));
+    return;
+  }
   if (message) {
     calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))}${refiningExistingProjection ? " · corrigiendo proyección existente" : ""} · ${message}`;
+    return;
+  }
+  if (solveError) {
+    calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))} · Error: ${solveError}`;
     return;
   }
   const constraints = calibrationConstraints(calibration);
@@ -1336,7 +1362,10 @@ async function solveCalibration(calibration) {
   const constraints = calibrationConstraints(calibration);
   const pointCount = constraints.filter((item) => item.type === "point").length;
   const isRefinement = hasInitialHomography(calibration);
+  const sequence = ++calibrationSolveSequence;
+  calibrationSolveError = null;
   if (!constraints.length || (!isRefinement && pointCount < 4 && !constraints.some((item) => item.type !== "point"))) {
+    calibrationSolvePending = null;
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus();
@@ -1344,8 +1373,8 @@ async function solveCalibration(calibration) {
     drawOverlay();
     return;
   }
-  const sequence = ++calibrationSolveSequence;
-  updateCalibrationStatus("Calculando la proyección del campo…");
+  calibrationSolvePending = { calibrationId: calibration.id, sequence };
+  updateCalibrationStatus();
   try {
     const response = await fetch("/api/field-calibration/solve", {
       method: "POST",
@@ -1361,6 +1390,7 @@ async function solveCalibration(calibration) {
     const solved = result.status === "solved" || result.status === "solved_with_warnings";
     if (!response.ok || !solved) throw new Error(result.detail || "No se pudo calcular la proyección del campo");
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
+    calibrationSolvePending = null;
     calibration.homography = result.homography;
     calibration.reprojectionError = result.reprojection_error;
     calibration.camera = result.camera || null;
@@ -1370,9 +1400,12 @@ async function solveCalibration(calibration) {
     drawOverlay();
   } catch (error) {
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
-    calibration.homography = null;
-    calibration.reprojectionError = null;
-    updateCalibrationStatus(error.message);
+    calibrationSolvePending = null;
+    calibrationSolveError = {
+      calibrationId: calibration.id,
+      message: error instanceof Error ? error.message : "No se pudo calcular la proyección del campo.",
+    };
+    updateCalibrationStatus();
     analyzeCameraAtlas();
     drawOverlay();
   }
@@ -1388,7 +1421,6 @@ function addCalibrationCorrespondence(image) {
   if (existing) Object.assign(existing, constraint);
   else calibration.constraints.push(constraint);
   syncLegacyPointCorrespondences(calibration);
-  calibration.homography = null;
   solveCalibration(calibration);
 }
 
@@ -1400,7 +1432,6 @@ function removeSelectedCalibrationCorrespondence() {
   rememberFieldEdit();
   calibration.constraints = calibrationConstraints(calibration).filter((item) => !(item.type === calibrationType && item.semantic === landmarkId));
   syncLegacyPointCorrespondences(calibration);
-  calibration.homography = null;
   solveCalibration(calibration);
 }
 
@@ -1416,6 +1447,8 @@ function clearCurrentCalibration() {
   invalidateRefinedSegmentsForCalibration(calibration);
   fieldCalibrations = fieldCalibrations.filter((item) => item.id !== calibration.id);
   calibrationSolveSequence += 1;
+  calibrationSolvePending = null;
+  calibrationSolveError = null;
   updateCalibrationStatus();
   analyzeCameraAtlas();
   drawOverlay();
@@ -1918,6 +1951,8 @@ async function loadVideo(videoInfo) {
   calibrationDragState = null;
   calibrationLineDraft = null;
   calibrationArcDraft = null;
+  calibrationSolvePending = null;
+  calibrationSolveError = null;
   setReviewDirty(false);
   resetPlaybackState();
   setControlsEnabled(false);

@@ -73,6 +73,7 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .field-current-reference { align-self: center; max-width: 180px; overflow: hidden; color: #b7d8d4; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .field-status-area { position: absolute; z-index: 2; top: 92px; left: 42px; display: flex; gap: 14px; padding: 8px 10px; color: #b8c0c7; border: 1px solid #363d45; border-radius: 5px; background: rgba(23, 26, 30, .92); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); font-size: 10px; line-height: 1.45; }
 .field-status-area[hidden] { display: none; }
+.workspace.is-calibrating .field-toolbar,
 .workspace.is-calibrating .field-status-area,
 .workspace.is-calibrating .guided-calibration-panel { display: none; }
 .field-status-section { display: grid; gap: 1px; min-width: 132px; }
@@ -118,6 +119,10 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .pitch-constraint-number { fill: #10191d; font-size: 4.5px; font-weight: 800; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .calibration-actions { display: flex; flex: 1; flex-direction: column; align-items: stretch; gap: 6px; min-width: 175px; }
 .calibration-actions #calibration-status { color: #d2e4e2; font-size: 11px; font-weight: 650; line-height: 1.3; }
+.calibration-solver-loading { display: flex; align-items: center; gap: 6px; color: #d4a414; font-size: 11px; font-weight: 750; }
+.calibration-solver-loading[hidden] { display: none; }
+.calibration-spinner { width: 11px; height: 11px; border: 2px solid rgba(212, 164, 20, .3); border-top-color: #d4a414; border-radius: 50%; animation: calibration-spin .7s linear infinite; }
+@keyframes calibration-spin { to { transform: rotate(360deg); } }
 .calibration-panel label { color: #8fd4ce; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 .calibration-panel select { max-width: 230px; color: #d6dade; border: 1px solid #3b6865; border-radius: 3px; padding: 6px 8px; background: #172a2a; font-size: 11px; }
 
