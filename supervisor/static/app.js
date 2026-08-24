@@ -811,13 +811,26 @@ async function estimateCompletedPitchSetup(state) {
   updatePitchSetupWorkflow();
 }
 
-async function continuePitchSetupAfterAttempt(state) {
+async function continuePitchSetupAfterAttempt(state, { rejected = false } = {}) {
   const nextQueuedFrame = pitchSetupCurrentFrame();
   if (nextQueuedFrame !== null) {
     openPitchSetupMeasurement(nextQueuedFrame);
     return;
   }
   if (pitchSetupUsedFrames().length < pitchSetupTargetCount()) {
+    if (await appendPitchSetupReplacement(state)) {
+      setReviewDirty(true);
+      await saveCurrentReview();
+      openPitchSetupMeasurement(pitchSetupCurrentFrame());
+      return;
+    }
+    stopPitchSetupForInsufficientViews(state);
+    setReviewDirty(true);
+    await saveCurrentReview();
+    updatePitchSetupWorkflow();
+    return;
+  }
+  if (rejected && state.result?.status === "needs_more_evidence") {
     if (await appendPitchSetupReplacement(state)) {
       setReviewDirty(true);
       await saveCurrentReview();
@@ -859,7 +872,7 @@ async function rejectPitchSetupMeasurement() {
   setReviewDirty(true);
   updatePitchSetupWorkflow();
   await saveCurrentReview();
-  await continuePitchSetupAfterAttempt(state);
+  await continuePitchSetupAfterAttempt(state, { rejected: true });
 }
 
 function canonicalWorldForSemantic(type, semantic) {
