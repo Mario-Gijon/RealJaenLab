@@ -31,6 +31,7 @@ const beginGuidedCalibrationButton = document.querySelector("#begin-guided-calib
 const openManualCalibrationButton = document.querySelector("#open-manual-calibration");
 const guidedConfirmContinueButton = document.querySelector("#guided-confirm-continue");
 const guidedFrameProgress = document.querySelector("#guided-frame-progress");
+const rejectPitchSetupMeasurementButton = document.querySelector("#reject-pitch-setup-measurement");
 const strongAnchorCount = document.querySelector("#strong-anchor-count");
 const cameraAtlasState = document.querySelector("#camera-atlas-state");
 const fieldFrameProvenance = document.querySelector("#field-frame-provenance");
@@ -544,8 +545,27 @@ function pitchSetupUsedFrames() {
   return Array.isArray(fieldPitchSetup?.used_frames) ? fieldPitchSetup.used_frames : [];
 }
 
+function pitchSetupRejectedFrames() {
+  return Array.isArray(fieldPitchSetup?.rejected_frames) ? fieldPitchSetup.rejected_frames : [];
+}
+
+function pitchSetupAttemptedFrames() {
+  return [...new Set([...pitchSetupUsedFrames(), ...pitchSetupRejectedFrames()])];
+}
+
 function pitchSetupCurrentFrame() {
-  return pitchSetupMeasurementFrames().find((frame) => !pitchSetupUsedFrames().includes(frame)) ?? null;
+  const attempted = new Set(pitchSetupAttemptedFrames());
+  return pitchSetupMeasurementFrames().find((frame) => !attempted.has(frame)) ?? null;
+}
+
+function pitchSetupTargetCount() {
+  const target = Number(fieldPitchSetup?.target_count);
+  return Number.isInteger(target) && target > 0 ? target : pitchSetupMeasurementFrames().length;
+}
+
+function pitchSetupMaximumCount() {
+  const maximum = Number(fieldPitchSetup?.maximum_count);
+  return Number.isInteger(maximum) && maximum > 0 ? maximum : pitchSetupMeasurementFrames().length;
 }
 
 function isPitchSetupMeasurementFrame(frame = currentFrameNumber()) {
@@ -598,6 +618,8 @@ function updatePitchSetupWorkflow() {
   const active = activeMode === "guided";
   const state = fieldPitchSetup?.video === selectedVideo?.name ? fieldPitchSetup : null;
   const used = pitchSetupUsedFrames();
+  const rejected = pitchSetupRejectedFrames();
+  const attempted = pitchSetupAttemptedFrames();
   const frames = pitchSetupMeasurementFrames();
   const currentFrame = pitchSetupCurrentFrame();
   const result = state?.result || null;
@@ -605,7 +627,7 @@ function updatePitchSetupWorkflow() {
 
   guidedWorkflowPanel.hidden = !active || calibrationMode;
   guidedFrameProgress.hidden = !(calibrationMode && state?.status === "measuring" && currentFrame !== null);
-  guidedFrameProgress.textContent = calibrationMode && currentFrame !== null ? `TERRENO · ${used.length + 1} / ${frames.length}` : "";
+  guidedFrameProgress.textContent = calibrationMode && currentFrame !== null ? `TERRENO · ${attempted.length} / ${frames.length}` : "";
   guidedConfirmContinueButton.hidden = !calibrationMode || state?.status !== "measuring" || currentFrame === null;
   guidedConfirmContinueButton.disabled = !(
     currentFrame === currentFrameNumber()
@@ -613,6 +635,10 @@ function updatePitchSetupWorkflow() {
     && !calibrationSolvePending
     && !state?.processing
   );
+  rejectPitchSetupMeasurementButton.hidden = !(
+    calibrationMode && state?.status === "measuring" && currentFrame === currentFrameNumber()
+  );
+  rejectPitchSetupMeasurementButton.disabled = Boolean(state?.processing);
 
   if (!active || calibrationMode) return;
 
@@ -637,14 +663,20 @@ function updatePitchSetupWorkflow() {
   } else if (state.error) {
     add(`No se pudo continuar: ${state.error}`, false, true);
   } else if (state.status === "measuring") {
-    add(`${used.length + 1} / ${frames.length}`);
+    add(`${attempted.length} / ${frames.length}`);
     add(`Siguiente medición: fotograma ${currentFrame}.`);
   } else if (state.status === "ready_to_confirm" && result?.pitch_model) {
     add("Terreno estimado", true);
     add(`${formatPitchDimension(result.pitch_model.length_m)} × ${formatPitchDimension(result.pitch_model.width_m)} m`);
     add(`Longitud: ${formatPitchInterval(result.confidence?.length_interval_m)} · Anchura: ${formatPitchInterval(result.confidence?.width_interval_m)}`);
   } else if (state.status === "insufficient") {
-    add("No hay evidencia geométrica suficiente para estimar el terreno con confianza.", false, true);
+    add(
+      state.insufficient_reason === "observable_views"
+        ? "No hay suficientes vistas geométricamente observables para calibrar el terreno."
+        : "No hay evidencia geométrica suficiente para estimar el terreno con confianza.",
+      false,
+      true,
+    );
     const missing = pitchSetupMissingEvidence(result);
     if (missing.length) add(`Falta confianza en: ${missing.join(", ")}.`);
   } else if (state.status === "confirmed") {
@@ -677,7 +709,7 @@ function openPitchSetupMeasurement(frame) {
 async function startPitchSetup() {
   if (!selectedVideo || fieldPitchSetup?.processing) return;
   const videoName = selectedVideo.name;
-  fieldPitchSetup = { video: videoName, status: "starting", processing: "scan", scan: null, measurement_frames: [], used_frames: [], result: null, error: null };
+  fieldPitchSetup = { video: videoName, status: "starting", processing: "scan", scan: null, measurement_frames: [], used_frames: [], rejected_frames: [], target_count: null, maximum_count: null, result: null, error: null };
   updatePitchSetupWorkflow();
   try {
     const scanResponse = await fetch("/api/field-view-scan/analyze", {
@@ -700,6 +732,9 @@ async function startPitchSetup() {
       scan: scanPayload.scan,
       measurement_frames: selection.selected_frames,
       used_frames: [],
+      rejected_frames: [],
+      target_count: selection.target_count,
+      maximum_count: selection.maximum_count,
       result: null,
       error: null,
     };
@@ -708,28 +743,38 @@ async function startPitchSetup() {
     openPitchSetupMeasurement(selection.selected_frames[0]);
   } catch (error) {
     if (selectedVideo?.name === videoName) {
-      fieldPitchSetup = { video: videoName, status: "error", processing: null, scan: null, measurement_frames: [], used_frames: [], result: null, error: error instanceof Error ? error.message : "Error desconocido." };
+      fieldPitchSetup = { video: videoName, status: "error", processing: null, scan: null, measurement_frames: [], used_frames: [], rejected_frames: [], target_count: null, maximum_count: null, result: null, error: error instanceof Error ? error.message : "Error desconocido." };
     }
   }
   updatePitchSetupWorkflow();
 }
 
-async function completePitchSetupMeasurement() {
-  const state = fieldPitchSetup;
-  const frame = pitchSetupCurrentFrame();
-  if (!state || state.status !== "measuring" || frame === null || frame !== currentFrameNumber()) return;
-  if (!hasSolvedManualCalibration(calibrationForCurrentFrame()) || calibrationSolvePending) return;
-  state.used_frames = [...pitchSetupUsedFrames(), frame];
-  const nextQueuedFrame = pitchSetupCurrentFrame();
+async function appendPitchSetupReplacement(state) {
+  const attempted = pitchSetupAttemptedFrames();
+  if (attempted.length >= pitchSetupMaximumCount()) return false;
+  const response = await fetch("/api/field-pitch-setup/next-frame", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scan: state.scan, used_frames: attempted }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.detail || "No se pudo seleccionar otra medición.");
+  const nextFrame = payload.recommendation?.frame;
+  if (!Number.isFinite(nextFrame) || pitchSetupMeasurementFrames().includes(nextFrame)) return false;
+  state.measurement_frames = [...pitchSetupMeasurementFrames(), nextFrame];
+  state.status = "measuring";
   state.processing = null;
-  setReviewDirty(true);
-  updatePitchSetupWorkflow();
-  await saveCurrentReview();
-  if (nextQueuedFrame !== null) {
-    openPitchSetupMeasurement(nextQueuedFrame);
-    return;
-  }
+  return true;
+}
 
+function stopPitchSetupForInsufficientViews(state) {
+  state.status = "insufficient";
+  state.processing = null;
+  state.insufficient_reason = "observable_views";
+  exitCalibrationMode();
+}
+
+async function estimateCompletedPitchSetup(state) {
   state.processing = "estimate";
   updatePitchSetupWorkflow();
   try {
@@ -746,24 +791,12 @@ async function completePitchSetupMeasurement() {
       state.processing = null;
       exitCalibrationMode();
     } else if (payload.result.status === "needs_more_evidence") {
-      const nextResponse = await fetch("/api/field-pitch-setup/next-frame", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scan: state.scan, used_frames: state.used_frames }),
-      });
-      const nextPayload = await nextResponse.json();
-      if (!nextResponse.ok) throw new Error(nextPayload.detail || "No se pudo seleccionar otra medición.");
-      const nextFrame = nextPayload.recommendation?.frame;
-      if (Number.isFinite(nextFrame) && !pitchSetupMeasurementFrames().includes(nextFrame)) {
-        state.measurement_frames = [...pitchSetupMeasurementFrames(), nextFrame];
-        state.status = "measuring";
-        state.processing = null;
+      if (await appendPitchSetupReplacement(state)) {
         setReviewDirty(true);
         await saveCurrentReview();
-        openPitchSetupMeasurement(nextFrame);
+        openPitchSetupMeasurement(pitchSetupCurrentFrame());
       } else {
-        state.status = "insufficient";
-        state.processing = null;
-        exitCalibrationMode();
+        stopPitchSetupForInsufficientViews(state);
       }
     } else {
       throw new Error(payload.result.detail || "La estimación del terreno no pudo completarse.");
@@ -776,6 +809,57 @@ async function completePitchSetupMeasurement() {
   setReviewDirty(true);
   await saveCurrentReview();
   updatePitchSetupWorkflow();
+}
+
+async function continuePitchSetupAfterAttempt(state) {
+  const nextQueuedFrame = pitchSetupCurrentFrame();
+  if (nextQueuedFrame !== null) {
+    openPitchSetupMeasurement(nextQueuedFrame);
+    return;
+  }
+  if (pitchSetupUsedFrames().length < pitchSetupTargetCount()) {
+    if (await appendPitchSetupReplacement(state)) {
+      setReviewDirty(true);
+      await saveCurrentReview();
+      openPitchSetupMeasurement(pitchSetupCurrentFrame());
+      return;
+    }
+    stopPitchSetupForInsufficientViews(state);
+    setReviewDirty(true);
+    await saveCurrentReview();
+    updatePitchSetupWorkflow();
+    return;
+  }
+  await estimateCompletedPitchSetup(state);
+}
+
+async function completePitchSetupMeasurement() {
+  const state = fieldPitchSetup;
+  const frame = pitchSetupCurrentFrame();
+  if (!state || state.status !== "measuring" || frame === null || frame !== currentFrameNumber()) return;
+  if (!hasSolvedManualCalibration(calibrationForCurrentFrame()) || calibrationSolvePending) return;
+  state.used_frames = [...new Set([...pitchSetupUsedFrames(), frame])];
+  state.processing = null;
+  setReviewDirty(true);
+  updatePitchSetupWorkflow();
+  await saveCurrentReview();
+  await continuePitchSetupAfterAttempt(state);
+}
+
+async function rejectPitchSetupMeasurement() {
+  const state = fieldPitchSetup;
+  const frame = pitchSetupCurrentFrame();
+  if (!state || state.status !== "measuring" || frame === null || frame !== currentFrameNumber()) return;
+  video.pause();
+  state.rejected_frames = [...new Set([...pitchSetupRejectedFrames(), frame])];
+  const calibration = calibrationForCurrentFrame();
+  if (calibration?.purpose === "pitch_setup") calibration.pitchSetupMeasurementStatus = "insufficient_geometry";
+  state.processing = null;
+  state.last_rejection_message = "Vista descartada: geometría insuficiente.";
+  setReviewDirty(true);
+  updatePitchSetupWorkflow();
+  await saveCurrentReview();
+  await continuePitchSetupAfterAttempt(state);
 }
 
 function canonicalWorldForSemantic(type, semantic) {
@@ -3182,6 +3266,7 @@ openManualCalibrationButton.addEventListener("click", () => openPitchSetupMeasur
 guidedContextButton.addEventListener("click", playViewScanContext);
 guidedSkipButton.addEventListener("click", skipViewScanRecommendation);
 guidedConfirmContinueButton.addEventListener("click", completePitchSetupMeasurement);
+rejectPitchSetupMeasurementButton.addEventListener("click", rejectPitchSetupMeasurement);
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
 clearCalibrationButton.addEventListener("click", clearCurrentCalibration);
