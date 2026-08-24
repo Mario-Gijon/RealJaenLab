@@ -8503,6 +8503,855 @@
             }
           }
         }
+      },
+      {
+        "id": "calibration-1787570976609",
+        "video": "benchmark_easy_2min.mp4",
+        "frame": 3108,
+        "source": "manual",
+        "correspondences": [
+          {
+            "landmark": "top_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": -34
+            },
+            "image": {
+              "x": 6.66970802919708,
+              "y": 400.50638686131384
+            }
+          },
+          {
+            "landmark": "right_penalty_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -20.16
+            },
+            "image": {
+              "x": 242.7691605839416,
+              "y": 426.9844890510949
+            }
+          },
+          {
+            "landmark": "right_goal_top",
+            "world": {
+              "x": 47,
+              "y": -9.16
+            },
+            "image": {
+              "x": 305.3330291970803,
+              "y": 464.17427007299267
+            }
+          },
+          {
+            "landmark": "right_goal_area_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -9.16
+            },
+            "image": {
+              "x": 455.853102189781,
+              "y": 445.5155109489051
+            }
+          },
+          {
+            "landmark": "right_penalty_spot",
+            "world": {
+              "x": 41.5,
+              "y": 0
+            },
+            "image": {
+              "x": 326.9753649635037,
+              "y": 503.6450729927007
+            }
+          },
+          {
+            "landmark": "right_goal_bottom",
+            "world": {
+              "x": 47,
+              "y": 9.16
+            },
+            "image": {
+              "x": 760.1368613138686,
+              "y": 515.1459854014598
+            }
+          },
+          {
+            "landmark": "right_goal_area_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 9.16
+            },
+            "image": {
+              "x": 910.2828467153286,
+              "y": 505.3695255474453
+            }
+          },
+          {
+            "landmark": "right_penalty_bottom",
+            "world": {
+              "x": 36,
+              "y": 20.16
+            },
+            "image": {
+              "x": 732.4726277372263,
+              "y": 623.5082116788321
+            }
+          },
+          {
+            "landmark": "right_penalty_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 20.16
+            },
+            "image": {
+              "x": 1281.2043795620436,
+              "y": 539.8357664233577
+            }
+          },
+          {
+            "landmark": "bottom_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": 34
+            },
+            "image": {
+              "x": 1918.654197080292,
+              "y": 608.9005474452554
+            }
+          }
+        ],
+        "constraints": [
+          {
+            "type": "point",
+            "semantic": "top_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": -34
+            },
+            "image": {
+              "x": 6.66970802919708,
+              "y": 400.50638686131384
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -20.16
+            },
+            "image": {
+              "x": 242.7691605839416,
+              "y": 426.9844890510949
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_top",
+            "world": {
+              "x": 47,
+              "y": -9.16
+            },
+            "image": {
+              "x": 305.3330291970803,
+              "y": 464.17427007299267
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_area_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -9.16
+            },
+            "image": {
+              "x": 455.853102189781,
+              "y": 445.5155109489051
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_spot",
+            "world": {
+              "x": 41.5,
+              "y": 0
+            },
+            "image": {
+              "x": 326.9753649635037,
+              "y": 503.6450729927007
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_bottom",
+            "world": {
+              "x": 47,
+              "y": 9.16
+            },
+            "image": {
+              "x": 760.1368613138686,
+              "y": 515.1459854014598
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_area_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 9.16
+            },
+            "image": {
+              "x": 910.2828467153286,
+              "y": 505.3695255474453
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_bottom",
+            "world": {
+              "x": 36,
+              "y": 20.16
+            },
+            "image": {
+              "x": 732.4726277372263,
+              "y": 623.5082116788321
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 20.16
+            },
+            "image": {
+              "x": 1281.2043795620436,
+              "y": 539.8357664233577
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "bottom_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": 34
+            },
+            "image": {
+              "x": 1918.654197080292,
+              "y": 608.9005474452554
+            },
+            "source": "manual"
+          },
+          {
+            "type": "line",
+            "semantic": "bottom_touchline",
+            "world": {
+              "start": {
+                "x": -52.5,
+                "y": 34
+              },
+              "end": {
+                "x": 52.5,
+                "y": 34
+              }
+            },
+            "image": {
+              "start": {
+                "x": 2.7509124087591244,
+                "y": 1075.191605839416
+              },
+              "end": {
+                "x": 1909.6213503649635,
+                "y": 610.5748175182482
+              }
+            },
+            "source": "manual"
+          }
+        ],
+        "homography": [
+          [
+            63.24621347888925,
+            35.444413597158956,
+            -2070.962997967413
+          ],
+          [
+            2.6444978942126376,
+            -3.132701498029283,
+            748.3403925427867
+          ],
+          [
+            0.01677983046781519,
+            -0.017630074712196284,
+            1
+          ]
+        ],
+        "reprojectionError": 6.13880395523013,
+        "initialHomography": [
+          [
+            59.70255809757386,
+            43.31767857601967,
+            -2826.0294800549354
+          ],
+          [
+            1.7931890094046252,
+            -5.28154765976664,
+            872.6605806373849
+          ],
+          [
+            0.011804188866756372,
+            -0.017789128978676835,
+            1
+          ]
+        ],
+        "initialHomographySource": "propagated",
+        "camera": {
+          "vanishing_point_longitudinal": {
+            "x": 3769.180719686032,
+            "y": 157.59979811982947
+          },
+          "vanishing_point_transversal": {
+            "x": -2010.4516955131742,
+            "y": 177.6907670086115
+          },
+          "horizon_line": {
+            "a": -0.0034761462424562103,
+            "b": -0.9999939581853988,
+            "c": 170.70106932694304
+          },
+          "zoom_proxy_px_per_m": 31.575124225930992,
+          "principal_view_projection": [
+            -2070.962997967413,
+            748.3403925427867
+          ]
+        },
+        "diagnostics": {
+          "mode": "geometric_projective_camera_v1",
+          "selected_candidate": "mixed_normalised_dlt:refined",
+          "score": 18.153155999360415,
+          "homography_condition": 127578.5148533228,
+          "points": 10,
+          "lines": 1,
+          "arcs": 0,
+          "point_error_px": 6.13880395523013,
+          "line_error_px": 0.06370211945375104,
+          "point_errors": [
+            {
+              "semantic": "top_right_corner",
+              "error_px": 11.212600256712097
+            },
+            {
+              "semantic": "right_penalty_goal_line_top",
+              "error_px": 4.124014221247151
+            },
+            {
+              "semantic": "right_goal_top",
+              "error_px": 9.695300129790489
+            },
+            {
+              "semantic": "right_goal_area_goal_line_top",
+              "error_px": 4.2229542102791005
+            },
+            {
+              "semantic": "right_penalty_spot",
+              "error_px": 2.2594165798276746
+            },
+            {
+              "semantic": "right_goal_bottom",
+              "error_px": 7.39155829973531
+            },
+            {
+              "semantic": "right_goal_area_goal_line_bottom",
+              "error_px": 8.013012883700464
+            },
+            {
+              "semantic": "right_penalty_bottom",
+              "error_px": 4.917254778984569
+            },
+            {
+              "semantic": "right_penalty_goal_line_bottom",
+              "error_px": 6.249621183553219
+            },
+            {
+              "semantic": "bottom_right_corner",
+              "error_px": 3.3023070084712267
+            }
+          ],
+          "line_errors": [
+            {
+              "semantic": "bottom_touchline",
+              "error_px": 0.06370211945375104,
+              "endpoint_errors_px": [
+                0.12291152263355798,
+                0.004492716273944097
+              ],
+              "family": "longitudinal_x",
+              "quality": "good"
+            }
+          ],
+          "constraint_spread": {
+            "world_span_x_m": 105,
+            "world_span_y_m": 68,
+            "image_span_x_px": 1915.903284671533,
+            "image_span_y_px": 674.6852189781023
+          },
+          "config": {
+            "point_sigma_px": 3.5,
+            "line_sigma_px": 1.5,
+            "arc_sigma_px": 4,
+            "point_huber_delta_sigma": 3,
+            "arc_huber_delta_sigma": 3,
+            "max_iterations": 45,
+            "initial_damping": 0.001,
+            "max_condition": 10000000000,
+            "good_line_error_px": 5,
+            "warning_line_error_px": 12
+          },
+          "calibration_strategy": {
+            "requested_mode": "auto",
+            "selected_mode": "full",
+            "fallback_from": null,
+            "evidence": {
+              "strong_for_full_solve": true,
+              "evidence_score": 0.7300000000000002,
+              "reasons": [
+                "muchos_puntos_independientes",
+                "puntos_bien_repartidos"
+              ],
+              "points": 10,
+              "lines": 1,
+              "arcs": 0,
+              "line_families": [
+                "longitudinal_x"
+              ],
+              "point_geometry_independent": true,
+              "coverage": {
+                "world_span_x_ratio": 1,
+                "world_span_y_ratio": 1,
+                "image_span_x_ratio": 0.9978662940997567,
+                "image_span_y_ratio": 0.6247085360908354
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "calibration-1787573016957",
+        "video": "benchmark_easy_2min.mp4",
+        "frame": 3152,
+        "source": "manual",
+        "correspondences": [
+          {
+            "landmark": "right_penalty_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -20.16
+            },
+            "image": {
+              "x": 226.0720802919708,
+              "y": 423.9826642335766
+            }
+          },
+          {
+            "landmark": "right_goal_area_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -9.16
+            },
+            "image": {
+              "x": 438.5994525547445,
+              "y": 443.8184306569343
+            }
+          },
+          {
+            "landmark": "right_goal_top",
+            "world": {
+              "x": 47,
+              "y": -9.16
+            },
+            "image": {
+              "x": 289.5483576642336,
+              "y": 457.3950729927007
+            }
+          },
+          {
+            "landmark": "right_penalty_bottom",
+            "world": {
+              "x": 36,
+              "y": 20.16
+            },
+            "image": {
+              "x": 706.0036496350365,
+              "y": 614.2244525547445
+            }
+          },
+          {
+            "landmark": "right_penalty_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 20.16
+            },
+            "image": {
+              "x": 1248.955291970803,
+              "y": 531.1313868613139
+            }
+          },
+          {
+            "landmark": "bottom_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": 34
+            },
+            "image": {
+              "x": 1866.692518248175,
+              "y": 601.0766423357665
+            }
+          },
+          {
+            "landmark": "right_goal_bottom",
+            "world": {
+              "x": 47,
+              "y": 9.16
+            },
+            "image": {
+              "x": 733.7636861313869,
+              "y": 512.2354014598541
+            }
+          },
+          {
+            "landmark": "right_goal_area_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 9.16
+            },
+            "image": {
+              "x": 888.4945255474453,
+              "y": 489.13321167883214
+            }
+          }
+        ],
+        "constraints": [
+          {
+            "type": "point",
+            "semantic": "right_penalty_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -20.16
+            },
+            "image": {
+              "x": 226.0720802919708,
+              "y": 423.9826642335766
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_area_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -9.16
+            },
+            "image": {
+              "x": 438.5994525547445,
+              "y": 443.8184306569343
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_top",
+            "world": {
+              "x": 47,
+              "y": -9.16
+            },
+            "image": {
+              "x": 289.5483576642336,
+              "y": 457.3950729927007
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_bottom",
+            "world": {
+              "x": 36,
+              "y": 20.16
+            },
+            "image": {
+              "x": 706.0036496350365,
+              "y": 614.2244525547445
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 20.16
+            },
+            "image": {
+              "x": 1248.955291970803,
+              "y": 531.1313868613139
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "bottom_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": 34
+            },
+            "image": {
+              "x": 1866.692518248175,
+              "y": 601.0766423357665
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_bottom",
+            "world": {
+              "x": 47,
+              "y": 9.16
+            },
+            "image": {
+              "x": 733.7636861313869,
+              "y": 512.2354014598541
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_area_goal_line_bottom",
+            "world": {
+              "x": 52.5,
+              "y": 9.16
+            },
+            "image": {
+              "x": 888.4945255474453,
+              "y": 489.13321167883214
+            },
+            "source": "manual"
+          },
+          {
+            "type": "line",
+            "semantic": "bottom_touchline",
+            "world": {
+              "start": {
+                "x": -52.5,
+                "y": 34
+              },
+              "end": {
+                "x": 52.5,
+                "y": 34
+              }
+            },
+            "image": {
+              "start": {
+                "x": 5.839416058394161,
+                "y": 1055.022810218978
+              },
+              "end": {
+                "x": 1870.0638686131388,
+                "y": 600.301094890511
+              }
+            },
+            "source": "manual"
+          },
+          {
+            "type": "line",
+            "semantic": "right_penalty_front",
+            "world": {
+              "start": {
+                "x": 36,
+                "y": -20.16
+              },
+              "end": {
+                "x": 36,
+                "y": 20.16
+              }
+            },
+            "image": {
+              "start": {
+                "x": 4.178832116788321,
+                "y": 501.4461678832117
+              },
+              "end": {
+                "x": 704.1149635036496,
+                "y": 615.2965328467153
+              }
+            },
+            "source": "manual"
+          }
+        ],
+        "homography": [
+          [
+            62.829955400031565,
+            34.74378383559075,
+            -2072.633855005859
+          ],
+          [
+            2.851824486425238,
+            -3.331026709490802,
+            737.9515224750129
+          ],
+          [
+            0.017221248637412673,
+            -0.01807810914632675,
+            1
+          ]
+        ],
+        "reprojectionError": 3.3239372948208827,
+        "initialHomography": [
+          [
+            58.03168284756687,
+            42.36483640598489,
+            -2760.8972237170437
+          ],
+          [
+            1.5011965691822937,
+            -5.400351302902408,
+            871.3040123584407
+          ],
+          [
+            0.011631110414194418,
+            -0.01771157352437576,
+            1
+          ]
+        ],
+        "initialHomographySource": "propagated",
+        "camera": {
+          "vanishing_point_longitudinal": {
+            "x": 3648.397205272054,
+            "y": 165.59917033133883
+          },
+          "vanishing_point_transversal": {
+            "x": -1921.8704541702723,
+            "y": 184.25747308687014
+          },
+          "horizon_line": {
+            "a": -0.0033496053016191414,
+            "b": -0.9999943900564259,
+            "c": 177.81893195052908
+          },
+          "zoom_proxy_px_per_m": 32.05806888771279,
+          "principal_view_projection": [
+            -2072.633855005859,
+            737.9515224750129
+          ]
+        },
+        "diagnostics": {
+          "mode": "geometric_projective_camera_v1",
+          "selected_candidate": "mixed_normalised_dlt:refined",
+          "score": 4.960410120955859,
+          "homography_condition": 127417.05681537284,
+          "points": 8,
+          "lines": 1,
+          "arcs": 0,
+          "point_error_px": 3.3239372948208827,
+          "line_error_px": 0.2824675344094203,
+          "point_errors": [
+            {
+              "semantic": "right_penalty_goal_line_top",
+              "error_px": 6.372433733307704
+            },
+            {
+              "semantic": "right_goal_area_goal_line_top",
+              "error_px": 0.19386527132208048
+            },
+            {
+              "semantic": "right_goal_top",
+              "error_px": 4.948185247000575
+            },
+            {
+              "semantic": "right_penalty_bottom",
+              "error_px": 3.192992256599395
+            },
+            {
+              "semantic": "right_penalty_goal_line_bottom",
+              "error_px": 2.845857443039057
+            },
+            {
+              "semantic": "bottom_right_corner",
+              "error_px": 0.5255887150730545
+            },
+            {
+              "semantic": "right_goal_bottom",
+              "error_px": 4.596201716749092
+            },
+            {
+              "semantic": "right_goal_area_goal_line_bottom",
+              "error_px": 3.9163739754761044
+            }
+          ],
+          "line_errors": [
+            {
+              "semantic": "bottom_touchline",
+              "error_px": 0.2824675344094203,
+              "endpoint_errors_px": [
+                0.06865147907933533,
+                0.49628358973950526
+              ],
+              "family": "longitudinal_x",
+              "quality": "good"
+            }
+          ],
+          "constraint_spread": {
+            "world_span_x_m": 105,
+            "world_span_y_m": 54.16,
+            "image_span_x_px": 1864.2244525547446,
+            "image_span_y_px": 631.0401459854015
+          },
+          "config": {
+            "point_sigma_px": 3.5,
+            "line_sigma_px": 1.5,
+            "arc_sigma_px": 4,
+            "point_huber_delta_sigma": 3,
+            "arc_huber_delta_sigma": 3,
+            "max_iterations": 45,
+            "initial_damping": 0.001,
+            "max_condition": 10000000000,
+            "good_line_error_px": 5,
+            "warning_line_error_px": 12
+          },
+          "calibration_strategy": {
+            "requested_mode": "auto",
+            "selected_mode": "full",
+            "fallback_from": null,
+            "evidence": {
+              "strong_for_full_solve": true,
+              "evidence_score": 0.7300000000000002,
+              "reasons": [
+                "muchos_puntos_independientes",
+                "puntos_bien_repartidos"
+              ],
+              "points": 8,
+              "lines": 1,
+              "arcs": 0,
+              "line_families": [
+                "longitudinal_x"
+              ],
+              "point_geometry_independent": true,
+              "coverage": {
+                "world_span_x_ratio": 1,
+                "world_span_y_ratio": 0.796470588235294,
+                "image_span_x_ratio": 0.9709502357055961,
+                "image_span_y_ratio": 0.5842964314679644
+              }
+            }
+          }
+        }
       }
     ],
     "propagations": [

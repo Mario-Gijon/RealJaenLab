@@ -22,8 +22,8 @@
         </label>
 
         <nav class="mode-tabs" aria-label="Modo de trabajo">
-          <button class="mode-tab is-active" type="button" data-mode="field">CAMPO</button>
-          <button class="mode-tab" type="button" data-mode="people">PERSONAS</button>
+          <button class="mode-tab is-active" type="button" data-mode="video">VIDEO</button>
+          <button class="mode-tab" type="button" data-mode="guided">CALIBRACIÓN GUIADA</button>
         </nav>
 
         <div class="actions">
@@ -42,7 +42,7 @@
           <video id="video" class="video" playsinline preload="metadata"></video>
           <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
           <div class="work-area-message" id="workspace-message">
-            <span class="work-area-kicker" id="mode-label">MODO CAMPO</span>
+            <span class="work-area-kicker" id="mode-label">MODO VÍDEO</span>
             <h1 id="workspace-title">Área de vídeo</h1>
             <p id="workspace-description">Selecciona un vídeo para empezar.</p>
           </div>
@@ -82,57 +82,22 @@
                 <select id="calibration-landmark"></select>
                 <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
                 <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
+                <span class="guided-frame-progress" id="guided-frame-progress" hidden></span>
+                <button class="field-tool calibration-action" id="guided-confirm-continue" type="button" hidden>Confirmar y continuar</button>
                 <button class="field-tool" id="exit-calibration" type="button">Listo</button>
               </div>
             </div>
           </div>
         </div>
-        <div class="field-toolbar" id="field-toolbar" aria-label="Herramientas de edición del campo">
-          <button class="field-tool is-active" type="button" data-field-tool="select">Seleccionar / mover</button>
-          <button class="field-tool calibration-action" id="create-manual-anchor" type="button">Crear anchor manual</button>
-          <button class="field-tool field-tool-secondary" id="start-guided-calibration" type="button">Calibración guiada</button>
-          <span class="field-current-reference" id="field-current-reference" hidden></span>
-          <button class="field-tool" id="delete-field-item" type="button">Eliminar</button>
-          <button class="field-tool" id="undo-field-edit" type="button">Deshacer</button>
-        </div>
-        <aside class="field-status-area" id="field-status-area" aria-label="Estado de FIELD">
-          <div class="field-status-section">
-            <span class="field-status-heading">CAMERA ATLAS</span>
-            <span>Anchors fuertes: <strong id="strong-anchor-count">0</strong></span>
-            <span id="camera-atlas-state">Estado: Pendiente</span>
-          </div>
-          <div class="field-status-section">
-            <span class="field-status-heading">FRAME ACTUAL</span>
-            <strong id="field-frame-provenance">SIN ESTADO FIELD</strong>
-          </div>
-          <div class="field-status-section field-atlas-debug" id="field-atlas-debug" hidden>
-            <span id="atlas-dimension-95">Dimensión 95 %: —</span>
-            <span id="atlas-dimension-99">Dimensión 99 %: —</span>
-            <span id="atlas-loo">LOO: pendiente</span>
-            <span id="atlas-visible-pitch" hidden></span>
-            <span id="atlas-time-camera">Temporal ↔ cámara ρ: —</span>
-            <span id="atlas-far-neighbor">Vecino lejano: —</span>
-            <span id="atlas-graph">Grafo: —</span>
-            <span id="atlas-local-reconstruction">Reconstrucción local: —</span>
-            <span id="atlas-coverage">Cobertura: sin probes</span>
-            <span id="atlas-recommended-anchors" hidden></span>
-            <button class="field-tool field-tool-secondary" id="suggest-manual-anchors" type="button" hidden>Sugerir anchors</button>
-            <div class="field-atlas-selection" id="field-atlas-selection" hidden></div>
-          </div>
-        </aside>
-        <aside class="guided-calibration-panel" id="guided-calibration-panel" hidden aria-label="Calibración guiada">
-          <div class="guided-calibration-header">
-            <span>CALIBRACIÓN GUIADA</span>
-            <button class="guided-close" id="exit-guided-calibration" type="button" aria-label="Salir de calibración guiada">×</button>
-          </div>
-          <div class="guided-calibration-content" id="guided-calibration-content"></div>
-          <div class="guided-calibration-actions">
-            <button class="field-tool" id="guided-context" type="button">Ver contexto</button>
-            <button class="field-tool" id="guided-return" type="button">Volver al frame recomendado</button>
-            <button class="field-tool" id="guided-skip" type="button">Omitir</button>
-            <button class="field-tool calibration-action" id="guided-confirm" type="button">Confirmar anchor</button>
-            <button class="field-tool" id="guided-continue" type="button" hidden>Continuar calibración</button>
-            <button class="field-tool field-tool-secondary" id="guided-coverage-check" type="button">Comprobar cobertura FIELD</button>
+        <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración guiada">
+          <span class="guided-workflow-heading">CALIBRACIÓN GUIADA</span>
+          <div class="guided-workflow-content" id="guided-workflow-content"></div>
+          <div class="guided-workflow-actions">
+            <button class="button button-primary" id="scan-video" type="button">Analizar vídeo</button>
+            <button class="button button-primary" id="begin-guided-calibration" type="button" hidden>Comenzar calibración</button>
+            <button class="button button-primary" id="open-manual-calibration" type="button" hidden>Calibrar este frame</button>
+            <button class="button button-secondary" id="guided-context" type="button" hidden>Ver contexto</button>
+            <button class="button button-secondary" id="guided-skip" type="button" hidden>Omitir</button>
           </div>
         </aside>
       </section>

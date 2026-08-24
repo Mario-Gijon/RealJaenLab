@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_calibration_strategy import solve_field_camera_adaptive
+from supervisor.field_view_scanner import scan_field_view_states, summarize_field_view_scan
 from supervisor.field_camera_atlas import build_camera_atlas, summarize_camera_atlas
 from supervisor.field_camera_atlas_structure import (
     analyze_camera_atlas_structure,
@@ -203,6 +204,26 @@ def solve_calibration(payload: dict = Body()) -> dict:
         initial_homography=payload.get("initial_homography"),
         mode="auto",
     )
+
+
+@app.post("/api/field-view-scan/analyze")
+def analyze_field_view_scan(payload: dict = Body()) -> dict:
+    filename = payload.get("filename")
+    video_path = available_videos().get(filename)
+    if video_path is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    try:
+        result = scan_field_view_states(video_path)
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"El escáner de vistas FIELD no pudo analizar el vídeo: {error}",
+        ) from error
+    return {
+        "summary": summarize_field_view_scan(result),
+        "scan": result,
+    }
 
 
 @app.post("/api/field-camera-atlas/analyze")

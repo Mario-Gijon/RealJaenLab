@@ -21,13 +21,16 @@ const currentTimeLabel = document.querySelector("#current-time");
 const totalTimeLabel = document.querySelector("#total-time");
 const frameReadout = document.querySelector("#frame-readout");
 const debugToggle = document.querySelector("#debug-toggle");
-const fieldToolbar = document.querySelector("#field-toolbar");
 const fieldToolButtons = document.querySelectorAll("[data-field-tool]");
 const deleteFieldItemButton = document.querySelector("#delete-field-item");
 const undoFieldEditButton = document.querySelector("#undo-field-edit");
-const createManualAnchorButton = document.querySelector("#create-manual-anchor");
-const startGuidedCalibrationButton = document.querySelector("#start-guided-calibration");
-const fieldStatusArea = document.querySelector("#field-status-area");
+const guidedWorkflowPanel = document.querySelector("#guided-workflow-panel");
+const guidedWorkflowContent = document.querySelector("#guided-workflow-content");
+const scanVideoButton = document.querySelector("#scan-video");
+const beginGuidedCalibrationButton = document.querySelector("#begin-guided-calibration");
+const openManualCalibrationButton = document.querySelector("#open-manual-calibration");
+const guidedConfirmContinueButton = document.querySelector("#guided-confirm-continue");
+const guidedFrameProgress = document.querySelector("#guided-frame-progress");
 const strongAnchorCount = document.querySelector("#strong-anchor-count");
 const cameraAtlasState = document.querySelector("#camera-atlas-state");
 const fieldFrameProvenance = document.querySelector("#field-frame-provenance");
@@ -44,15 +47,8 @@ const atlasCoverage = document.querySelector("#atlas-coverage");
 const atlasRecommendedAnchors = document.querySelector("#atlas-recommended-anchors");
 const suggestManualAnchorsButton = document.querySelector("#suggest-manual-anchors");
 const fieldAtlasSelection = document.querySelector("#field-atlas-selection");
-const guidedCalibrationPanel = document.querySelector("#guided-calibration-panel");
-const guidedCalibrationContent = document.querySelector("#guided-calibration-content");
-const exitGuidedCalibrationButton = document.querySelector("#exit-guided-calibration");
 const guidedContextButton = document.querySelector("#guided-context");
-const guidedReturnButton = document.querySelector("#guided-return");
 const guidedSkipButton = document.querySelector("#guided-skip");
-const guidedConfirmButton = document.querySelector("#guided-confirm");
-const guidedContinueButton = document.querySelector("#guided-continue");
-const guidedCoverageCheckButton = document.querySelector("#guided-coverage-check");
 const calibrationPanel = document.querySelector("#calibration-panel");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
@@ -74,7 +70,7 @@ let debugOverlayEnabled = false;
 let pointerVideoCoordinates = null;
 let pointerBrowserPosition = null;
 let displayedVideoRect = null;
-let activeMode = "field";
+let activeMode = "video";
 let activeFieldTool = "select";
 let fieldAnnotations = [];
 let fieldCalibrations = [];
@@ -106,24 +102,35 @@ let cameraAtlasRequestSequence = 0;
 let anchorSelectionResult = null;
 let anchorSelectionInProgress = false;
 let anchorSelectionError = null;
-let guidedCalibration = null;
+let viewScanWorkflow = null;
 
-workArea.classList.add("field-editing");
+workArea.classList.remove("field-editing");
+debugToggle.hidden = true;
+undoButton.hidden = true;
+saveStatus.hidden = true;
+saveButton.hidden = true;
 
 modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     modeTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
     activeMode = tab.dataset.mode;
-    modeLabel.textContent = activeMode === "field" ? "MODO CAMPO" : "MODO PERSONAS";
-    fieldToolbar.hidden = activeMode !== "field";
-    fieldStatusArea.hidden = activeMode !== "field";
-    workArea.classList.toggle("field-editing", activeMode === "field");
+    modeLabel.textContent = activeMode === "guided" ? "CALIBRACIÓN GUIADA" : "MODO VÍDEO";
+    const guided = activeMode === "guided";
+    debugToggle.hidden = !guided;
+    undoButton.hidden = !guided;
+    saveStatus.hidden = !guided;
+    saveButton.hidden = !guided;
+    workArea.classList.toggle("field-editing", activeMode === "guided" && calibrationMode);
     selectedFieldItem = null;
     lineDraft = null;
     assistedDraft = null;
     setCalibrationMode(false);
     calibrationPanel.hidden = true;
-    if (activeMode !== "field") exitGuidedCalibration();
+    if (activeMode !== "guided") {
+      setCalibrationMode(false);
+      calibrationPanel.hidden = true;
+    }
+    updateViewScanWorkflow();
     drawOverlay();
   });
 });
@@ -137,6 +144,7 @@ function setReviewDirty(isDirty) {
 function setCalibrationMode(enabled) {
   calibrationMode = Boolean(enabled);
   workspace.classList.toggle("is-calibrating", calibrationMode);
+  workArea.classList.toggle("field-editing", activeMode === "guided" && calibrationMode);
 }
 
 function clampCalibrationPanelPosition(position = calibrationPanelPosition) {
@@ -483,6 +491,153 @@ function seekToFrame(frame) {
   if (!selectedVideo?.fps || !Number.isFinite(frame)) return;
   video.pause();
   video.currentTime = Math.min(Math.max((frame + 0.01) / selectedVideo.fps, 0), Math.max(video.duration || 0, 0));
+}
+
+function currentViewScanRecommendation() {
+  if (!viewScanWorkflow?.started) return null;
+  return viewScanWorkflow.recommendations[viewScanWorkflow.index] || null;
+}
+
+function updateViewScanWorkflow() {
+  const active = activeMode === "guided";
+  const state = viewScanWorkflow;
+  const recommendation = currentViewScanRecommendation();
+  const progressVisible = Boolean(calibrationMode && recommendation);
+  guidedFrameProgress.hidden = !progressVisible;
+  guidedFrameProgress.textContent = progressVisible ? `Frame ${state.index + 1} / ${state.recommendations.length}` : "";
+  const canConfirm = progressVisible
+    && currentFrameNumber() === recommendation.frame
+    && hasSolvedManualCalibration(calibrationForCurrentFrame())
+    && !calibrationSolvePending;
+  guidedConfirmContinueButton.hidden = !progressVisible;
+  guidedConfirmContinueButton.disabled = !canConfirm;
+  guidedWorkflowPanel.hidden = !active || calibrationMode;
+  if (!active || calibrationMode) return;
+
+  const fragment = document.createDocumentFragment();
+  const add = (text, strong = false) => {
+    const element = document.createElement(strong ? "strong" : "span");
+    element.textContent = text;
+    fragment.append(element);
+  };
+  if (!selectedVideo) {
+    add("Selecciona un vídeo para iniciar la calibración guiada.", true);
+  } else if (!state || state.video !== selectedVideo.name) {
+    add("Analiza el vídeo para localizar vistas representativas del campo.", true);
+  } else if (state.scanning) {
+    add("Analizando geometría de cámara…", true);
+  } else if (state.error) {
+    add(`No se pudo analizar el vídeo: ${state.error}`, true);
+  } else if (!state.started) {
+    add(`Muestras analizadas: ${state.summary.sample_count} · Vistas detectadas: ${state.summary.recommendation_count}`, true);
+  } else {
+    const recommendation = currentViewScanRecommendation();
+    if (recommendation) add(`Frame ${state.index + 1} de ${state.recommendations.length} · fotograma ${recommendation.frame}`, true);
+    else {
+      add("Calibración inicial completada", true);
+      add(`Recomendaciones: ${state.recommendations.length} · Calibraciones HUMAN completadas: ${state.completedFrames.size} · Omitidos: ${state.skippedFrames.size}`);
+    }
+  }
+  guidedWorkflowContent.replaceChildren(fragment);
+
+  const hasScan = Boolean(state?.scan && !state.scanning && !state.error);
+  scanVideoButton.hidden = hasScan;
+  scanVideoButton.disabled = !selectedVideo || Boolean(state?.scanning);
+  scanVideoButton.textContent = state?.scanning ? "Analizando geometría de cámara…" : "Analizar vídeo";
+  beginGuidedCalibrationButton.hidden = !hasScan || Boolean(state?.started);
+  openManualCalibrationButton.hidden = !recommendation;
+  guidedContextButton.hidden = !recommendation;
+  guidedSkipButton.hidden = !recommendation;
+  openManualCalibrationButton.disabled = !recommendation;
+  guidedContextButton.disabled = !recommendation;
+  guidedSkipButton.disabled = !recommendation;
+
+}
+
+async function scanVideoViewStates() {
+  if (!selectedVideo || viewScanWorkflow?.scanning) return;
+  const videoName = selectedVideo.name;
+  viewScanWorkflow = { video: videoName, scanning: true, error: null, scan: null, summary: null, started: false, recommendations: [], index: 0, completedFrames: new Set(), skippedFrames: new Set() };
+  updateViewScanWorkflow();
+  try {
+    const response = await fetch("/api/field-view-scan/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: videoName }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "El escáner no devolvió un resultado válido.");
+    if (selectedVideo?.name !== videoName) return;
+    if (!result?.scan || !Array.isArray(result.scan.recommendations)) throw new Error("La respuesta del escáner no contiene recomendaciones válidas.");
+    viewScanWorkflow = {
+      video: videoName,
+      scanning: false,
+      error: null,
+      scan: result.scan,
+      summary: result.summary || {},
+      started: false,
+      recommendations: [...result.scan.recommendations].sort((a, b) => a.frame - b.frame),
+      index: 0,
+      completedFrames: new Set(),
+      skippedFrames: new Set(),
+    };
+  } catch (error) {
+    if (selectedVideo?.name === videoName) {
+      viewScanWorkflow = { video: videoName, scanning: false, error: error instanceof Error ? error.message : "Error desconocido.", scan: null, summary: null, started: false, recommendations: [], index: 0, completedFrames: new Set(), skippedFrames: new Set() };
+    }
+  }
+  updateViewScanWorkflow();
+}
+
+function beginViewScanCalibration() {
+  if (!viewScanWorkflow?.scan) return;
+  viewScanWorkflow.started = true;
+  viewScanWorkflow.index = 0;
+  const recommendation = currentViewScanRecommendation();
+  if (recommendation) seekToFrame(recommendation.frame);
+  updateViewScanWorkflow();
+}
+
+function openManualCalibrationForView() {
+  const recommendation = currentViewScanRecommendation();
+  if (!recommendation) return;
+  seekToFrame(recommendation.frame);
+  enterCalibrationMode();
+}
+
+function playViewScanContext() {
+  const recommendation = currentViewScanRecommendation();
+  if (!recommendation || !selectedVideo?.fps) return;
+  viewScanWorkflow.contextEndTime = Math.min((recommendation.frame / selectedVideo.fps) + 3, video.duration || Infinity);
+  video.currentTime = Math.max(0, (recommendation.frame / selectedVideo.fps) - 3);
+  video.play();
+}
+
+function skipViewScanRecommendation() {
+  const recommendation = currentViewScanRecommendation();
+  if (!recommendation) return;
+  viewScanWorkflow.skippedFrames.add(recommendation.frame);
+  viewScanWorkflow.index += 1;
+  const next = currentViewScanRecommendation();
+  if (next) seekToFrame(next.frame);
+  updateViewScanWorkflow();
+}
+
+async function confirmAndContinueViewScan() {
+  const recommendation = currentViewScanRecommendation();
+  if (!recommendation || currentFrameNumber() !== recommendation.frame || !hasSolvedManualCalibration(calibrationForCurrentFrame()) || calibrationSolvePending) return;
+  guidedConfirmContinueButton.disabled = true;
+  const saved = await saveCurrentReview();
+  if (!saved) {
+    updateViewScanWorkflow();
+    return;
+  }
+  viewScanWorkflow.completedFrames.add(recommendation.frame);
+  viewScanWorkflow.index += 1;
+  exitCalibrationMode();
+  const next = currentViewScanRecommendation();
+  if (next) seekToFrame(next.frame);
+  updateViewScanWorkflow();
 }
 
 function atlasCoverageSnapshot(atlas = currentCameraAtlas()) {
@@ -939,7 +1094,7 @@ function undoFieldEdit() {
 }
 
 function deleteSelectedFieldItem() {
-  if (activeMode !== "field" || !selectedFieldItem) return;
+  if (activeMode !== "guided" || !selectedFieldItem) return;
   const annotation = findFieldAnnotation(selectedFieldItem.id);
   if (!annotation) return;
   rememberFieldEdit();
@@ -1073,6 +1228,7 @@ function constraintCountsLabel(constraints) {
 }
 
 function updateCurrentReferenceLabel() {
+  if (!currentReferenceLabel) return;
   const semantic = selectedSemanticDefinition();
   const calibration = calibrationForCurrentFrame();
   const selectedOnCurrentFrame = selectedCalibrationConstraint?.calibrationId === calibration?.id;
@@ -1369,7 +1525,6 @@ async function solveCalibration(calibration) {
     calibration.homography = null;
     calibration.reprojectionError = null;
     updateCalibrationStatus();
-    analyzeCameraAtlas();
     drawOverlay();
     return;
   }
@@ -1396,7 +1551,6 @@ async function solveCalibration(calibration) {
     calibration.camera = result.camera || null;
     calibration.diagnostics = result.diagnostics || null;
     updateCalibrationStatus();
-    analyzeCameraAtlas();
     drawOverlay();
   } catch (error) {
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
@@ -1406,7 +1560,6 @@ async function solveCalibration(calibration) {
       message: error instanceof Error ? error.message : "No se pudo calcular la proyección del campo.",
     };
     updateCalibrationStatus();
-    analyzeCameraAtlas();
     drawOverlay();
   }
 }
@@ -1450,7 +1603,6 @@ function clearCurrentCalibration() {
   calibrationSolvePending = null;
   calibrationSolveError = null;
   updateCalibrationStatus();
-  analyzeCameraAtlas();
   drawOverlay();
 }
 
@@ -1849,13 +2001,13 @@ function drawDebugOverlay() {
 
 function drawOverlay() {
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
-  drawFieldAnnotations();
-  drawCalibrationOverlay();
-  drawDebugOverlay();
-  updateFieldStatus();
-  updateAnchorSelectorDebug();
-  updateGuidedCalibrationPanel();
-  updateCurrentReferenceLabel();
+  if (activeMode === "guided" && calibrationMode) {
+    drawFieldAnnotations();
+    drawCalibrationOverlay();
+    if (debugOverlayEnabled && calibrationMode) drawDebugOverlay();
+    updateCurrentReferenceLabel();
+  }
+  updateViewScanWorkflow();
 }
 
 function syncOverlay() {
@@ -1935,7 +2087,7 @@ async function loadVideo(videoInfo) {
   anchorSelectionResult = null;
   anchorSelectionError = null;
   anchorSelectionInProgress = false;
-  guidedCalibration = null;
+  viewScanWorkflow = null;
   selectedVideo = videoInfo;
   fieldAnnotations = [];
   fieldCalibrations = [];
@@ -1975,7 +2127,6 @@ async function loadVideo(videoInfo) {
     fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
-    analyzeCameraAtlas();
     drawOverlay();
   } catch (error) {
     if (loadSequence !== videoLoadSequence) return;
@@ -1985,7 +2136,7 @@ async function loadVideo(videoInfo) {
 }
 
 async function saveCurrentReview() {
-  if (!selectedVideo) return;
+  if (!selectedVideo) return false;
   saveButton.disabled = true;
   const review = {
     format_version: 1,
@@ -2009,9 +2160,11 @@ async function saveCurrentReview() {
     });
     if (!response.ok) throw new Error("No se pudo guardar la revisión");
     setReviewDirty(false);
+    return true;
   } catch (error) {
     setReviewDirty(true);
     saveStatusLabel.textContent = "ERROR AL GUARDAR";
+    return false;
   } finally {
     saveButton.disabled = false;
   }
@@ -2244,13 +2397,13 @@ video.addEventListener("loadedmetadata", () => {
   setControlsEnabled(true);
   updatePlaybackDisplay();
   syncOverlay();
-  analyzeCameraAtlas();
+  updateViewScanWorkflow();
 });
 
 video.addEventListener("timeupdate", () => {
-  if (guidedCalibration?.contextEndTime && video.currentTime >= guidedCalibration.contextEndTime) {
+  if (viewScanWorkflow?.contextEndTime && video.currentTime >= viewScanWorkflow.contextEndTime) {
     video.pause();
-    guidedCalibration.contextEndTime = null;
+    viewScanWorkflow.contextEndTime = null;
   }
   updatePlaybackDisplay();
   drawOverlay();
@@ -2396,7 +2549,7 @@ workArea.addEventListener("pointermove", (event) => {
     drawOverlay();
     return;
   }
-  if (activeMode === "field" && pointerVideoCoordinates) {
+  if (activeMode === "guided" && pointerVideoCoordinates) {
     if (lineDraft) {
       lineDraft.end = clampToVideo(pointerVideoCoordinates);
     } else if (assistedDraft) {
@@ -2457,7 +2610,7 @@ workArea.addEventListener("pointerleave", () => {
 
 workArea.addEventListener("pointerdown", (event) => {
   const pointerCoordinates = browserToVideoCoordinates(event);
-  if (activeMode !== "field" || !pointerCoordinates || !video.videoWidth) return;
+  if (activeMode !== "guided" || !pointerCoordinates || !video.videoWidth) return;
   event.preventDefault();
   video.pause();
   const coordinates = clampToVideo(pointerCoordinates);
@@ -2634,22 +2787,12 @@ workArea.addEventListener("pointerup", (event) => {
 fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
 });
-createManualAnchorButton.addEventListener("click", enterCalibrationMode);
-startGuidedCalibrationButton.addEventListener("click", startGuidedCalibration);
-suggestManualAnchorsButton.addEventListener("click", suggestManualAnchors);
-exitGuidedCalibrationButton.addEventListener("click", exitGuidedCalibration);
-guidedContextButton.addEventListener("click", playGuidedContext);
-guidedReturnButton.addEventListener("click", returnToGuidedRecommendation);
-guidedSkipButton.addEventListener("click", skipGuidedRecommendation);
-guidedConfirmButton.addEventListener("click", confirmGuidedAnchor);
-guidedContinueButton.addEventListener("click", () => {
-  if (activeGuidedRecommendation()) seekToFrame(activeGuidedRecommendation().frame);
-});
-guidedCoverageCheckButton.addEventListener("click", () => refreshGuidedRecommendations({ checked: true }));
-guidedCalibrationContent.addEventListener("click", (event) => {
-  const frame = Number(event.target.dataset.guidedReviewFrame);
-  if (Number.isFinite(frame)) seekToFrame(frame);
-});
+scanVideoButton.addEventListener("click", scanVideoViewStates);
+beginGuidedCalibrationButton.addEventListener("click", beginViewScanCalibration);
+openManualCalibrationButton.addEventListener("click", openManualCalibrationForView);
+guidedContextButton.addEventListener("click", playViewScanContext);
+guidedSkipButton.addEventListener("click", skipViewScanRecommendation);
+guidedConfirmContinueButton.addEventListener("click", confirmAndContinueViewScan);
 exitCalibrationButton.addEventListener("click", exitCalibrationMode);
 removeCalibrationPointButton.addEventListener("click", removeSelectedCalibrationCorrespondence);
 clearCalibrationButton.addEventListener("click", clearCurrentCalibration);
@@ -2663,15 +2806,15 @@ calibrationLandmark.addEventListener("change", () => {
   updateCalibrationStatus();
   drawOverlay();
 });
-deleteFieldItemButton.addEventListener("click", deleteSelectedFieldItem);
-undoFieldEditButton.addEventListener("click", undoFieldEdit);
+deleteFieldItemButton?.addEventListener("click", deleteSelectedFieldItem);
+undoFieldEditButton?.addEventListener("click", undoFieldEdit);
 undoButton.addEventListener("click", undoFieldEdit);
 
 new ResizeObserver(syncOverlay).observe(workArea);
 window.addEventListener("resize", syncOverlay);
 
 document.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && activeMode === "field") {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && activeMode === "guided") {
     event.preventDefault();
     undoFieldEdit();
     return;
