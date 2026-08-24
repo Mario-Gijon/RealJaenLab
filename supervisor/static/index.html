@@ -23,7 +23,7 @@
 
         <nav class="mode-tabs" aria-label="Modo de trabajo">
           <button class="mode-tab is-active" type="button" data-mode="video">VIDEO</button>
-          <button class="mode-tab" type="button" data-mode="guided">CALIBRACIÓN GUIADA</button>
+          <button class="mode-tab" type="button" data-mode="guided">CALIBRACIÓN</button>
         </nav>
 
         <div class="actions">
@@ -78,21 +78,21 @@
                 <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
                 <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
                 <span class="guided-frame-progress" id="guided-frame-progress" hidden></span>
-                <button class="field-tool calibration-action" id="guided-confirm-continue" type="button" hidden>Confirmar y continuar</button>
+                <button class="field-tool calibration-action" id="guided-confirm-continue" type="button" hidden>Guardar medición y continuar</button>
                 <button class="field-tool" id="exit-calibration" type="button">Listo</button>
               </div>
             </div>
           </div>
         </div>
-        <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración guiada">
-          <span class="guided-workflow-heading">CALIBRACIÓN GUIADA</span>
+        <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración del terreno">
+          <span class="guided-workflow-heading">CALIBRACIÓN</span>
           <div class="guided-workflow-content" id="guided-workflow-content"></div>
           <div class="guided-workflow-actions">
-            <button class="button button-primary" id="scan-video" type="button">Analizar vídeo</button>
-            <button class="button button-primary" id="begin-guided-calibration" type="button" hidden>Comenzar calibración</button>
-            <button class="button button-primary" id="open-manual-calibration" type="button" hidden>Calibrar este frame</button>
-            <button class="button button-secondary" id="guided-context" type="button" hidden>Ver contexto</button>
-            <button class="button button-secondary" id="guided-skip" type="button" hidden>Omitir</button>
+            <button class="button button-primary" id="scan-video" type="button">Comenzar calibración del terreno</button>
+            <button class="button button-primary" id="begin-guided-calibration" type="button" hidden>Confirmar terreno</button>
+            <button class="button button-secondary" id="open-manual-calibration" type="button" hidden>Continuar medición</button>
+            <button class="button button-secondary" id="guided-context" type="button" hidden></button>
+            <button class="button button-secondary" id="guided-skip" type="button" hidden></button>
           </div>
         </aside>
       </section>

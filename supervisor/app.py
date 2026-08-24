@@ -10,6 +10,12 @@ from fastapi.staticfiles import StaticFiles
 
 from supervisor.field_calibration_strategy import solve_field_camera_adaptive
 from supervisor.field_view_scanner import scan_field_view_states, summarize_field_view_scan
+from supervisor.field_pitch_setup import (
+    estimate_pitch_setup,
+    next_pitch_measurement_frame,
+    select_pitch_measurement_frames,
+    summarize_pitch_setup,
+)
 from supervisor.field_camera_atlas import build_camera_atlas, summarize_camera_atlas
 from supervisor.field_camera_atlas_structure import (
     analyze_camera_atlas_structure,
@@ -224,6 +230,32 @@ def analyze_field_view_scan(payload: dict = Body()) -> dict:
         "summary": summarize_field_view_scan(result),
         "scan": result,
     }
+
+
+@app.post("/api/field-pitch-setup/select")
+def select_field_pitch_measurements(payload: dict = Body()) -> dict:
+    scan = payload.get("scan")
+    if not isinstance(scan, dict):
+        raise HTTPException(status_code=400, detail="El análisis de vistas del terreno no es válido")
+    return select_pitch_measurement_frames(scan)
+
+
+@app.post("/api/field-pitch-setup/estimate")
+def estimate_field_pitch_setup(payload: dict = Body()) -> dict:
+    observations = payload.get("observations")
+    if not isinstance(observations, list):
+        raise HTTPException(status_code=400, detail="Las mediciones HUMAN del terreno no son válidas")
+    result = estimate_pitch_setup(observations)
+    return {"result": result, "summary": summarize_pitch_setup(result)}
+
+
+@app.post("/api/field-pitch-setup/next-frame")
+def next_field_pitch_measurement(payload: dict = Body()) -> dict:
+    scan = payload.get("scan")
+    used_frames = payload.get("used_frames", [])
+    if not isinstance(scan, dict) or not isinstance(used_frames, list):
+        raise HTTPException(status_code=400, detail="La siguiente medición del terreno no es válida")
+    return {"recommendation": next_pitch_measurement_frame(scan, used_frames)}
 
 
 @app.post("/api/field-camera-atlas/analyze")
