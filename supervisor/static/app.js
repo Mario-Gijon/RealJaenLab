@@ -101,6 +101,7 @@ let cameraAtlasResult = null;
 let cameraAtlasRequestSequence = 0;
 let anchorSelectionResult = null;
 let anchorSelectionInProgress = false;
+let anchorSelectionError = null;
 let guidedCalibration = null;
 
 workArea.classList.add("field-editing");
@@ -416,12 +417,17 @@ async function analyzeCameraAtlas() {
 }
 
 async function requestAnchorSelection() {
-  if (!selectedVideo || anchorSelectionInProgress) return;
+  if (!selectedVideo) return { ok: false, error: "No hay un vídeo seleccionado." };
+  if (anchorSelectionInProgress) return { ok: false, error: "El selector de anchors ya está analizando el vídeo." };
   const imageWidth = video.videoWidth || selectedVideo.width;
   const imageHeight = video.videoHeight || selectedVideo.height;
-  if (!imageWidth || !imageHeight) return;
+  if (!imageWidth || !imageHeight) return { ok: false, error: "No se pudo determinar la resolución del vídeo." };
 
   const videoName = selectedVideo.name;
+  // A selector result belongs to a precise video/review state. Never let an
+  // earlier result stand in for the analysis that is about to be requested.
+  anchorSelectionResult = null;
+  anchorSelectionError = null;
   anchorSelectionInProgress = true;
   updateAnchorSelectorDebug();
   try {
@@ -439,17 +445,25 @@ async function requestAnchorSelection() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "No se pudieron sugerir anchors");
+    if (!result?.selection || !Array.isArray(result.selection.recommendations)) {
+      throw new Error("El selector devolvió una respuesta no válida.");
+    }
     if (selectedVideo?.name === videoName) {
       anchorSelectionResult = { video: videoName, result };
-      return result;
+      return { ok: true, result };
     }
+    return { ok: false, error: "El vídeo cambió mientras se analizaban los anchors." };
   } catch (error) {
-    if (selectedVideo?.name === videoName) anchorSelectionResult = null;
+    const message = error instanceof Error ? error.message : "No se pudo ejecutar el selector de anchors.";
+    if (selectedVideo?.name === videoName) {
+      anchorSelectionResult = null;
+      anchorSelectionError = message;
+    }
+    return { ok: false, error: message };
   } finally {
     if (selectedVideo?.name === videoName) anchorSelectionInProgress = false;
     drawOverlay();
   }
-  return null;
 }
 
 async function suggestManualAnchors() {
@@ -511,7 +525,11 @@ function updateGuidedCalibrationPanel() {
     add(`Cobertura: ${formatGuidedNumber(recommendation.coverage_distance_px)} · Calidad visual: ${(Number(recommendation.quality_score || 0) * 100).toFixed(0)} %`);
     add(`Vista: ${view.side || "—"} · Zoom: ${view.zoom || "—"} · Campo visible: ${(Number(view.visible_fraction || 0) * 100).toFixed(0)} %`);
     add(`Líneas visibles: ${view.visible_lines ?? 0}${nearest.frame !== undefined ? ` · HUMAN más cercano: ${nearest.frame} (${formatGuidedNumber(nearest.median_px)})` : ""}`);
-  } else if (guidedCalibration.checked) {
+  } else if (guidedCalibration.selectorError) {
+    add(`Selector no disponible: ${guidedCalibration.selectorError}`, true, "guided-warning");
+  } else if (guidedCalibration.allRecommendationsSkipped) {
+    add("Se han omitido todos los candidatos disponibles en esta sesión.", true);
+  } else if (guidedCalibration.selectorSucceeded) {
     add("No quedan candidatos prioritarios detectados.", true);
   } else {
     add("Sin recomendación disponible.", true);
@@ -574,16 +592,33 @@ function comparisonImpact(before, after) {
 
 async function refreshGuidedRecommendations({ seek = false, impactBefore = null, checked = false } = {}) {
   if (!guidedCalibration?.active) return;
+  // Invalidate both the in-memory result and its guided interpretation before
+  // rebuilding Atlas. This prevents stale rankings from a previous review
+  // state from becoming a recommendation after a recalculation.
+  anchorSelectionResult = null;
+  anchorSelectionError = null;
+  guidedCalibration.recommendation = null;
+  guidedCalibration.selectorError = null;
+  guidedCalibration.selectorSucceeded = false;
+  guidedCalibration.allRecommendationsSkipped = false;
   guidedCalibration.running = true;
   updateGuidedCalibrationPanel();
   const atlas = await analyzeCameraAtlas();
   if (!guidedCalibration?.active) return;
-  const selectionResult = await requestAnchorSelection();
+  const selectorResponse = await requestAnchorSelection();
   if (!guidedCalibration?.active) return;
   guidedCalibration.checked = checked || guidedCalibration.checked;
-  const selection = selectionResult?.selection || anchorSelectionResult?.result?.selection || null;
+  if (!selectorResponse?.ok) {
+    guidedCalibration.running = false;
+    guidedCalibration.selectorError = selectorResponse?.error || anchorSelectionError || "No se pudo ejecutar el selector de anchors.";
+    updateGuidedCalibrationPanel();
+    return;
+  }
+  const selection = selectorResponse.result.selection;
   const after = atlasCoverageSnapshot(atlas);
   guidedCalibration.recommendation = nextGuidedRecommendation(selection);
+  guidedCalibration.selectorSucceeded = true;
+  guidedCalibration.allRecommendationsSkipped = !guidedCalibration.recommendation && selection.recommendations.length > 0;
   guidedCalibration.running = false;
   if (impactBefore) guidedCalibration.impact = comparisonImpact(impactBefore, after);
   else if (guidedCalibration.recommendation) guidedCalibration.preAnchorSnapshot = after;
@@ -1289,6 +1324,7 @@ async function solveCalibration(calibration) {
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
   anchorSelectionResult = null;
+  anchorSelectionError = null;
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
@@ -1368,6 +1404,7 @@ function clearCurrentCalibration() {
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
   anchorSelectionResult = null;
+  anchorSelectionError = null;
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -1857,6 +1894,7 @@ async function loadVideo(videoInfo) {
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
   anchorSelectionResult = null;
+  anchorSelectionError = null;
   anchorSelectionInProgress = false;
   guidedCalibration = null;
   selectedVideo = videoInfo;
