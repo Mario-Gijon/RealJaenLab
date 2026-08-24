@@ -5,6 +5,7 @@ const undoButton = document.querySelector("#undo-button");
 const saveStatus = document.querySelector("#save-status");
 const saveStatusLabel = document.querySelector("#save-status-label");
 const video = document.querySelector("#video");
+const workspace = document.querySelector(".workspace");
 const workArea = document.querySelector(".work-area");
 const overlay = document.querySelector("#video-overlay");
 const overlayContext = overlay.getContext("2d");
@@ -117,7 +118,7 @@ modeTabs.forEach((tab) => {
     selectedFieldItem = null;
     lineDraft = null;
     assistedDraft = null;
-    calibrationMode = false;
+    setCalibrationMode(false);
     calibrationPanel.hidden = true;
     if (activeMode !== "field") exitGuidedCalibration();
     drawOverlay();
@@ -128,6 +129,11 @@ function setReviewDirty(isDirty) {
   reviewIsDirty = isDirty;
   saveStatus.classList.toggle("is-saved", !isDirty);
   saveStatusLabel.textContent = isDirty ? "SIN GUARDAR" : "GUARDADO";
+}
+
+function setCalibrationMode(enabled) {
+  calibrationMode = Boolean(enabled);
+  workspace.classList.toggle("is-calibrating", calibrationMode);
 }
 
 function clampCalibrationPanelPosition(position = calibrationPanelPosition) {
@@ -899,7 +905,7 @@ function fitEllipse(samples) {
 
 function setActiveFieldTool(tool) {
   activeFieldTool = tool;
-  calibrationMode = false;
+  setCalibrationMode(false);
   calibrationPanel.hidden = true;
   fieldToolButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.fieldTool === tool));
   lineDraft = null;
@@ -1227,7 +1233,7 @@ function updateCalibrationStatus(message = null) {
 function enterCalibrationMode() {
   if (!selectedVideo) return;
   video.pause();
-  calibrationMode = true;
+  setCalibrationMode(true);
   activeFieldTool = "select";
   fieldToolButtons.forEach((button) => button.classList.remove("is-active"));
   calibrationPanel.hidden = false;
@@ -1237,7 +1243,7 @@ function enterCalibrationMode() {
 }
 
 function exitCalibrationMode() {
-  calibrationMode = false;
+  setCalibrationMode(false);
   calibrationDragState = null;
   calibrationLineDraft = null;
   calibrationArcDraft = null;
@@ -1907,7 +1913,7 @@ async function loadVideo(videoInfo) {
   selectedCalibrationConstraint = null;
   lineDraft = null;
   assistedDraft = null;
-  calibrationMode = false;
+  setCalibrationMode(false);
   calibrationPanel.hidden = true;
   calibrationDragState = null;
   calibrationLineDraft = null;
