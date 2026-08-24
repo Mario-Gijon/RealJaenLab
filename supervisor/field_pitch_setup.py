@@ -30,6 +30,7 @@ class PitchSetupConfig:
     """Deterministic Phase-1 search and acceptance policy."""
 
     reference_length_m: float = 105.0
+    reference_width_m: float = 68.0
 
     length_min_m: float = 100.0
     length_max_m: float = 110.0
@@ -437,8 +438,27 @@ def estimate_pitch_setup(
 
     _, initial_width = width_pitch
 
+    initial_width_confidence = width_profile.get(
+        "confidence",
+        {},
+    )
+    initial_width_constrained = bool(
+        initial_width_confidence.get(
+            "width_constrained"
+        )
+    )
+
+    # If Stage 1 cannot genuinely identify width, do not let its numerical
+    # optimum drive the next physical dimension. Anchor Stage 2 at the
+    # canonical reference width instead.
+    length_anchor_width = (
+        float(initial_width)
+        if initial_width_constrained
+        else float(setup.reference_width_m)
+    )
+
     # ------------------------------------------------------------
-    # Stage 2: full length profile at the Stage-1 width
+    # Stage 2: full length profile at trusted/reference width
     # ------------------------------------------------------------
 
     length_profile = estimate_pitch_dimensions(
@@ -446,8 +466,8 @@ def estimate_pitch_setup(
         config=_estimation_config(
             length_min_m=setup.length_min_m,
             length_max_m=setup.length_max_m,
-            width_min_m=initial_width,
-            width_max_m=initial_width,
+            width_min_m=length_anchor_width,
+            width_max_m=length_anchor_width,
             setup=setup,
         ),
     )
@@ -482,15 +502,33 @@ def estimate_pitch_setup(
 
     estimated_length, _ = length_pitch
 
+    length_confidence = length_profile.get(
+        "confidence",
+        {},
+    )
+    length_constrained = bool(
+        length_confidence.get(
+            "length_constrained"
+        )
+    )
+
+    # If length is not identifiable, evaluate the final width profile at the
+    # same canonical length that the provisional FIELD model will actually use.
+    width_anchor_length = (
+        float(estimated_length)
+        if length_constrained
+        else float(setup.reference_length_m)
+    )
+
     # ------------------------------------------------------------
-    # Stage 3: FINAL full width profile at the updated length
+    # Stage 3: FINAL full width profile at trusted/reference length
     # ------------------------------------------------------------
 
     refined_width_profile = estimate_pitch_dimensions(
         observations,
         config=_estimation_config(
-            length_min_m=estimated_length,
-            length_max_m=estimated_length,
+            length_min_m=width_anchor_length,
+            length_max_m=width_anchor_length,
             width_min_m=setup.width_min_m,
             width_max_m=setup.width_max_m,
             setup=setup,
@@ -531,36 +569,59 @@ def estimate_pitch_setup(
     _, estimated_width = refined_pitch
 
     # ------------------------------------------------------------
-    # Exact final-model diagnostics
+    # Final dimension confidence and Phase-1 model policy
     # ------------------------------------------------------------
 
-    final_result = _forced_model_diagnostics(
-        observations,
-        length_m=estimated_length,
-        width_m=estimated_width,
-        setup=setup,
-    )
-
-    # Length confidence comes from Stage 2, where length was free over the
-    # complete configured interval.
-    length_confidence = length_profile.get(
-        "confidence",
-        {},
-    )
-
-    # Width confidence comes from Stage 3, where width was re-estimated over
-    # the complete configured interval after updating the length estimate.
-    # Stage 1 is only an initializer and must not decide final width confidence.
     width_confidence = refined_width_profile.get(
         "confidence",
         {},
+    )
+    width_constrained = bool(
+        width_confidence.get(
+            "width_constrained"
+        )
+    )
+
+    # A numerical optimum is not automatically a physical measurement.
+    # Keep an unobservable exterior dimension at its canonical reference value
+    # rather than pretending that the unconstrained optimum is known.
+    final_length = (
+        float(estimated_length)
+        if length_constrained
+        else float(setup.reference_length_m)
+    )
+    final_width = (
+        float(estimated_width)
+        if width_constrained
+        else float(setup.reference_width_m)
+    )
+
+    dimension_status = {
+        "length": (
+            "estimated"
+            if length_constrained
+            else "provisional_reference"
+        ),
+        "width": (
+            "estimated"
+            if width_constrained
+            else "provisional_reference"
+        ),
+    }
+
+    # Exact diagnostics must correspond to the physical model that FIELD will
+    # actually use, including any provisional reference dimension.
+    final_result = _forced_model_diagnostics(
+        observations,
+        length_m=final_length,
+        width_m=final_width,
+        setup=setup,
     )
 
     final_observability = final_result.get(
         "observability",
         {},
     )
-
     usable_frames = int(
         final_observability.get(
             "frames_usable",
@@ -568,22 +629,17 @@ def estimate_pitch_setup(
         )
         or 0
     )
-
-    width_constrained = bool(
-        width_confidence.get(
-            "width_constrained"
-        )
-    )
-
-    length_constrained = bool(
-        length_confidence.get(
-            "length_constrained"
-        )
-    )
-
     enough_frames = (
         usable_frames
         >= setup.minimum_usable_frames
+    )
+
+    # Phase 1 may continue when enough HUMAN frames are usable and at least
+    # one exterior dimension is genuinely observable. The other dimension can
+    # stay provisional until Camera State couples information across views.
+    has_metric_dimension = (
+        length_constrained
+        or width_constrained
     )
 
     needs_more_evidence = {
@@ -594,8 +650,9 @@ def estimate_pitch_setup(
 
     status = (
         "ready_to_confirm"
-        if not any(
-            needs_more_evidence.values()
+        if (
+            enough_frames
+            and has_metric_dimension
         )
         else "needs_more_evidence"
     )
@@ -603,13 +660,21 @@ def estimate_pitch_setup(
     return {
         "status": status,
         "pitch_model": {
-            "length_m": float(
-                estimated_length
+            "length_m": final_length,
+            "width_m": final_width,
+            "status": (
+                "estimated"
+                if (
+                    length_constrained
+                    and width_constrained
+                )
+                else "provisional"
             ),
-            "width_m": float(
-                estimated_width
-            ),
-            "status": "estimated",
+            "dimension_status": dimension_status,
+        },
+        "candidate_pitch_model": {
+            "length_m": float(estimated_length),
+            "width_m": float(estimated_width),
         },
         "confidence": {
             "length_interval_m": length_confidence.get(
@@ -677,6 +742,9 @@ def summarize_pitch_setup(
     return {
         "status": result.get("status"),
         "pitch_model": model,
+        "candidate_pitch_model": result.get(
+            "candidate_pitch_model"
+        ),
         "length_interval_m": confidence.get(
             "length_interval_m"
         ),

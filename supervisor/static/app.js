@@ -83,7 +83,12 @@ let fieldAnnotations = [];
 let fieldCalibrations = [];
 let fieldPropagations = [];
 let fieldRefinedSegments = [];
-let fieldPitchModel = { length_m: PITCH_DEFAULTS.lengthM, width_m: PITCH_DEFAULTS.widthM, status: "default" };
+let fieldPitchModel = {
+  length_m: PITCH_DEFAULTS.lengthM,
+  width_m: PITCH_DEFAULTS.widthM,
+  status: "default",
+  dimension_status: { length: "provisional_reference", width: "provisional_reference" },
+};
 let fieldUndoStack = [];
 let selectedFieldItem = null;
 let fieldDragState = null;
@@ -162,18 +167,39 @@ function normalisePitchModel(value) {
   const hasValidLength = Number.isFinite(length) && length > PITCH_DEFAULTS.penaltyAreaDepthM * 2;
   const hasValidWidth = Number.isFinite(width)
     && width > (PITCH_DEFAULTS.goalHalfWidthM + PITCH_DEFAULTS.penaltyAreaDepthM) * 2;
-  const status = hasValidLength && hasValidWidth && ["default", "estimated", "confirmed"].includes(value?.status)
+  const status = hasValidLength && hasValidWidth && ["default", "estimated", "provisional", "confirmed"].includes(value?.status)
     ? value.status
     : "default";
+  const legacyDimensionStatus = ["estimated", "confirmed"].includes(status)
+    ? "estimated"
+    : "provisional_reference";
+  const suppliedDimensionStatus = value?.dimension_status;
+  const dimensionStatus = {
+    length: ["estimated", "provisional_reference"].includes(suppliedDimensionStatus?.length)
+      ? suppliedDimensionStatus.length
+      : legacyDimensionStatus,
+    width: ["estimated", "provisional_reference"].includes(suppliedDimensionStatus?.width)
+      ? suppliedDimensionStatus.width
+      : legacyDimensionStatus,
+  };
   return {
     length_m: hasValidLength ? length : PITCH_DEFAULTS.lengthM,
     width_m: hasValidWidth ? width : PITCH_DEFAULTS.widthM,
     status,
+    dimension_status: dimensionStatus,
   };
 }
 
 function formatPitchDimension(value) {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+}
+
+function pitchDimensionProvenanceLabel(status) {
+  return status === "estimated" ? "estimada" : "provisional";
+}
+
+function pitchModelProvenanceLabel(model = fieldPitchModel) {
+  return `Longitud ${pitchDimensionProvenanceLabel(model.dimension_status?.length)} · Anchura ${pitchDimensionProvenanceLabel(model.dimension_status?.width)}`;
 }
 
 function applyPitchModel(value) {
@@ -653,7 +679,8 @@ function updatePitchSetupWorkflow() {
   if (!selectedVideo) {
     add("Selecciona un vídeo para comenzar.");
   } else if (isConfirmed && !state) {
-    add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m confirmado.`);
+    add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`);
+    add(pitchModelProvenanceLabel());
   } else if (!state) {
     add("Mide el terreno con vistas seleccionadas automáticamente del vídeo.");
   } else if (state.processing === "scan") {
@@ -666,9 +693,22 @@ function updatePitchSetupWorkflow() {
     add(`${attempted.length} / ${frames.length}`);
     add(`Siguiente medición: fotograma ${currentFrame}.`);
   } else if (state.status === "ready_to_confirm" && result?.pitch_model) {
-    add("Terreno estimado", true);
-    add(`${formatPitchDimension(result.pitch_model.length_m)} × ${formatPitchDimension(result.pitch_model.width_m)} m`);
-    add(`Longitud: ${formatPitchInterval(result.confidence?.length_interval_m)} · Anchura: ${formatPitchInterval(result.confidence?.width_interval_m)}`);
+    const dimensionStatus = result.pitch_model.dimension_status;
+    if (dimensionStatus) {
+      add("Terreno listo para confirmar", true);
+      add(`Longitud: ${formatPitchDimension(result.pitch_model.length_m)} m · ${pitchDimensionProvenanceLabel(dimensionStatus.length)}`);
+      add(`Anchura: ${formatPitchDimension(result.pitch_model.width_m)} m · ${pitchDimensionProvenanceLabel(dimensionStatus.width)}`);
+      if (dimensionStatus.width === "estimated") {
+        add(`Anchura: intervalo ${formatPitchInterval(result.confidence?.width_interval_m)}`);
+      }
+      if (dimensionStatus.length === "estimated") {
+        add(`Longitud: intervalo ${formatPitchInterval(result.confidence?.length_interval_m)}`);
+      }
+    } else {
+      add("Terreno estimado", true);
+      add(`${formatPitchDimension(result.pitch_model.length_m)} × ${formatPitchDimension(result.pitch_model.width_m)} m`);
+      add(`Longitud: ${formatPitchInterval(result.confidence?.length_interval_m)} · Anchura: ${formatPitchInterval(result.confidence?.width_interval_m)}`);
+    }
   } else if (state.status === "insufficient") {
     add(
       state.insufficient_reason === "observable_views"
@@ -680,7 +720,8 @@ function updatePitchSetupWorkflow() {
     const missing = pitchSetupMissingEvidence(result);
     if (missing.length) add(`Falta confianza en: ${missing.join(", ")}.`);
   } else if (state.status === "confirmed") {
-    add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m confirmado.`);
+    add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`);
+    add(pitchModelProvenanceLabel());
   }
   add("2 · PARTIDO", true);
   add(isConfirmed ? "Disponible próximamente" : "Bloqueado hasta confirmar el terreno.");

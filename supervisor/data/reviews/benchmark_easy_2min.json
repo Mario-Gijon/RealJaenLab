@@ -4373,7 +4373,633 @@
         ],
         "homography": null,
         "reprojectionError": null,
-        "purpose": "pitch_setup"
+        "purpose": "pitch_setup",
+        "pitchSetupMeasurementStatus": "insufficient_geometry"
+      },
+      {
+        "id": "calibration-1787604172544",
+        "video": "benchmark_easy_2min.mp4",
+        "frame": 2892,
+        "source": "manual",
+        "correspondences": [
+          {
+            "landmark": "top_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": -34
+            },
+            "image": {
+              "x": 1215.0534623217923,
+              "y": 400.88340122199594
+            }
+          },
+          {
+            "landmark": "right_penalty_top",
+            "world": {
+              "x": 36,
+              "y": -20.16
+            },
+            "image": {
+              "x": 958.1784623217923,
+              "y": 455.071283095723
+            }
+          },
+          {
+            "landmark": "right_penalty_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -20.16
+            },
+            "image": {
+              "x": 1446.5300407331974,
+              "y": 431.6242362525458
+            }
+          },
+          {
+            "landmark": "right_goal_top",
+            "world": {
+              "x": 47,
+              "y": -9.16
+            },
+            "image": {
+              "x": 1502.062118126273,
+              "y": 472.22505091649697
+            }
+          },
+          {
+            "landmark": "right_goal_area_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -9.16
+            },
+            "image": {
+              "x": 1670.3576883910387,
+              "y": 462.28105906313647
+            }
+          },
+          {
+            "landmark": "right_penalty_spot",
+            "world": {
+              "x": 41.5,
+              "y": 0
+            },
+            "image": {
+              "x": 1519.7161405295315,
+              "y": 512.7914969450102
+            }
+          },
+          {
+            "landmark": "right_goal_post_top",
+            "world": {
+              "x": 52.5,
+              "y": -3.66
+            },
+            "image": {
+              "x": 1802.4554480651732,
+              "y": 479.12550916496946
+            }
+          }
+        ],
+        "constraints": [
+          {
+            "type": "point",
+            "semantic": "top_right_corner",
+            "world": {
+              "x": 52.5,
+              "y": -34
+            },
+            "image": {
+              "x": 1215.0534623217923,
+              "y": 400.88340122199594
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_top",
+            "world": {
+              "x": 36,
+              "y": -20.16
+            },
+            "image": {
+              "x": 958.1784623217923,
+              "y": 455.071283095723
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -20.16
+            },
+            "image": {
+              "x": 1446.5300407331974,
+              "y": 431.6242362525458
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_top",
+            "world": {
+              "x": 47,
+              "y": -9.16
+            },
+            "image": {
+              "x": 1502.062118126273,
+              "y": 472.22505091649697
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_area_goal_line_top",
+            "world": {
+              "x": 52.5,
+              "y": -9.16
+            },
+            "image": {
+              "x": 1670.3576883910387,
+              "y": 462.28105906313647
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_penalty_spot",
+            "world": {
+              "x": 41.5,
+              "y": 0
+            },
+            "image": {
+              "x": 1519.7161405295315,
+              "y": 512.7914969450102
+            },
+            "source": "manual"
+          },
+          {
+            "type": "point",
+            "semantic": "right_goal_post_top",
+            "world": {
+              "x": 52.5,
+              "y": -3.66
+            },
+            "image": {
+              "x": 1802.4554480651732,
+              "y": 479.12550916496946
+            },
+            "source": "manual"
+          },
+          {
+            "type": "arc",
+            "semantic": "centre_circle",
+            "world": {
+              "center": {
+                "x": 0,
+                "y": 0
+              },
+              "radius": 9.15
+            },
+            "image": {
+              "samples": [
+                {
+                  "x": 1.6687881873727088,
+                  "y": 575.7128309572302
+                },
+                {
+                  "x": 4.895621181262729,
+                  "y": 575.315682281059
+                },
+                {
+                  "x": 7.828411405295316,
+                  "y": 576.2932790224033
+                },
+                {
+                  "x": 10.761201629327903,
+                  "y": 577.2708757637474
+                },
+                {
+                  "x": 13.862016293279023,
+                  "y": 577.2708757637474
+                },
+                {
+                  "x": 16.672606924643585,
+                  "y": 579.1191446028513
+                },
+                {
+                  "x": 19.555753564154788,
+                  "y": 580.081466395112
+                },
+                {
+                  "x": 23.07662932790224,
+                  "y": 581.0476069246436
+                },
+                {
+                  "x": 25.986507128309572,
+                  "y": 582.0137474541752
+                },
+                {
+                  "x": 28.90784114052953,
+                  "y": 582.9913441955193
+                },
+                {
+                  "x": 31.82917515274949,
+                  "y": 583.9574847250509
+                },
+                {
+                  "x": 34.76196537678207,
+                  "y": 584.9350814663951
+                },
+                {
+                  "x": 38.51960285132383,
+                  "y": 584.9350814663951
+                },
+                {
+                  "x": 42.865325865580445,
+                  "y": 585.8974032586558
+                },
+                {
+                  "x": 46.77571283095723,
+                  "y": 585.8974032586558
+                },
+                {
+                  "x": 49.70850305498982,
+                  "y": 586.875
+                },
+                {
+                  "x": 53.378309572301426,
+                  "y": 586.875
+                },
+                {
+                  "x": 56.513492871690424,
+                  "y": 588.5705193482688
+                },
+                {
+                  "x": 58.39231160896131,
+                  "y": 591.3811099796334
+                },
+                {
+                  "x": 61.32510183299389,
+                  "y": 594.313900203666
+                },
+                {
+                  "x": 63.20773930753565,
+                  "y": 596.9831975560081
+                },
+                {
+                  "x": 66.37347250509166,
+                  "y": 599.262983706721
+                },
+                {
+                  "x": 69.07331975560082,
+                  "y": 597.9378818737271
+                },
+                {
+                  "x": 70.74210794297352,
+                  "y": 595.4900712830956
+                },
+                {
+                  "x": 74.39282077393075,
+                  "y": 595.4900712830956
+                },
+                {
+                  "x": 77.40962321792261,
+                  "y": 596.0857942973523
+                },
+                {
+                  "x": 80.2469450101833,
+                  "y": 597.051934826884
+                },
+                {
+                  "x": 83.01934826883911,
+                  "y": 598.0180753564155
+                },
+                {
+                  "x": 85.56644602851324,
+                  "y": 599.6677698574339
+                },
+                {
+                  "x": 88.39613034623218,
+                  "y": 600.6300916496945
+                },
+                {
+                  "x": 91.32892057026477,
+                  "y": 601.6076883910388
+                },
+                {
+                  "x": 94.26171079429736,
+                  "y": 603.5628818737272
+                },
+                {
+                  "x": 95.94577393075357,
+                  "y": 606.2474541751527
+                },
+                {
+                  "x": 93.13900203665987,
+                  "y": 610.20366598778
+                },
+                {
+                  "x": 91.19526476578412,
+                  "y": 613.033350305499
+                },
+                {
+                  "x": 88.26247454175153,
+                  "y": 615.9661405295316
+                },
+                {
+                  "x": 85.32968431771894,
+                  "y": 618.8989307535642
+                },
+                {
+                  "x": 82.39689409368636,
+                  "y": 621.8317209775967
+                },
+                {
+                  "x": 79.46410386965377,
+                  "y": 624.7645112016294
+                },
+                {
+                  "x": 76.17617107942974,
+                  "y": 626.5478615071283
+                },
+                {
+                  "x": 72.73548879837068,
+                  "y": 626.5478615071283
+                },
+                {
+                  "x": 69.80269857433808,
+                  "y": 627.5254582484724
+                },
+                {
+                  "x": 66.86990835030551,
+                  "y": 628.5030549898167
+                },
+                {
+                  "x": 63.93711812627291,
+                  "y": 629.4806517311608
+                },
+                {
+                  "x": 61.03105906313646,
+                  "y": 630.4582484725051
+                },
+                {
+                  "x": 58.098268839103866,
+                  "y": 631.4358452138492
+                },
+                {
+                  "x": 55.46715885947047,
+                  "y": 633.1771894093687
+                },
+                {
+                  "x": 52.71003054989817,
+                  "y": 634.9719959266803
+                },
+                {
+                  "x": 49.819246435845216,
+                  "y": 636.8851832993889
+                },
+                {
+                  "x": 46.88645621181263,
+                  "y": 637.8627800407332
+                },
+                {
+                  "x": 44.033859470468435,
+                  "y": 638.821283095723
+                },
+                {
+                  "x": 40.329684317718936,
+                  "y": 638.821283095723
+                },
+                {
+                  "x": 37.48090631364562,
+                  "y": 640.7497454175152
+                },
+                {
+                  "x": 34.681771894093686,
+                  "y": 641.6815173116089
+                },
+                {
+                  "x": 31.94373727087576,
+                  "y": 643.5336048879838
+                },
+                {
+                  "x": 29.049134419551933,
+                  "y": 644.4997454175152
+                },
+                {
+                  "x": 26.139256619144604,
+                  "y": 645.4658859470468
+                },
+                {
+                  "x": 22.675661914460285,
+                  "y": 647.1804989816701
+                },
+                {
+                  "x": 18.799643584521384,
+                  "y": 647.1804989816701
+                },
+                {
+                  "x": 15.087830957230143,
+                  "y": 647.9136965376782
+                },
+                {
+                  "x": 12.166496945010183,
+                  "y": 648.8912932790224
+                },
+                {
+                  "x": 9.233706720977596,
+                  "y": 650.8464867617108
+                },
+                {
+                  "x": 6.3009164969450095,
+                  "y": 651.8240835030549
+                },
+                {
+                  "x": 2.825865580448065,
+                  "y": 651.8240835030549
+                }
+              ],
+              "geometry": {
+                "center": {
+                  "x": -35.24319064926662,
+                  "y": 614.1715424052147
+                },
+                "radiusX": 120.54308308499363,
+                "radiusY": 37.80307573605597,
+                "rotation": -0.026688212302266714,
+                "arc": {
+                  "startAngle": -1.263362845939581,
+                  "endAngle": 1.2787974225457526,
+                  "counterclockwise": false
+                }
+              }
+            },
+            "source": "manual"
+          },
+          {
+            "type": "line",
+            "semantic": "bottom_touchline",
+            "world": {
+              "start": {
+                "x": -52.5,
+                "y": 34
+              },
+              "end": {
+                "x": 52.5,
+                "y": 34
+              }
+            },
+            "image": {
+              "start": {
+                "x": 1916.6891547861508,
+                "y": 965.3958757637474
+              },
+              "end": {
+                "x": 1076.8228105906314,
+                "y": 1079.908350305499
+              }
+            },
+            "source": "manual"
+          }
+        ],
+        "homography": [
+          [
+            58.926794704681456,
+            6.013922263722443,
+            -452.287368710375
+          ],
+          [
+            1.0191516089369794,
+            -3.3582496878570818,
+            632.0199250056692
+          ],
+          [
+            0.007379949362814277,
+            -0.0178056641657627,
+            1
+          ]
+        ],
+        "reprojectionError": 4.58759915574189,
+        "purpose": "pitch_setup",
+        "camera": {
+          "vanishing_point_longitudinal": {
+            "x": 7984.715315473419,
+            "y": 138.09737151751068
+          },
+          "vanishing_point_transversal": {
+            "x": -337.7533243205948,
+            "y": 188.60569628817504
+          },
+          "horizon_line": {
+            "a": -0.006068799634941087,
+            "b": -0.9999815846659332,
+            "c": 186.55246579993405
+          },
+          "zoom_proxy_px_per_m": 22.61157210908378,
+          "principal_view_projection": [
+            -452.287368710375,
+            632.0199250056692
+          ]
+        },
+        "diagnostics": {
+          "mode": "geometric_projective_camera_v1",
+          "selected_candidate": "point_baseline:refined",
+          "score": 34.014898851034005,
+          "homography_condition": 60692.633679410224,
+          "points": 7,
+          "lines": 1,
+          "arcs": 1,
+          "point_error_px": 4.58759915574189,
+          "line_error_px": 0.03500674752399391,
+          "point_errors": [
+            {
+              "semantic": "top_right_corner",
+              "error_px": 7.7829046295347695
+            },
+            {
+              "semantic": "right_penalty_top",
+              "error_px": 5.740505749810008
+            },
+            {
+              "semantic": "right_penalty_goal_line_top",
+              "error_px": 3.5107780056612423
+            },
+            {
+              "semantic": "right_goal_top",
+              "error_px": 4.186735431005368
+            },
+            {
+              "semantic": "right_goal_area_goal_line_top",
+              "error_px": 2.3995586105963023
+            },
+            {
+              "semantic": "right_penalty_spot",
+              "error_px": 7.028271231336885
+            },
+            {
+              "semantic": "right_goal_post_top",
+              "error_px": 1.4644404322486515
+            }
+          ],
+          "line_errors": [
+            {
+              "semantic": "bottom_touchline",
+              "error_px": 0.03500674752399391,
+              "endpoint_errors_px": [
+                0.029341341445842772,
+                0.040672153602145045
+              ],
+              "family": "longitudinal_x",
+              "quality": "good"
+            }
+          ],
+          "constraint_spread": {
+            "world_span_x_m": 105,
+            "world_span_y_m": 68,
+            "image_span_x_px": 958.5106924643585,
+            "image_span_y_px": 679.0249490835031
+          },
+          "config": {
+            "point_sigma_px": 3.5,
+            "line_sigma_px": 1.5,
+            "arc_sigma_px": 4,
+            "point_huber_delta_sigma": 3,
+            "arc_huber_delta_sigma": 3,
+            "max_iterations": 45,
+            "initial_damping": 0.001,
+            "max_condition": 10000000000,
+            "good_line_error_px": 5,
+            "warning_line_error_px": 12
+          },
+          "calibration_strategy": {
+            "requested_mode": "auto",
+            "selected_mode": "full",
+            "fallback_from": null,
+            "evidence": {
+              "strong_for_full_solve": true,
+              "evidence_score": 0.7275000000000003,
+              "reasons": [
+                "muchos_puntos_independientes",
+                "puntos_bien_repartidos"
+              ],
+              "points": 7,
+              "lines": 1,
+              "arcs": 1,
+              "line_families": [
+                "longitudinal_x"
+              ],
+              "point_geometry_independent": true,
+              "coverage": {
+                "world_span_x_ratio": 1,
+                "world_span_y_ratio": 1,
+                "image_span_x_ratio": 0.4992243189918534,
+                "image_span_y_ratio": 0.6287268047069473
+              }
+            }
+          }
+        }
       }
     ],
     "propagations": [],
@@ -4385,7 +5011,7 @@
     },
     "pitch_setup": {
       "video": "benchmark_easy_2min.mp4",
-      "status": "measuring",
+      "status": "insufficient",
       "processing": null,
       "scan": {
         "status": "ok",
@@ -4664,19 +5290,21 @@
         1295,
         3185,
         3425,
-        115
+        115,
+        2892
       ],
       "used_frames": [
         55,
         1295,
         3185,
-        3425
+        3425,
+        2892
       ],
       "result": {
         "status": "needs_more_evidence",
         "pitch_model": {
-          "length_m": 101.3,
-          "width_m": 70.1,
+          "length_m": 100,
+          "width_m": 70.8,
           "status": "estimated"
         },
         "confidence": {
@@ -4685,12 +5313,12 @@
             110
           ],
           "width_interval_m": [
-            69.4,
+            70.3,
             70.9
           ],
           "length_constrained": false,
-          "width_constrained": false,
-          "length_boundary_limited": false,
+          "width_constrained": true,
+          "length_boundary_limited": true,
           "width_boundary_limited": false
         },
         "profiles": {
@@ -4698,7 +5326,7 @@
             "status": "estimated",
             "pitch_model": {
               "length_m": 105,
-              "width_m": 70.1,
+              "width_m": 70.8,
               "status": "estimated"
             },
             "confidence": {
@@ -4707,7 +5335,7 @@
                 105
               ],
               "width_interval_m": [
-                69.4,
+                70.3,
                 70.9
               ],
               "boundary_limited": {
@@ -4715,111 +5343,111 @@
                 "width": false
               },
               "length_constrained": false,
-              "width_constrained": false
+              "width_constrained": true
             },
             "score": {
-              "best_normalised_score": 1.199658485129307,
-              "near_best_candidate_count": 17
+              "best_normalised_score": 1.2454020640198638,
+              "near_best_candidate_count": 7
             },
             "frames": [
               {
                 "frame": 55,
                 "homography": [
                   [
-                    53.45709236792627,
-                    7.632661629076044,
-                    -479.7485483627957
+                    53.60135542869156,
+                    7.832779471236678,
+                    -480.71961373441195
                   ],
                   [
-                    1.442779503116354,
-                    -3.0492317443120585,
-                    589.4618245121612
+                    1.507114329008507,
+                    -3.0187901500321765,
+                    587.9018493462256
                   ],
                   [
-                    0.008701921820302945,
-                    -0.017030655684925157,
+                    0.008770032653930932,
+                    -0.016864881615249804,
                     1
                   ]
                 ],
-                "point_error_px": 3.6355455361444386,
-                "line_error_px": 0.0806141398455793,
+                "point_error_px": 4.2949680750242125,
+                "line_error_px": 0.20326865548872775,
                 "solver_status": "solved",
-                "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 61389.227825115675,
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 61910.806590873646,
                 "constraint_spread": {
                   "world_span_x_m": 105,
-                  "world_span_y_m": 70.1,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1681.3823828920567,
                   "image_span_y_px": 699.8103360488797
                 },
-                "normalised_score": 1.0574856271540907,
+                "normalised_score": 1.2454020640198638,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.616314183556042
+                    "error_px": 13.189041873065978
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.015014412853411
+                    "error_px": 8.801960212177313
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.7211526801550785
+                    "error_px": 5.534990920055108
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.481938715234866
+                    "error_px": 12.504252770415473
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.2374627590900062
+                    "error_px": 3.6695796624926733
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.276301557911169
+                    "error_px": 5.035154689480359
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.714492332648755
+                    "error_px": 6.371401997633225
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.107244661191166
+                    "error_px": 3.5312204929778854
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.158461693035662
+                    "error_px": 9.139538186931723
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 39.95008233137469
+                    "error_px": 68.46404873021447
                   },
                   {
                     "semantic": "right_goal_post_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.869656448519262
+                    "error_px": 2.6979458791298265
                   }
                 ]
               },
@@ -4827,76 +5455,76 @@
                 "frame": 1295,
                 "homography": [
                   [
-                    41.966900152090076,
-                    -33.49902740139873,
-                    2006.6213871957377
+                    41.92598879565768,
+                    -33.10463721468748,
+                    2007.1422838115918
                   ],
                   [
-                    -1.529434514358807,
-                    -2.5443638149386243,
-                    587.1622982652012
+                    -1.5697635183533805,
+                    -2.3410970562540037,
+                    586.9995201213338
                   ],
                   [
-                    -0.006146187577322695,
-                    -0.016402901124655367,
+                    -0.006194584351896863,
+                    -0.016074156340691856,
                     1
                   ]
                 ],
-                "point_error_px": 6.737948669416165,
-                "line_error_px": 1.6403323702925263,
+                "point_error_px": 7.5371574629410345,
+                "line_error_px": 1.5125610745528206,
                 "solver_status": "solved",
                 "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 169601.5800012036,
+                "homography_condition": 169713.46950022923,
                 "constraint_spread": {
                   "world_span_x_m": 105,
-                  "world_span_y_m": 70.1,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1067.6349287169041,
                   "image_span_y_px": 677.1919551934827
                 },
-                "normalised_score": 6.932056242560197,
+                "normalised_score": 6.951758240783371,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_left_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.887529121306468
+                    "error_px": 12.684714537600238
                   },
                   {
                     "semantic": "left_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.075322989155014
+                    "error_px": 6.4022214214989654
                   },
                   {
                     "semantic": "left_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 14.844986264176837
+                    "error_px": 17.322438074572293
                   },
                   {
                     "semantic": "left_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.667113588554522
+                    "error_px": 8.050386273276407
                   },
                   {
                     "semantic": "left_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 12.461051715074241
+                    "error_px": 11.810552388230303
                   },
                   {
                     "semantic": "left_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.146810638024071
+                    "error_px": 7.101839859167984
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 37.97904577956143
+                    "error_px": 47.40462430311277
                   },
                   {
                     "semantic": "centre_circle",
@@ -4910,94 +5538,94 @@
                 "frame": 3185,
                 "homography": [
                   [
-                    62.029499325559456,
-                    35.794453549186066,
-                    -2077.033426410065
+                    62.338303858245744,
+                    36.25245559309087,
+                    -2088.730242350713
                   ],
                   [
-                    2.8685766344262276,
-                    -2.6395792166225394,
-                    734.2910063608995
+                    2.836218473522571,
+                    -2.3486654274758507,
+                    737.1478498049612
                   ],
                   [
-                    0.017454755953226396,
-                    -0.01649879129413868,
+                    0.017494814738750277,
+                    -0.015889087011133438,
                     1
                   ]
                 ],
-                "point_error_px": 4.709106328765021,
-                "line_error_px": 0.6191419463704051,
+                "point_error_px": 4.451139022246896,
+                "line_error_px": 0.5923672127412374,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 129357.32757261301,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 130353.80124032678,
                 "constraint_spread": {
                   "world_span_x_m": 105,
-                  "world_span_y_m": 55.209999999999994,
+                  "world_span_y_m": 55.56,
                   "image_span_x_px": 1816.9208248472505,
                   "image_span_y_px": 617.730397148676
                 },
-                "normalised_score": 1.3418313431045235,
+                "normalised_score": 1.2430426678885307,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "bottom_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.6464906929841407
+                    "error_px": 4.241182621553187
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.44988063982553
+                    "error_px": 5.942354486736989
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 11.194329454311646
+                    "error_px": 7.617612449267532
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.589297832767293
+                    "error_px": 6.249127302369445
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.983233212526733
+                    "error_px": 7.281989583416304
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.132133599127103
+                    "error_px": 2.2860413773092074
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 10.31258406809828
+                    "error_px": 11.264497999663579
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 29.02347621518078
+                    "error_px": 32.33732705518639
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.709615502864418
+                    "error_px": 7.269836519129974
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.116443933019303
+                    "error_px": 8.57897625329154
                   }
                 ]
               },
@@ -5005,86 +5633,175 @@
                 "frame": 3425,
                 "homography": [
                   [
-                    53.91306026550761,
-                    15.03950314176302,
-                    -925.0948500592677
+                    54.094643415794124,
+                    15.217352127551408,
+                    -929.9362120726582
                   ],
                   [
-                    2.1543033228768604,
-                    -3.126712741993191,
-                    596.9030814341953
+                    2.1389537954339444,
+                    -3.08315533388739,
+                    597.7295431402135
                   ],
                   [
-                    0.012355361380316694,
-                    -0.017296509198598983,
+                    0.01236504618400817,
+                    -0.01705215816030337,
                     1
                   ]
                 ],
-                "point_error_px": 1.8211575348472657,
-                "line_error_px": 0.05518921725331438,
+                "point_error_px": 2.5907836438672596,
+                "line_error_px": 0.2157308628002852,
                 "solver_status": "solved",
                 "solver_candidate": "point_baseline:refined",
-                "homography_condition": 82206.10890865616,
+                "homography_condition": 83370.24493191707,
                 "constraint_spread": {
                   "world_span_x_m": 105,
-                  "world_span_y_m": 70.1,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1911.0450610997962,
                   "image_span_y_px": 673.2471995926679
                 },
-                "normalised_score": 0.5571850482733223,
+                "normalised_score": 0.8036377799832415,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 0.7376932353815134
+                    "error_px": 5.870081610563377
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.012610000640078
+                    "error_px": 5.034248902120947
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.302217454302086
+                    "error_px": 1.274667529521412
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.362261275986745
+                    "error_px": 11.887235275229346
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.649301880918506
+                    "error_px": 4.49264239058014
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.6328119213953
+                    "error_px": 8.845179681019108
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 25.87165454094537
+                    "error_px": 51.514455962283364
+                  }
+                ]
+              },
+              {
+                "frame": 2892,
+                "homography": [
+                  [
+                    58.814849481304776,
+                    6.605366711327456,
+                    -450.86129359767864
+                  ],
+                  [
+                    1.0809667333417041,
+                    -2.784514190000877,
+                    631.2896848161589
+                  ],
+                  [
+                    0.007424887949190134,
+                    -0.01666646545109348,
+                    1
+                  ]
+                ],
+                "point_error_px": 2.8756680193304844,
+                "line_error_px": 0.07335695650283469,
+                "solver_status": "solved",
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 61334.33064768433,
+                "constraint_spread": {
+                  "world_span_x_m": 105,
+                  "world_span_y_m": 70.8,
+                  "image_span_x_px": 958.5106924643585,
+                  "image_span_y_px": 679.0249490835031
+                },
+                "normalised_score": 2.4100764993468387,
+                "excluded_semantics": [],
+                "semantic_holdouts": [
+                  {
+                    "semantic": "top_right_corner",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 4.523511269871895
+                  },
+                  {
+                    "semantic": "right_penalty_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 3.7637748214361477
+                  },
+                  {
+                    "semantic": "right_penalty_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 5.413455854817547
+                  },
+                  {
+                    "semantic": "right_goal_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 2.4588164392522125
+                  },
+                  {
+                    "semantic": "right_goal_area_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 0.399746412695368
+                  },
+                  {
+                    "semantic": "right_penalty_spot",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 5.461255688938831
+                  },
+                  {
+                    "semantic": "right_goal_post_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 4.13598310406859
+                  },
+                  {
+                    "semantic": "centre_circle",
+                    "type": "arc",
+                    "status": "unsupported_geometry",
+                    "error_px": null
+                  },
+                  {
+                    "semantic": "bottom_touchline",
+                    "type": "line",
+                    "status": "ok",
+                    "error_px": 27.014956311133346
                   }
                 ]
               }
             ],
             "frames_rejected": [],
             "observability": {
-              "frames_usable": 4,
-              "semantic_point_count": 31,
-              "semantic_line_count": 4,
-              "semantic_arc_count": 1,
+              "frames_usable": 5,
+              "semantic_point_count": 38,
+              "semantic_line_count": 5,
+              "semantic_arc_count": 2,
               "by_frame": [
                 {
                   "frame": 55,
@@ -5092,7 +5809,7 @@
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
                   "world_x_span_m": 105,
-                  "world_y_span_m": 70.1,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -5104,7 +5821,7 @@
                   "semantic_line_count": 1,
                   "semantic_arc_count": 1,
                   "world_x_span_m": 105,
-                  "world_y_span_m": 70.1,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": true,
@@ -5116,7 +5833,7 @@
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
                   "world_x_span_m": 105,
-                  "world_y_span_m": 55.209999999999994,
+                  "world_y_span_m": 55.56,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -5128,10 +5845,22 @@
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
                   "world_x_span_m": 105,
-                  "world_y_span_m": 70.1,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
+                  "excluded_semantics": []
+                },
+                {
+                  "frame": 2892,
+                  "semantic_point_count": 7,
+                  "semantic_line_count": 1,
+                  "semantic_arc_count": 1,
+                  "world_x_span_m": 105,
+                  "world_y_span_m": 70.8,
+                  "reaches_touchline": true,
+                  "reaches_goal_line_structure": true,
+                  "includes_centre_or_halfway": true,
                   "excluded_semantics": []
                 }
               ],
@@ -5140,110 +5869,115 @@
               "includes_centre_or_halfway": true
             },
             "holdout_summary": {
-              "point_median_error_px": 7.012610000640078,
-              "line_median_error_px": 33.501260997371105,
+              "point_median_error_px": 6.0957408945532165,
+              "line_median_error_px": 47.40462430311277,
               "semantics": {
                 "bottom_right_corner": {
                   "count": 1,
-                  "median_error_px": 3.6464906929841407,
-                  "max_error_px": 3.6464906929841407
+                  "median_error_px": 4.241182621553187,
+                  "max_error_px": 4.241182621553187
                 },
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 33.501260997371105,
-                  "max_error_px": 39.95008233137469
+                  "count": 5,
+                  "median_error_px": 47.40462430311277,
+                  "max_error_px": 68.46404873021447
                 },
                 "left_goal_area_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 6.146810638024071,
-                  "max_error_px": 6.146810638024071
+                  "median_error_px": 7.101839859167984,
+                  "max_error_px": 7.101839859167984
                 },
                 "left_goal_top": {
                   "count": 1,
-                  "median_error_px": 12.461051715074241,
-                  "max_error_px": 12.461051715074241
+                  "median_error_px": 11.810552388230303,
+                  "max_error_px": 11.810552388230303
                 },
                 "left_penalty_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 14.844986264176837,
-                  "max_error_px": 14.844986264176837
+                  "median_error_px": 17.322438074572293,
+                  "max_error_px": 17.322438074572293
                 },
                 "left_penalty_spot": {
                   "count": 1,
-                  "median_error_px": 5.667113588554522,
-                  "max_error_px": 5.667113588554522
+                  "median_error_px": 8.050386273276407,
+                  "max_error_px": 8.050386273276407
                 },
                 "left_penalty_top": {
                   "count": 1,
-                  "median_error_px": 8.075322989155014,
-                  "max_error_px": 8.075322989155014
+                  "median_error_px": 6.4022214214989654,
+                  "max_error_px": 6.4022214214989654
                 },
                 "right_goal_area_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 6.992958530387794,
-                  "max_error_px": 7.709615502864418
+                  "median_error_px": 6.152495604305167,
+                  "max_error_px": 7.269836519129974
                 },
                 "right_goal_area_goal_line_top": {
-                  "count": 2,
-                  "median_error_px": 2.1196891301591343,
-                  "max_error_px": 2.132133599127103
+                  "count": 3,
+                  "median_error_px": 2.2860413773092074,
+                  "max_error_px": 3.5312204929778854
                 },
                 "right_goal_bottom": {
                   "count": 2,
-                  "median_error_px": 5.41338029592865,
-                  "max_error_px": 7.589297832767293
+                  "median_error_px": 4.959353482431059,
+                  "max_error_px": 6.249127302369445
                 },
                 "right_goal_post_bottom": {
                   "count": 1,
-                  "median_error_px": 2.869656448519262,
-                  "max_error_px": 2.869656448519262
+                  "median_error_px": 2.6979458791298265,
+                  "max_error_px": 2.6979458791298265
+                },
+                "right_goal_post_top": {
+                  "count": 1,
+                  "median_error_px": 4.13598310406859,
+                  "max_error_px": 4.13598310406859
                 },
                 "right_goal_top": {
-                  "count": 2,
-                  "median_error_px": 7.348862772587744,
-                  "max_error_px": 7.714492332648755
+                  "count": 3,
+                  "median_error_px": 6.371401997633225,
+                  "max_error_px": 7.281989583416304
                 },
                 "right_penalty_bottom": {
                   "count": 3,
-                  "median_error_px": 8.362261275986745,
-                  "max_error_px": 9.481938715234866
+                  "median_error_px": 11.887235275229346,
+                  "max_error_px": 12.504252770415473
                 },
                 "right_penalty_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 10.421815667615075,
-                  "max_error_px": 11.194329454311646
+                  "median_error_px": 6.055127419923836,
+                  "max_error_px": 7.617612449267532
                 },
                 "right_penalty_goal_line_top": {
-                  "count": 3,
-                  "median_error_px": 3.7211526801550785,
-                  "max_error_px": 9.116443933019303
+                  "count": 4,
+                  "median_error_px": 5.474223387436328,
+                  "max_error_px": 8.57897625329154
                 },
                 "right_penalty_spot": {
-                  "count": 3,
-                  "median_error_px": 8.158461693035662,
-                  "max_error_px": 10.31258406809828
+                  "count": 4,
+                  "median_error_px": 8.992358933975416,
+                  "max_error_px": 11.264497999663579
                 },
                 "right_penalty_top": {
-                  "count": 2,
-                  "median_error_px": 6.013812206746744,
-                  "max_error_px": 7.012610000640078
+                  "count": 3,
+                  "median_error_px": 5.034248902120947,
+                  "max_error_px": 8.801960212177313
                 },
                 "top_left_corner": {
                   "count": 1,
-                  "median_error_px": 8.887529121306468,
-                  "max_error_px": 8.887529121306468
+                  "median_error_px": 12.684714537600238,
+                  "max_error_px": 12.684714537600238
                 },
                 "top_right_corner": {
-                  "count": 2,
-                  "median_error_px": 4.177003709468778,
-                  "max_error_px": 7.616314183556042
+                  "count": 3,
+                  "median_error_px": 5.870081610563377,
+                  "max_error_px": 13.189041873065978
                 }
               },
               "key_line_holdouts": {
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 33.501260997371105,
-                  "max_error_px": 39.95008233137469
+                  "count": 5,
+                  "median_error_px": 47.40462430311277,
+                  "max_error_px": 68.46404873021447
                 }
               }
             },
@@ -5259,241 +5993,241 @@
               "numerical_score_tolerance": 1e-06,
               "coarse_best": {
                 "length_m": 105,
-                "width_m": 70,
-                "score": 1.2009723986587932,
-                "usable_frames": 4,
+                "width_m": 71,
+                "score": 1.3177483552224818,
+                "usable_frames": 5,
                 "stage": "coarse"
               },
               "score_surface": [
                 {
                   "length_m": 105,
                   "width_m": 64,
-                  "score": 2.9309463915275282,
-                  "usable_frames": 4,
+                  "score": 3.2635904632746846,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 65,
-                  "score": 2.655635676021328,
-                  "usable_frames": 4,
+                  "score": 2.907845370004255,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 66,
-                  "score": 2.323558750101162,
-                  "usable_frames": 4,
+                  "score": 2.45604053809225,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 67,
-                  "score": 1.9726653726846262,
-                  "usable_frames": 4,
+                  "score": 1.9797585127427475,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 68,
-                  "score": 1.598747906017027,
-                  "usable_frames": 4,
+                  "score": 1.7854848490776662,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 69,
-                  "score": 1.335521915579239,
-                  "usable_frames": 4,
+                  "score": 1.603793357564514,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70,
-                  "score": 1.2009723986587932,
-                  "usable_frames": 4,
+                  "score": 1.3606296960099775,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 71,
-                  "score": 1.271873767526713,
-                  "usable_frames": 4,
+                  "score": 1.3177483552224818,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 72,
-                  "score": 1.596948703039783,
-                  "usable_frames": 4,
+                  "score": 1.7104747175699793,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 73,
-                  "score": 2.0349176376520326,
-                  "usable_frames": 4,
+                  "score": 2.0978390944676097,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 74,
-                  "score": 2.3555953244287102,
-                  "usable_frames": 4,
+                  "score": 2.5086672450645042,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
                   "width_m": 75,
-                  "score": 2.639198021494538,
-                  "usable_frames": 4,
+                  "score": 2.8581517749492944,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
-                  "width_m": 69,
-                  "score": 1.335521915579239,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.1,
-                  "score": 1.3122995067945413,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.2,
-                  "score": 1.291117059295779,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.3,
-                  "score": 1.2720505096863173,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.4,
-                  "score": 1.2551626056855865,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.5,
-                  "score": 1.2405004440380887,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.6,
-                  "score": 1.2280936447594688,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.7,
-                  "score": 1.2179533902262225,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.8,
-                  "score": 1.210072343471639,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
-                  "width_m": 69.9,
-                  "score": 1.2044255995506035,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 105,
                   "width_m": 70,
-                  "score": 1.2009723986587932,
-                  "usable_frames": 4,
+                  "score": 1.3606296960099775,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.1,
-                  "score": 1.199658485129307,
-                  "usable_frames": 4,
+                  "score": 1.3418313431045235,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.2,
-                  "score": 1.200418855511937,
-                  "usable_frames": 4,
+                  "score": 1.3241534783807183,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.3,
-                  "score": 1.2031806035385524,
-                  "usable_frames": 4,
+                  "score": 1.3076235961896063,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.4,
-                  "score": 1.2078656516293904,
-                  "usable_frames": 4,
+                  "score": 1.292267831503709,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.5,
-                  "score": 1.2143932039461864,
-                  "usable_frames": 4,
+                  "score": 1.2781106349440103,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.6,
-                  "score": 1.2226818063923834,
-                  "usable_frames": 4,
+                  "score": 1.265174437242296,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.7,
-                  "score": 1.2326509706587696,
-                  "usable_frames": 4,
+                  "score": 1.2534793154141666,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.8,
-                  "score": 1.2442223659541973,
-                  "usable_frames": 4,
+                  "score": 1.2454020640198638,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 70.9,
-                  "score": 1.2573206169297317,
-                  "usable_frames": 4,
+                  "score": 1.2807623268517239,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 105,
                   "width_m": 71,
-                  "score": 1.271873767526713,
-                  "usable_frames": 4,
+                  "score": 1.3177483552224818,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.1,
+                  "score": 1.3562158292196067,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.2,
+                  "score": 1.396031356647413,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.3,
+                  "score": 1.4370723281707134,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.4,
+                  "score": 1.4792265366190402,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.5,
+                  "score": 1.5223916400613036,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.6,
+                  "score": 1.5653129405032187,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.7,
+                  "score": 1.6019265409520267,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.8,
+                  "score": 1.6375566057363773,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 71.9,
+                  "score": 1.6737527243543695,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 105,
+                  "width_m": 72,
+                  "score": 1.7104747175699793,
+                  "usable_frames": 5,
                   "stage": "fine"
                 }
               ]
@@ -5502,8 +6236,8 @@
           "length": {
             "status": "estimated",
             "pitch_model": {
-              "length_m": 101.3,
-              "width_m": 70.1,
+              "length_m": 100,
+              "width_m": 70.8,
               "status": "estimated"
             },
             "confidence": {
@@ -5512,119 +6246,119 @@
                 110
               ],
               "width_interval_m": [
-                70.1,
-                70.1
+                70.8,
+                70.8
               ],
               "boundary_limited": {
-                "length": false,
+                "length": true,
                 "width": true
               },
               "length_constrained": false,
               "width_constrained": false
             },
             "score": {
-              "best_normalised_score": 1.1996584796477263,
-              "near_best_candidate_count": 32
+              "best_normalised_score": 1.245402063673689,
+              "near_best_candidate_count": 22
             },
             "frames": [
               {
                 "frame": 55,
                 "homography": [
                   [
-                    52.61013087562111,
-                    7.511731919606135,
-                    -374.8185852019343
+                    52.451323686123274,
+                    7.664725517101914,
+                    -339.2768897574491
                   ],
                   [
-                    1.4199173183485179,
-                    -3.000921093826792,
-                    582.7495895724163
+                    1.4747717406060745,
+                    -2.954022866638813,
+                    578.9756576045984
                   ],
                   [
-                    0.008564047774490106,
-                    -0.01676082816743834,
+                    0.008581862748891429,
+                    -0.016503046043566935,
                     1
                   ]
                 ],
-                "point_error_px": 3.6355450773521163,
-                "line_error_px": 0.08061424610048107,
+                "point_error_px": 4.294968915882622,
+                "line_error_px": 0.20326911593156183,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 56915.23980727033,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 55972.2574963967,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1681.3823828920567,
                   "image_span_y_px": 699.8103360488797
                 },
-                "normalised_score": 1.0574856271142445,
+                "normalised_score": 1.245402063673689,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.616305122305357
+                    "error_px": 13.189058247704965
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.015106389496212
+                    "error_px": 8.802190584018126
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.7211432164755545
+                    "error_px": 5.534969424717173
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.482182773380634
+                    "error_px": 12.504370344032267
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.2374627947124957
+                    "error_px": 3.669581039923085
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.276317715888735
+                    "error_px": 5.035194319771243
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.714496744845579
+                    "error_px": 6.37141198567736
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.1072372034051634
+                    "error_px": 3.5312039302547227
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.158523345319587
+                    "error_px": 9.139544941771984
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 39.95011400797728
+                    "error_px": 68.46413873663528
                   },
                   {
                     "semantic": "right_goal_post_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.8696468405466486
+                    "error_px": 2.697923326938551
                   }
                 ]
               },
@@ -5632,76 +6366,76 @@
                 "frame": 1295,
                 "homography": [
                   [
-                    44.370587989758405,
-                    -33.98591728735117,
-                    2035.84870949577
+                    45.23137719173764,
+                    -33.71742305546472,
+                    2045.8172347830516
                   ],
                   [
-                    -1.7952233710942163,
-                    -2.3552244483348854,
-                    587.7985802568492
+                    -1.8623455580469206,
+                    -2.115541030411466,
+                    588.1191096660098
                   ],
                   [
-                    -0.006772250278059043,
-                    -0.01626024486382172,
+                    -0.0069468546774198075,
+                    -0.015894082122062513,
                     1
                   ]
                 ],
-                "point_error_px": 12.758868474164201,
-                "line_error_px": 0.6759886787526739,
+                "point_error_px": 16.077511057219088,
+                "line_error_px": 0.5687098779079633,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 168178.33332932158,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 168032.43204837898,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1067.6349287169041,
                   "image_span_y_px": 677.1919551934827
                 },
-                "normalised_score": 7.33592145943863,
+                "normalised_score": 7.512288199548753,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_left_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.851121601065689
+                    "error_px": 9.691453746497489
                   },
                   {
                     "semantic": "left_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 29.69744001713279
+                    "error_px": 35.694026776968094
                   },
                   {
                     "semantic": "left_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 22.59213069140277
+                    "error_px": 28.31663106476934
                   },
                   {
                     "semantic": "left_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 22.11763070105885
+                    "error_px": 31.68867534639347
                   },
                   {
                     "semantic": "left_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 14.517749159893164
+                    "error_px": 17.52484074433674
                   },
                   {
                     "semantic": "left_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 18.01378924945634
+                    "error_px": 23.514529253993597
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 74.38265143748231
+                    "error_px": 98.85414358931115
                   },
                   {
                     "semantic": "centre_circle",
@@ -5715,94 +6449,94 @@
                 "frame": 3185,
                 "homography": [
                   [
-                    60.09081266313326,
-                    34.67554010028119,
-                    -1900.9550906283164
+                    59.72555981393796,
+                    34.73308777131992,
+                    -1851.871025559207
                   ],
                   [
-                    2.7792722119026245,
-                    -2.5570687744163485,
-                    716.4602950795874
+                    2.717236974385739,
+                    -2.250229480673088,
+                    713.0523166299403
                   ],
                   [
-                    0.016909558166851683,
-                    -0.015983015903539868,
+                    0.016761461230614692,
+                    -0.015223170878465548,
                     1
                   ]
                 ],
-                "point_error_px": 4.709195766273041,
-                "line_error_px": 0.6191676370964956,
+                "point_error_px": 4.45110975915804,
+                "line_error_px": 0.5923589195336945,
                 "solver_status": "solved",
                 "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 123554.41811588014,
+                "homography_condition": 122428.31164609446,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 55.209999999999994,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 55.56,
                   "image_span_x_px": 1816.9208248472505,
                   "image_span_y_px": 617.730397148676
                 },
-                "normalised_score": 1.3418313321812083,
+                "normalised_score": 1.2430426746980783,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "bottom_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.6455652108561525
+                    "error_px": 4.241142997432725
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.4491707927734385
+                    "error_px": 5.944779969662985
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 11.194248134978013
+                    "error_px": 7.617467391592734
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.589354157431878
+                    "error_px": 6.24925076874981
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.982999450305173
+                    "error_px": 7.281679719386593
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.131957218838659
+                    "error_px": 2.285551435645334
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 10.312600017592453
+                    "error_px": 11.264511534704795
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 29.023541026576197
+                    "error_px": 32.33730679404022
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.709560944528927
+                    "error_px": 7.269672268055413
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.116557744048613
+                    "error_px": 8.579207445761012
                   }
                 ]
               },
@@ -5810,94 +6544,183 @@
                 "frame": 3425,
                 "homography": [
                   [
-                    52.7082800116517,
-                    14.70341987558132,
-                    -806.9116475934916
+                    52.47256953283133,
+                    14.761046920898318,
+                    -770.8697749273863
                   ],
                   [
-                    2.1061606559273134,
-                    -3.056841100775372,
-                    587.4607195655137
+                    2.0748135860443626,
+                    -2.9907050168445566,
+                    584.9932737381902
                   ],
                   [
-                    0.01207925851918514,
-                    -0.01690998952844209,
+                    0.011994267928884162,
+                    -0.01654083660036184,
                     1
                   ]
                 ],
-                "point_error_px": 1.8211574195303992,
-                "line_error_px": 0.055189218942132356,
+                "point_error_px": 2.5907820095672527,
+                "line_error_px": 0.2157312638959752,
                 "solver_status": "solved",
-                "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 76382.69012046297,
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 75442.61884927956,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1911.0450610997962,
                   "image_span_y_px": 673.2471995926679
                 },
-                "normalised_score": 0.5571850482427193,
+                "normalised_score": 0.8036377797881248,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 0.7376888277456205
+                    "error_px": 5.870085710152368
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.01250967935587
+                    "error_px": 5.034207695225986
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.302223451907135
+                    "error_px": 1.2746551903095793
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.362257077162413
+                    "error_px": 11.887458297124672
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.648755396749099
+                    "error_px": 4.4900548336176005
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.63283904211832
+                    "error_px": 8.84517881646862
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 25.871697799868798
+                    "error_px": 51.51435805605985
+                  }
+                ]
+              },
+              {
+                "frame": 2892,
+                "homography": [
+                  [
+                    65.49043034304059,
+                    8.19358499220867,
+                    -510.6851164932343
+                  ],
+                  [
+                    1.8067238267352892,
+                    -2.385555148503395,
+                    632.6882112515348
+                  ],
+                  [
+                    0.009062380983847498,
+                    -0.016459449606599584,
+                    1
+                  ]
+                ],
+                "point_error_px": 10.238605063759854,
+                "line_error_px": 3.049549287002378,
+                "solver_status": "solved",
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 61616.163942659405,
+                "constraint_spread": {
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
+                  "image_span_x_px": 958.5106924643585,
+                  "image_span_y_px": 679.0249490835031
+                },
+                "normalised_score": 3.4074209299532825,
+                "excluded_semantics": [],
+                "semantic_holdouts": [
+                  {
+                    "semantic": "top_right_corner",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 5.482348183315573
+                  },
+                  {
+                    "semantic": "right_penalty_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 35.903692851355025
+                  },
+                  {
+                    "semantic": "right_penalty_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 12.482116078468529
+                  },
+                  {
+                    "semantic": "right_goal_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 4.860155055414847
+                  },
+                  {
+                    "semantic": "right_goal_area_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 8.11091807673355
+                  },
+                  {
+                    "semantic": "right_penalty_spot",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 19.28638202710441
+                  },
+                  {
+                    "semantic": "right_goal_post_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 8.070260065513997
+                  },
+                  {
+                    "semantic": "centre_circle",
+                    "type": "arc",
+                    "status": "unsupported_geometry",
+                    "error_px": null
+                  },
+                  {
+                    "semantic": "bottom_touchline",
+                    "type": "line",
+                    "status": "ok",
+                    "error_px": 202.82595386946025
                   }
                 ]
               }
             ],
             "frames_rejected": [],
             "observability": {
-              "frames_usable": 4,
-              "semantic_point_count": 31,
-              "semantic_line_count": 4,
-              "semantic_arc_count": 1,
+              "frames_usable": 5,
+              "semantic_point_count": 38,
+              "semantic_line_count": 5,
+              "semantic_arc_count": 2,
               "by_frame": [
                 {
                   "frame": 55,
                   "semantic_point_count": 10,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -5908,8 +6731,8 @@
                   "semantic_point_count": 6,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 1,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": true,
@@ -5920,8 +6743,8 @@
                   "semantic_point_count": 9,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 55.209999999999994,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 55.56,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -5932,11 +6755,23 @@
                   "semantic_point_count": 6,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
+                  "excluded_semantics": []
+                },
+                {
+                  "frame": 2892,
+                  "semantic_point_count": 7,
+                  "semantic_line_count": 1,
+                  "semantic_arc_count": 1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
+                  "reaches_touchline": true,
+                  "reaches_goal_line_structure": true,
+                  "includes_centre_or_halfway": true,
                   "excluded_semantics": []
                 }
               ],
@@ -5945,353 +6780,288 @@
               "includes_centre_or_halfway": true
             },
             "holdout_summary": {
-              "point_median_error_px": 7.589354157431878,
-              "line_median_error_px": 34.48682751727674,
+              "point_median_error_px": 7.843863728553366,
+              "line_median_error_px": 68.46413873663528,
               "semantics": {
                 "bottom_right_corner": {
                   "count": 1,
-                  "median_error_px": 3.6455652108561525,
-                  "max_error_px": 3.6455652108561525
+                  "median_error_px": 4.241142997432725,
+                  "max_error_px": 4.241142997432725
                 },
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 },
                 "left_goal_area_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 18.01378924945634,
-                  "max_error_px": 18.01378924945634
+                  "median_error_px": 23.514529253993597,
+                  "max_error_px": 23.514529253993597
                 },
                 "left_goal_top": {
                   "count": 1,
-                  "median_error_px": 14.517749159893164,
-                  "max_error_px": 14.517749159893164
+                  "median_error_px": 17.52484074433674,
+                  "max_error_px": 17.52484074433674
                 },
                 "left_penalty_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 22.59213069140277,
-                  "max_error_px": 22.59213069140277
+                  "median_error_px": 28.31663106476934,
+                  "max_error_px": 28.31663106476934
                 },
                 "left_penalty_spot": {
                   "count": 1,
-                  "median_error_px": 22.11763070105885,
-                  "max_error_px": 22.11763070105885
+                  "median_error_px": 31.68867534639347,
+                  "max_error_px": 31.68867534639347
                 },
                 "left_penalty_top": {
                   "count": 1,
-                  "median_error_px": 29.69744001713279,
-                  "max_error_px": 29.69744001713279
+                  "median_error_px": 35.694026776968094,
+                  "max_error_px": 35.694026776968094
                 },
                 "right_goal_area_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 6.992939330208831,
-                  "max_error_px": 7.709560944528927
+                  "median_error_px": 6.152433293913328,
+                  "max_error_px": 7.269672268055413
                 },
                 "right_goal_area_goal_line_top": {
-                  "count": 2,
-                  "median_error_px": 2.1195972111219112,
-                  "max_error_px": 2.131957218838659
+                  "count": 3,
+                  "median_error_px": 3.5312039302547227,
+                  "max_error_px": 8.11091807673355
                 },
                 "right_goal_bottom": {
                   "count": 2,
-                  "median_error_px": 5.413408476072187,
-                  "max_error_px": 7.589354157431878
+                  "median_error_px": 4.959415904336447,
+                  "max_error_px": 6.24925076874981
                 },
                 "right_goal_post_bottom": {
                   "count": 1,
-                  "median_error_px": 2.8696468405466486,
-                  "max_error_px": 2.8696468405466486
+                  "median_error_px": 2.697923326938551,
+                  "max_error_px": 2.697923326938551
+                },
+                "right_goal_post_top": {
+                  "count": 1,
+                  "median_error_px": 8.070260065513997,
+                  "max_error_px": 8.070260065513997
                 },
                 "right_goal_top": {
-                  "count": 2,
-                  "median_error_px": 7.348748097575376,
-                  "max_error_px": 7.714496744845579
+                  "count": 3,
+                  "median_error_px": 6.37141198567736,
+                  "max_error_px": 7.281679719386593
                 },
                 "right_penalty_bottom": {
                   "count": 3,
-                  "median_error_px": 8.362257077162413,
-                  "max_error_px": 9.482182773380634
+                  "median_error_px": 11.887458297124672,
+                  "max_error_px": 12.504370344032267
                 },
                 "right_penalty_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 10.421501765863557,
-                  "max_error_px": 11.194248134978013
+                  "median_error_px": 6.053761112605168,
+                  "max_error_px": 7.617467391592734
                 },
                 "right_penalty_goal_line_top": {
-                  "count": 3,
-                  "median_error_px": 3.7211432164755545,
-                  "max_error_px": 9.116557744048613
+                  "count": 4,
+                  "median_error_px": 7.057088435239093,
+                  "max_error_px": 12.482116078468529
                 },
                 "right_penalty_spot": {
-                  "count": 3,
-                  "median_error_px": 8.158523345319587,
-                  "max_error_px": 10.312600017592453
+                  "count": 4,
+                  "median_error_px": 10.20202823823839,
+                  "max_error_px": 19.28638202710441
                 },
                 "right_penalty_top": {
-                  "count": 2,
-                  "median_error_px": 6.013808034426041,
-                  "max_error_px": 7.01250967935587
+                  "count": 3,
+                  "median_error_px": 8.802190584018126,
+                  "max_error_px": 35.903692851355025
                 },
                 "top_left_corner": {
                   "count": 1,
-                  "median_error_px": 6.851121601065689,
-                  "max_error_px": 6.851121601065689
+                  "median_error_px": 9.691453746497489,
+                  "max_error_px": 9.691453746497489
                 },
                 "top_right_corner": {
-                  "count": 2,
-                  "median_error_px": 4.176996975025489,
-                  "max_error_px": 7.616305122305357
+                  "count": 3,
+                  "median_error_px": 5.870085710152368,
+                  "max_error_px": 13.189058247704965
                 }
               },
               "key_line_holdouts": {
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 }
               }
             },
             "search": {
               "length_min_m": 100,
               "length_max_m": 110,
-              "width_min_m": 70.1,
-              "width_max_m": 70.1,
+              "width_min_m": 70.8,
+              "width_max_m": 70.8,
               "coarse_step_m": 1,
               "fine_radius_m": 1,
               "fine_step_m": 0.1,
               "near_best_ratio": 0.05,
               "numerical_score_tolerance": 1e-06,
               "coarse_best": {
-                "length_m": 101,
-                "width_m": 70.1,
-                "score": 1.1996584796544876,
-                "usable_frames": 4,
+                "length_m": 100,
+                "width_m": 70.8,
+                "score": 1.245402063673689,
+                "usable_frames": 5,
                 "stage": "coarse"
               },
               "score_surface": [
                 {
                   "length_m": 100,
-                  "width_m": 70.1,
-                  "score": 1.199658479870727,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063673689,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 101,
-                  "width_m": 70.1,
-                  "score": 1.1996584796544876,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063743948,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 102,
-                  "width_m": 70.1,
-                  "score": 1.1996584804876043,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020638141639,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 103,
-                  "width_m": 70.1,
-                  "score": 1.1996584799302614,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020638828696,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 104,
-                  "width_m": 70.1,
-                  "score": 1.1996584831018682,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020639519487,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 105,
-                  "width_m": 70.1,
-                  "score": 1.199658485129307,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020640198638,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 106,
-                  "width_m": 70.1,
-                  "score": 1.1996584840058917,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020640850842,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 107,
-                  "width_m": 70.1,
-                  "score": 1.1996584830251495,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402064152148,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 108,
-                  "width_m": 70.1,
-                  "score": 1.1996584817047609,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402064216959,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 109,
-                  "width_m": 70.1,
-                  "score": 1.199658480473412,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020642822028,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 110,
-                  "width_m": 70.1,
-                  "score": 1.1996584801364132,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020643443282,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
                   "length_m": 100,
-                  "width_m": 70.1,
-                  "score": 1.199658479870727,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063673689,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.1,
-                  "width_m": 70.1,
-                  "score": 1.1996584798344967,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020636811816,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.2,
-                  "width_m": 70.1,
-                  "score": 1.1996584798018721,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020636885168,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.3,
-                  "width_m": 70.1,
-                  "score": 1.1996584797741612,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020636957857,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.4,
-                  "width_m": 70.1,
-                  "score": 1.1996584797468284,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063703106,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.5,
-                  "width_m": 70.1,
-                  "score": 1.1996584797226448,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063709745,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.6,
-                  "width_m": 70.1,
-                  "score": 1.199658479702005,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020637160426,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.7,
-                  "width_m": 70.1,
-                  "score": 1.1996584796842997,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063723556,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.8,
-                  "width_m": 70.1,
-                  "score": 1.1996584796702778,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020637304652,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 100.9,
-                  "width_m": 70.1,
-                  "score": 1.1996584796634924,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.2454020637378809,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
                   "length_m": 101,
-                  "width_m": 70.1,
-                  "score": 1.1996584796544876,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.1,
-                  "width_m": 70.1,
-                  "score": 1.1996584796488858,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.2,
-                  "width_m": 70.1,
-                  "score": 1.1996584796547745,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 70.1,
-                  "score": 1.1996584796477263,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.4,
-                  "width_m": 70.1,
-                  "score": 1.1996584809118753,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.5,
-                  "width_m": 70.1,
-                  "score": 1.199658480836788,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.6,
-                  "width_m": 70.1,
-                  "score": 1.1996584807643145,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.7,
-                  "width_m": 70.1,
-                  "score": 1.199658480692614,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.8,
-                  "width_m": 70.1,
-                  "score": 1.1996584806231314,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.9,
-                  "width_m": 70.1,
-                  "score": 1.1996584805544548,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 102,
-                  "width_m": 70.1,
-                  "score": 1.1996584804876043,
-                  "usable_frames": 4,
+                  "width_m": 70.8,
+                  "score": 1.245402063743948,
+                  "usable_frames": 5,
                   "stage": "fine"
                 }
               ]
@@ -6300,17 +7070,17 @@
           "refined_width": {
             "status": "estimated",
             "pitch_model": {
-              "length_m": 101.3,
-              "width_m": 70.1,
+              "length_m": 100,
+              "width_m": 70.8,
               "status": "estimated"
             },
             "confidence": {
               "length_interval_m": [
-                101.3,
-                101.3
+                100,
+                100
               ],
               "width_interval_m": [
-                69.4,
+                70.3,
                 70.9
               ],
               "boundary_limited": {
@@ -6318,111 +7088,111 @@
                 "width": false
               },
               "length_constrained": false,
-              "width_constrained": false
+              "width_constrained": true
             },
             "score": {
-              "best_normalised_score": 1.1996584796477263,
-              "near_best_candidate_count": 17
+              "best_normalised_score": 1.245402063673689,
+              "near_best_candidate_count": 7
             },
             "frames": [
               {
                 "frame": 55,
                 "homography": [
                   [
-                    52.61013087562111,
-                    7.511731919606135,
-                    -374.8185852019343
+                    52.451323686123274,
+                    7.664725517101914,
+                    -339.2768897574491
                   ],
                   [
-                    1.4199173183485179,
-                    -3.000921093826792,
-                    582.7495895724163
+                    1.4747717406060745,
+                    -2.954022866638813,
+                    578.9756576045984
                   ],
                   [
-                    0.008564047774490106,
-                    -0.01676082816743834,
+                    0.008581862748891429,
+                    -0.016503046043566935,
                     1
                   ]
                 ],
-                "point_error_px": 3.6355450773521163,
-                "line_error_px": 0.08061424610048107,
+                "point_error_px": 4.294968915882622,
+                "line_error_px": 0.20326911593156183,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 56915.23980727033,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 55972.2574963967,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1681.3823828920567,
                   "image_span_y_px": 699.8103360488797
                 },
-                "normalised_score": 1.0574856271142445,
+                "normalised_score": 1.245402063673689,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.616305122305357
+                    "error_px": 13.189058247704965
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.015106389496212
+                    "error_px": 8.802190584018126
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.7211432164755545
+                    "error_px": 5.534969424717173
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.482182773380634
+                    "error_px": 12.504370344032267
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.2374627947124957
+                    "error_px": 3.669581039923085
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.276317715888735
+                    "error_px": 5.035194319771243
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.714496744845579
+                    "error_px": 6.37141198567736
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.1072372034051634
+                    "error_px": 3.5312039302547227
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.158523345319587
+                    "error_px": 9.139544941771984
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 39.95011400797728
+                    "error_px": 68.46413873663528
                   },
                   {
                     "semantic": "right_goal_post_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.8696468405466486
+                    "error_px": 2.697923326938551
                   }
                 ]
               },
@@ -6430,76 +7200,76 @@
                 "frame": 1295,
                 "homography": [
                   [
-                    44.370587989758405,
-                    -33.98591728735117,
-                    2035.84870949577
+                    45.23137719173764,
+                    -33.71742305546472,
+                    2045.8172347830516
                   ],
                   [
-                    -1.7952233710942163,
-                    -2.3552244483348854,
-                    587.7985802568492
+                    -1.8623455580469206,
+                    -2.115541030411466,
+                    588.1191096660098
                   ],
                   [
-                    -0.006772250278059043,
-                    -0.01626024486382172,
+                    -0.0069468546774198075,
+                    -0.015894082122062513,
                     1
                   ]
                 ],
-                "point_error_px": 12.758868474164201,
-                "line_error_px": 0.6759886787526739,
+                "point_error_px": 16.077511057219088,
+                "line_error_px": 0.5687098779079633,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 168178.33332932158,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 168032.43204837898,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1067.6349287169041,
                   "image_span_y_px": 677.1919551934827
                 },
-                "normalised_score": 7.33592145943863,
+                "normalised_score": 7.512288199548753,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_left_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.851121601065689
+                    "error_px": 9.691453746497489
                   },
                   {
                     "semantic": "left_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 29.69744001713279
+                    "error_px": 35.694026776968094
                   },
                   {
                     "semantic": "left_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 22.59213069140277
+                    "error_px": 28.31663106476934
                   },
                   {
                     "semantic": "left_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 22.11763070105885
+                    "error_px": 31.68867534639347
                   },
                   {
                     "semantic": "left_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 14.517749159893164
+                    "error_px": 17.52484074433674
                   },
                   {
                     "semantic": "left_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 18.01378924945634
+                    "error_px": 23.514529253993597
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 74.38265143748231
+                    "error_px": 98.85414358931115
                   },
                   {
                     "semantic": "centre_circle",
@@ -6513,94 +7283,94 @@
                 "frame": 3185,
                 "homography": [
                   [
-                    60.09081266313326,
-                    34.67554010028119,
-                    -1900.9550906283164
+                    59.72555981393796,
+                    34.73308777131992,
+                    -1851.871025559207
                   ],
                   [
-                    2.7792722119026245,
-                    -2.5570687744163485,
-                    716.4602950795874
+                    2.717236974385739,
+                    -2.250229480673088,
+                    713.0523166299403
                   ],
                   [
-                    0.016909558166851683,
-                    -0.015983015903539868,
+                    0.016761461230614692,
+                    -0.015223170878465548,
                     1
                   ]
                 ],
-                "point_error_px": 4.709195766273041,
-                "line_error_px": 0.6191676370964956,
+                "point_error_px": 4.45110975915804,
+                "line_error_px": 0.5923589195336945,
                 "solver_status": "solved",
                 "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 123554.41811588014,
+                "homography_condition": 122428.31164609446,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 55.209999999999994,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 55.56,
                   "image_span_x_px": 1816.9208248472505,
                   "image_span_y_px": 617.730397148676
                 },
-                "normalised_score": 1.3418313321812083,
+                "normalised_score": 1.2430426746980783,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "bottom_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.6455652108561525
+                    "error_px": 4.241142997432725
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.4491707927734385
+                    "error_px": 5.944779969662985
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 11.194248134978013
+                    "error_px": 7.617467391592734
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.589354157431878
+                    "error_px": 6.24925076874981
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.982999450305173
+                    "error_px": 7.281679719386593
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.131957218838659
+                    "error_px": 2.285551435645334
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 10.312600017592453
+                    "error_px": 11.264511534704795
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 29.023541026576197
+                    "error_px": 32.33730679404022
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.709560944528927
+                    "error_px": 7.269672268055413
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.116557744048613
+                    "error_px": 8.579207445761012
                   }
                 ]
               },
@@ -6608,94 +7378,183 @@
                 "frame": 3425,
                 "homography": [
                   [
-                    52.7082800116517,
-                    14.70341987558132,
-                    -806.9116475934916
+                    52.47256953283133,
+                    14.761046920898318,
+                    -770.8697749273863
                   ],
                   [
-                    2.1061606559273134,
-                    -3.056841100775372,
-                    587.4607195655137
+                    2.0748135860443626,
+                    -2.9907050168445566,
+                    584.9932737381902
                   ],
                   [
-                    0.01207925851918514,
-                    -0.01690998952844209,
+                    0.011994267928884162,
+                    -0.01654083660036184,
                     1
                   ]
                 ],
-                "point_error_px": 1.8211574195303992,
-                "line_error_px": 0.055189218942132356,
+                "point_error_px": 2.5907820095672527,
+                "line_error_px": 0.2157312638959752,
                 "solver_status": "solved",
-                "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 76382.69012046297,
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 75442.61884927956,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1911.0450610997962,
                   "image_span_y_px": 673.2471995926679
                 },
-                "normalised_score": 0.5571850482427193,
+                "normalised_score": 0.8036377797881248,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 0.7376888277456205
+                    "error_px": 5.870085710152368
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.01250967935587
+                    "error_px": 5.034207695225986
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.302223451907135
+                    "error_px": 1.2746551903095793
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.362257077162413
+                    "error_px": 11.887458297124672
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.648755396749099
+                    "error_px": 4.4900548336176005
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.63283904211832
+                    "error_px": 8.84517881646862
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 25.871697799868798
+                    "error_px": 51.51435805605985
+                  }
+                ]
+              },
+              {
+                "frame": 2892,
+                "homography": [
+                  [
+                    65.49043034304059,
+                    8.19358499220867,
+                    -510.6851164932343
+                  ],
+                  [
+                    1.8067238267352892,
+                    -2.385555148503395,
+                    632.6882112515348
+                  ],
+                  [
+                    0.009062380983847498,
+                    -0.016459449606599584,
+                    1
+                  ]
+                ],
+                "point_error_px": 10.238605063759854,
+                "line_error_px": 3.049549287002378,
+                "solver_status": "solved",
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 61616.163942659405,
+                "constraint_spread": {
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
+                  "image_span_x_px": 958.5106924643585,
+                  "image_span_y_px": 679.0249490835031
+                },
+                "normalised_score": 3.4074209299532825,
+                "excluded_semantics": [],
+                "semantic_holdouts": [
+                  {
+                    "semantic": "top_right_corner",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 5.482348183315573
+                  },
+                  {
+                    "semantic": "right_penalty_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 35.903692851355025
+                  },
+                  {
+                    "semantic": "right_penalty_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 12.482116078468529
+                  },
+                  {
+                    "semantic": "right_goal_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 4.860155055414847
+                  },
+                  {
+                    "semantic": "right_goal_area_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 8.11091807673355
+                  },
+                  {
+                    "semantic": "right_penalty_spot",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 19.28638202710441
+                  },
+                  {
+                    "semantic": "right_goal_post_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 8.070260065513997
+                  },
+                  {
+                    "semantic": "centre_circle",
+                    "type": "arc",
+                    "status": "unsupported_geometry",
+                    "error_px": null
+                  },
+                  {
+                    "semantic": "bottom_touchline",
+                    "type": "line",
+                    "status": "ok",
+                    "error_px": 202.82595386946025
                   }
                 ]
               }
             ],
             "frames_rejected": [],
             "observability": {
-              "frames_usable": 4,
-              "semantic_point_count": 31,
-              "semantic_line_count": 4,
-              "semantic_arc_count": 1,
+              "frames_usable": 5,
+              "semantic_point_count": 38,
+              "semantic_line_count": 5,
+              "semantic_arc_count": 2,
               "by_frame": [
                 {
                   "frame": 55,
                   "semantic_point_count": 10,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -6706,8 +7565,8 @@
                   "semantic_point_count": 6,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 1,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": true,
@@ -6718,8 +7577,8 @@
                   "semantic_point_count": 9,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 55.209999999999994,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 55.56,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -6730,11 +7589,23 @@
                   "semantic_point_count": 6,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
+                  "excluded_semantics": []
+                },
+                {
+                  "frame": 2892,
+                  "semantic_point_count": 7,
+                  "semantic_line_count": 1,
+                  "semantic_arc_count": 1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
+                  "reaches_touchline": true,
+                  "reaches_goal_line_structure": true,
+                  "includes_centre_or_halfway": true,
                   "excluded_semantics": []
                 }
               ],
@@ -6743,116 +7614,121 @@
               "includes_centre_or_halfway": true
             },
             "holdout_summary": {
-              "point_median_error_px": 7.589354157431878,
-              "line_median_error_px": 34.48682751727674,
+              "point_median_error_px": 7.843863728553366,
+              "line_median_error_px": 68.46413873663528,
               "semantics": {
                 "bottom_right_corner": {
                   "count": 1,
-                  "median_error_px": 3.6455652108561525,
-                  "max_error_px": 3.6455652108561525
+                  "median_error_px": 4.241142997432725,
+                  "max_error_px": 4.241142997432725
                 },
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 },
                 "left_goal_area_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 18.01378924945634,
-                  "max_error_px": 18.01378924945634
+                  "median_error_px": 23.514529253993597,
+                  "max_error_px": 23.514529253993597
                 },
                 "left_goal_top": {
                   "count": 1,
-                  "median_error_px": 14.517749159893164,
-                  "max_error_px": 14.517749159893164
+                  "median_error_px": 17.52484074433674,
+                  "max_error_px": 17.52484074433674
                 },
                 "left_penalty_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 22.59213069140277,
-                  "max_error_px": 22.59213069140277
+                  "median_error_px": 28.31663106476934,
+                  "max_error_px": 28.31663106476934
                 },
                 "left_penalty_spot": {
                   "count": 1,
-                  "median_error_px": 22.11763070105885,
-                  "max_error_px": 22.11763070105885
+                  "median_error_px": 31.68867534639347,
+                  "max_error_px": 31.68867534639347
                 },
                 "left_penalty_top": {
                   "count": 1,
-                  "median_error_px": 29.69744001713279,
-                  "max_error_px": 29.69744001713279
+                  "median_error_px": 35.694026776968094,
+                  "max_error_px": 35.694026776968094
                 },
                 "right_goal_area_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 6.992939330208831,
-                  "max_error_px": 7.709560944528927
+                  "median_error_px": 6.152433293913328,
+                  "max_error_px": 7.269672268055413
                 },
                 "right_goal_area_goal_line_top": {
-                  "count": 2,
-                  "median_error_px": 2.1195972111219112,
-                  "max_error_px": 2.131957218838659
+                  "count": 3,
+                  "median_error_px": 3.5312039302547227,
+                  "max_error_px": 8.11091807673355
                 },
                 "right_goal_bottom": {
                   "count": 2,
-                  "median_error_px": 5.413408476072187,
-                  "max_error_px": 7.589354157431878
+                  "median_error_px": 4.959415904336447,
+                  "max_error_px": 6.24925076874981
                 },
                 "right_goal_post_bottom": {
                   "count": 1,
-                  "median_error_px": 2.8696468405466486,
-                  "max_error_px": 2.8696468405466486
+                  "median_error_px": 2.697923326938551,
+                  "max_error_px": 2.697923326938551
+                },
+                "right_goal_post_top": {
+                  "count": 1,
+                  "median_error_px": 8.070260065513997,
+                  "max_error_px": 8.070260065513997
                 },
                 "right_goal_top": {
-                  "count": 2,
-                  "median_error_px": 7.348748097575376,
-                  "max_error_px": 7.714496744845579
+                  "count": 3,
+                  "median_error_px": 6.37141198567736,
+                  "max_error_px": 7.281679719386593
                 },
                 "right_penalty_bottom": {
                   "count": 3,
-                  "median_error_px": 8.362257077162413,
-                  "max_error_px": 9.482182773380634
+                  "median_error_px": 11.887458297124672,
+                  "max_error_px": 12.504370344032267
                 },
                 "right_penalty_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 10.421501765863557,
-                  "max_error_px": 11.194248134978013
+                  "median_error_px": 6.053761112605168,
+                  "max_error_px": 7.617467391592734
                 },
                 "right_penalty_goal_line_top": {
-                  "count": 3,
-                  "median_error_px": 3.7211432164755545,
-                  "max_error_px": 9.116557744048613
+                  "count": 4,
+                  "median_error_px": 7.057088435239093,
+                  "max_error_px": 12.482116078468529
                 },
                 "right_penalty_spot": {
-                  "count": 3,
-                  "median_error_px": 8.158523345319587,
-                  "max_error_px": 10.312600017592453
+                  "count": 4,
+                  "median_error_px": 10.20202823823839,
+                  "max_error_px": 19.28638202710441
                 },
                 "right_penalty_top": {
-                  "count": 2,
-                  "median_error_px": 6.013808034426041,
-                  "max_error_px": 7.01250967935587
+                  "count": 3,
+                  "median_error_px": 8.802190584018126,
+                  "max_error_px": 35.903692851355025
                 },
                 "top_left_corner": {
                   "count": 1,
-                  "median_error_px": 6.851121601065689,
-                  "max_error_px": 6.851121601065689
+                  "median_error_px": 9.691453746497489,
+                  "max_error_px": 9.691453746497489
                 },
                 "top_right_corner": {
-                  "count": 2,
-                  "median_error_px": 4.176996975025489,
-                  "max_error_px": 7.616305122305357
+                  "count": 3,
+                  "median_error_px": 5.870085710152368,
+                  "max_error_px": 13.189058247704965
                 }
               },
               "key_line_holdouts": {
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 }
               }
             },
             "search": {
-              "length_min_m": 101.3,
-              "length_max_m": 101.3,
+              "length_min_m": 100,
+              "length_max_m": 100,
               "width_min_m": 64,
               "width_max_m": 75,
               "coarse_step_m": 1,
@@ -6861,242 +7737,242 @@
               "near_best_ratio": 0.05,
               "numerical_score_tolerance": 1e-06,
               "coarse_best": {
-                "length_m": 101.3,
-                "width_m": 70,
-                "score": 1.2009723951925357,
-                "usable_frames": 4,
+                "length_m": 100,
+                "width_m": 71,
+                "score": 1.3177483547785909,
+                "usable_frames": 5,
                 "stage": "coarse"
               },
               "score_surface": [
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 64,
-                  "score": 2.9319516278383944,
-                  "usable_frames": 4,
+                  "score": 3.266293886970671,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 65,
-                  "score": 2.656733492227459,
-                  "usable_frames": 4,
+                  "score": 2.910828870848307,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 66,
-                  "score": 2.3235586111374937,
-                  "usable_frames": 4,
+                  "score": 2.456040217843964,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 67,
-                  "score": 1.9726185020235638,
-                  "usable_frames": 4,
+                  "score": 1.9797921649613532,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 68,
-                  "score": 1.5989498099742623,
-                  "usable_frames": 4,
+                  "score": 1.7860989683764446,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 69,
-                  "score": 1.3355219169975197,
-                  "usable_frames": 4,
+                  "score": 1.6037933631946746,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70,
-                  "score": 1.2009723951925357,
-                  "usable_frames": 4,
+                  "score": 1.3606296891005587,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 71,
-                  "score": 1.2718737702536802,
-                  "usable_frames": 4,
+                  "score": 1.3177483547785909,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 72,
-                  "score": 1.5974421228088997,
-                  "usable_frames": 4,
+                  "score": 1.7118298378033596,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 73,
-                  "score": 2.0349176555709665,
-                  "usable_frames": 4,
+                  "score": 2.097839094001586,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 74,
-                  "score": 2.355595418142567,
-                  "usable_frames": 4,
+                  "score": 2.508667409786611,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 75,
-                  "score": 2.6392395441490377,
-                  "usable_frames": 4,
+                  "score": 2.8582525351942003,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
-                  "width_m": 69,
-                  "score": 1.3355219169975197,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.1,
-                  "score": 1.3122995093321896,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.2,
-                  "score": 1.2911170619529806,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.3,
-                  "score": 1.2720505121932892,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.4,
-                  "score": 1.2551626080147489,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.5,
-                  "score": 1.240500437886455,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.6,
-                  "score": 1.2280936498652917,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.7,
-                  "score": 1.2179533907337468,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.8,
-                  "score": 1.2100723444905221,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
-                  "width_m": 69.9,
-                  "score": 1.2044255999212448,
-                  "usable_frames": 4,
-                  "stage": "fine"
-                },
-                {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70,
-                  "score": 1.2009723951925357,
-                  "usable_frames": 4,
+                  "score": 1.3606296891005587,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.1,
-                  "score": 1.1996584796477263,
-                  "usable_frames": 4,
+                  "score": 1.3418313326402753,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.2,
-                  "score": 1.2004188508486993,
-                  "usable_frames": 4,
+                  "score": 1.3241534678221907,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.3,
-                  "score": 1.203180602648121,
-                  "usable_frames": 4,
+                  "score": 1.3076235880305753,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.4,
-                  "score": 1.2078656541463082,
-                  "usable_frames": 4,
+                  "score": 1.2922678227187145,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.5,
-                  "score": 1.2143932063163159,
-                  "usable_frames": 4,
+                  "score": 1.2781106340860084,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.6,
-                  "score": 1.2226818087392004,
-                  "usable_frames": 4,
+                  "score": 1.2651744433829581,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.7,
-                  "score": 1.2326509731239907,
-                  "usable_frames": 4,
+                  "score": 1.2534793219073654,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.8,
-                  "score": 1.2442223685254348,
-                  "usable_frames": 4,
+                  "score": 1.245402063673689,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 70.9,
-                  "score": 1.2573206195871816,
-                  "usable_frames": 4,
+                  "score": 1.28076232645716,
+                  "usable_frames": 5,
                   "stage": "fine"
                 },
                 {
-                  "length_m": 101.3,
+                  "length_m": 100,
                   "width_m": 71,
-                  "score": 1.2718737702536802,
-                  "usable_frames": 4,
+                  "score": 1.3177483547785909,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.1,
+                  "score": 1.3562158287280166,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.2,
+                  "score": 1.3960313561038944,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.3,
+                  "score": 1.4370723275741173,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.4,
+                  "score": 1.4792265359695702,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.5,
+                  "score": 1.5223916393626142,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.6,
+                  "score": 1.565389869387171,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.7,
+                  "score": 1.6008808353662174,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.8,
+                  "score": 1.6364541327150508,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 71.9,
+                  "score": 1.6751009050548749,
+                  "usable_frames": 5,
+                  "stage": "fine"
+                },
+                {
+                  "length_m": 100,
+                  "width_m": 72,
+                  "score": 1.7118298378033596,
+                  "usable_frames": 5,
                   "stage": "fine"
                 }
               ]
@@ -7107,18 +7983,18 @@
           "final_model": {
             "status": "estimated",
             "pitch_model": {
-              "length_m": 101.3,
-              "width_m": 70.1,
+              "length_m": 100,
+              "width_m": 70.8,
               "status": "estimated"
             },
             "confidence": {
               "length_interval_m": [
-                101.3,
-                101.3
+                100,
+                100
               ],
               "width_interval_m": [
-                70.1,
-                70.1
+                70.8,
+                70.8
               ],
               "boundary_limited": {
                 "length": true,
@@ -7128,7 +8004,7 @@
               "width_constrained": false
             },
             "score": {
-              "best_normalised_score": 1.1996584796477263,
+              "best_normalised_score": 1.245402063673689,
               "near_best_candidate_count": 2
             },
             "frames": [
@@ -7136,100 +8012,100 @@
                 "frame": 55,
                 "homography": [
                   [
-                    52.61013087562111,
-                    7.511731919606135,
-                    -374.8185852019343
+                    52.451323686123274,
+                    7.664725517101914,
+                    -339.2768897574491
                   ],
                   [
-                    1.4199173183485179,
-                    -3.000921093826792,
-                    582.7495895724163
+                    1.4747717406060745,
+                    -2.954022866638813,
+                    578.9756576045984
                   ],
                   [
-                    0.008564047774490106,
-                    -0.01676082816743834,
+                    0.008581862748891429,
+                    -0.016503046043566935,
                     1
                   ]
                 ],
-                "point_error_px": 3.6355450773521163,
-                "line_error_px": 0.08061424610048107,
+                "point_error_px": 4.294968915882622,
+                "line_error_px": 0.20326911593156183,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 56915.23980727033,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 55972.2574963967,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1681.3823828920567,
                   "image_span_y_px": 699.8103360488797
                 },
-                "normalised_score": 1.0574856271142445,
+                "normalised_score": 1.245402063673689,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.616305122305357
+                    "error_px": 13.189058247704965
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.015106389496212
+                    "error_px": 8.802190584018126
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.7211432164755545
+                    "error_px": 5.534969424717173
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.482182773380634
+                    "error_px": 12.504370344032267
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.2374627947124957
+                    "error_px": 3.669581039923085
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.276317715888735
+                    "error_px": 5.035194319771243
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.714496744845579
+                    "error_px": 6.37141198567736
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.1072372034051634
+                    "error_px": 3.5312039302547227
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.158523345319587
+                    "error_px": 9.139544941771984
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 39.95011400797728
+                    "error_px": 68.46413873663528
                   },
                   {
                     "semantic": "right_goal_post_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.8696468405466486
+                    "error_px": 2.697923326938551
                   }
                 ]
               },
@@ -7237,76 +8113,76 @@
                 "frame": 1295,
                 "homography": [
                   [
-                    44.370587989758405,
-                    -33.98591728735117,
-                    2035.84870949577
+                    45.23137719173764,
+                    -33.71742305546472,
+                    2045.8172347830516
                   ],
                   [
-                    -1.7952233710942163,
-                    -2.3552244483348854,
-                    587.7985802568492
+                    -1.8623455580469206,
+                    -2.115541030411466,
+                    588.1191096660098
                   ],
                   [
-                    -0.006772250278059043,
-                    -0.01626024486382172,
+                    -0.0069468546774198075,
+                    -0.015894082122062513,
                     1
                   ]
                 ],
-                "point_error_px": 12.758868474164201,
-                "line_error_px": 0.6759886787526739,
+                "point_error_px": 16.077511057219088,
+                "line_error_px": 0.5687098779079633,
                 "solver_status": "solved",
-                "solver_candidate": "point_baseline:refined",
-                "homography_condition": 168178.33332932158,
+                "solver_candidate": "mixed_normalised_dlt:refined",
+                "homography_condition": 168032.43204837898,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1067.6349287169041,
                   "image_span_y_px": 677.1919551934827
                 },
-                "normalised_score": 7.33592145943863,
+                "normalised_score": 7.512288199548753,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_left_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.851121601065689
+                    "error_px": 9.691453746497489
                   },
                   {
                     "semantic": "left_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 29.69744001713279
+                    "error_px": 35.694026776968094
                   },
                   {
                     "semantic": "left_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 22.59213069140277
+                    "error_px": 28.31663106476934
                   },
                   {
                     "semantic": "left_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 22.11763070105885
+                    "error_px": 31.68867534639347
                   },
                   {
                     "semantic": "left_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 14.517749159893164
+                    "error_px": 17.52484074433674
                   },
                   {
                     "semantic": "left_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 18.01378924945634
+                    "error_px": 23.514529253993597
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 74.38265143748231
+                    "error_px": 98.85414358931115
                   },
                   {
                     "semantic": "centre_circle",
@@ -7320,94 +8196,94 @@
                 "frame": 3185,
                 "homography": [
                   [
-                    60.09081266313326,
-                    34.67554010028119,
-                    -1900.9550906283164
+                    59.72555981393796,
+                    34.73308777131992,
+                    -1851.871025559207
                   ],
                   [
-                    2.7792722119026245,
-                    -2.5570687744163485,
-                    716.4602950795874
+                    2.717236974385739,
+                    -2.250229480673088,
+                    713.0523166299403
                   ],
                   [
-                    0.016909558166851683,
-                    -0.015983015903539868,
+                    0.016761461230614692,
+                    -0.015223170878465548,
                     1
                   ]
                 ],
-                "point_error_px": 4.709195766273041,
-                "line_error_px": 0.6191676370964956,
+                "point_error_px": 4.45110975915804,
+                "line_error_px": 0.5923589195336945,
                 "solver_status": "solved",
                 "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 123554.41811588014,
+                "homography_condition": 122428.31164609446,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 55.209999999999994,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 55.56,
                   "image_span_x_px": 1816.9208248472505,
                   "image_span_y_px": 617.730397148676
                 },
-                "normalised_score": 1.3418313321812083,
+                "normalised_score": 1.2430426746980783,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "bottom_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.6455652108561525
+                    "error_px": 4.241142997432725
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 5.4491707927734385
+                    "error_px": 5.944779969662985
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 11.194248134978013
+                    "error_px": 7.617467391592734
                   },
                   {
                     "semantic": "right_goal_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.589354157431878
+                    "error_px": 6.24925076874981
                   },
                   {
                     "semantic": "right_goal_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.982999450305173
+                    "error_px": 7.281679719386593
                   },
                   {
                     "semantic": "right_goal_area_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 2.131957218838659
+                    "error_px": 2.285551435645334
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 10.312600017592453
+                    "error_px": 11.264511534704795
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 29.023541026576197
+                    "error_px": 32.33730679404022
                   },
                   {
                     "semantic": "right_goal_area_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.709560944528927
+                    "error_px": 7.269672268055413
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.116557744048613
+                    "error_px": 8.579207445761012
                   }
                 ]
               },
@@ -7415,94 +8291,183 @@
                 "frame": 3425,
                 "homography": [
                   [
-                    52.7082800116517,
-                    14.70341987558132,
-                    -806.9116475934916
+                    52.47256953283133,
+                    14.761046920898318,
+                    -770.8697749273863
                   ],
                   [
-                    2.1061606559273134,
-                    -3.056841100775372,
-                    587.4607195655137
+                    2.0748135860443626,
+                    -2.9907050168445566,
+                    584.9932737381902
                   ],
                   [
-                    0.01207925851918514,
-                    -0.01690998952844209,
+                    0.011994267928884162,
+                    -0.01654083660036184,
                     1
                   ]
                 ],
-                "point_error_px": 1.8211574195303992,
-                "line_error_px": 0.055189218942132356,
+                "point_error_px": 2.5907820095672527,
+                "line_error_px": 0.2157312638959752,
                 "solver_status": "solved",
-                "solver_candidate": "mixed_normalised_dlt:refined",
-                "homography_condition": 76382.69012046297,
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 75442.61884927956,
                 "constraint_spread": {
-                  "world_span_x_m": 101.3,
-                  "world_span_y_m": 70.1,
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
                   "image_span_x_px": 1911.0450610997962,
                   "image_span_y_px": 673.2471995926679
                 },
-                "normalised_score": 0.5571850482427193,
+                "normalised_score": 0.8036377797881248,
                 "excluded_semantics": [],
                 "semantic_holdouts": [
                   {
                     "semantic": "top_right_corner",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 0.7376888277456205
+                    "error_px": 5.870085710152368
                   },
                   {
                     "semantic": "right_penalty_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 7.01250967935587
+                    "error_px": 5.034207695225986
                   },
                   {
                     "semantic": "right_penalty_goal_line_top",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 3.302223451907135
+                    "error_px": 1.2746551903095793
                   },
                   {
                     "semantic": "right_penalty_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 8.362257077162413
+                    "error_px": 11.887458297124672
                   },
                   {
                     "semantic": "right_penalty_goal_line_bottom",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 9.648755396749099
+                    "error_px": 4.4900548336176005
                   },
                   {
                     "semantic": "right_penalty_spot",
                     "type": "point",
                     "status": "ok",
-                    "error_px": 6.63283904211832
+                    "error_px": 8.84517881646862
                   },
                   {
                     "semantic": "bottom_touchline",
                     "type": "line",
                     "status": "ok",
-                    "error_px": 25.871697799868798
+                    "error_px": 51.51435805605985
+                  }
+                ]
+              },
+              {
+                "frame": 2892,
+                "homography": [
+                  [
+                    65.49043034304059,
+                    8.19358499220867,
+                    -510.6851164932343
+                  ],
+                  [
+                    1.8067238267352892,
+                    -2.385555148503395,
+                    632.6882112515348
+                  ],
+                  [
+                    0.009062380983847498,
+                    -0.016459449606599584,
+                    1
+                  ]
+                ],
+                "point_error_px": 10.238605063759854,
+                "line_error_px": 3.049549287002378,
+                "solver_status": "solved",
+                "solver_candidate": "point_baseline:refined",
+                "homography_condition": 61616.163942659405,
+                "constraint_spread": {
+                  "world_span_x_m": 100,
+                  "world_span_y_m": 70.8,
+                  "image_span_x_px": 958.5106924643585,
+                  "image_span_y_px": 679.0249490835031
+                },
+                "normalised_score": 3.4074209299532825,
+                "excluded_semantics": [],
+                "semantic_holdouts": [
+                  {
+                    "semantic": "top_right_corner",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 5.482348183315573
+                  },
+                  {
+                    "semantic": "right_penalty_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 35.903692851355025
+                  },
+                  {
+                    "semantic": "right_penalty_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 12.482116078468529
+                  },
+                  {
+                    "semantic": "right_goal_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 4.860155055414847
+                  },
+                  {
+                    "semantic": "right_goal_area_goal_line_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 8.11091807673355
+                  },
+                  {
+                    "semantic": "right_penalty_spot",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 19.28638202710441
+                  },
+                  {
+                    "semantic": "right_goal_post_top",
+                    "type": "point",
+                    "status": "ok",
+                    "error_px": 8.070260065513997
+                  },
+                  {
+                    "semantic": "centre_circle",
+                    "type": "arc",
+                    "status": "unsupported_geometry",
+                    "error_px": null
+                  },
+                  {
+                    "semantic": "bottom_touchline",
+                    "type": "line",
+                    "status": "ok",
+                    "error_px": 202.82595386946025
                   }
                 ]
               }
             ],
             "frames_rejected": [],
             "observability": {
-              "frames_usable": 4,
-              "semantic_point_count": 31,
-              "semantic_line_count": 4,
-              "semantic_arc_count": 1,
+              "frames_usable": 5,
+              "semantic_point_count": 38,
+              "semantic_line_count": 5,
+              "semantic_arc_count": 2,
               "by_frame": [
                 {
                   "frame": 55,
                   "semantic_point_count": 10,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -7513,8 +8478,8 @@
                   "semantic_point_count": 6,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 1,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": true,
@@ -7525,8 +8490,8 @@
                   "semantic_point_count": 9,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 55.209999999999994,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 55.56,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
@@ -7537,11 +8502,23 @@
                   "semantic_point_count": 6,
                   "semantic_line_count": 1,
                   "semantic_arc_count": 0,
-                  "world_x_span_m": 101.3,
-                  "world_y_span_m": 70.1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
                   "reaches_touchline": true,
                   "reaches_goal_line_structure": true,
                   "includes_centre_or_halfway": false,
+                  "excluded_semantics": []
+                },
+                {
+                  "frame": 2892,
+                  "semantic_point_count": 7,
+                  "semantic_line_count": 1,
+                  "semantic_arc_count": 1,
+                  "world_x_span_m": 100,
+                  "world_y_span_m": 70.8,
+                  "reaches_touchline": true,
+                  "reaches_goal_line_structure": true,
+                  "includes_centre_or_halfway": true,
                   "excluded_semantics": []
                 }
               ],
@@ -7550,143 +8527,148 @@
               "includes_centre_or_halfway": true
             },
             "holdout_summary": {
-              "point_median_error_px": 7.589354157431878,
-              "line_median_error_px": 34.48682751727674,
+              "point_median_error_px": 7.843863728553366,
+              "line_median_error_px": 68.46413873663528,
               "semantics": {
                 "bottom_right_corner": {
                   "count": 1,
-                  "median_error_px": 3.6455652108561525,
-                  "max_error_px": 3.6455652108561525
+                  "median_error_px": 4.241142997432725,
+                  "max_error_px": 4.241142997432725
                 },
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 },
                 "left_goal_area_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 18.01378924945634,
-                  "max_error_px": 18.01378924945634
+                  "median_error_px": 23.514529253993597,
+                  "max_error_px": 23.514529253993597
                 },
                 "left_goal_top": {
                   "count": 1,
-                  "median_error_px": 14.517749159893164,
-                  "max_error_px": 14.517749159893164
+                  "median_error_px": 17.52484074433674,
+                  "max_error_px": 17.52484074433674
                 },
                 "left_penalty_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 22.59213069140277,
-                  "max_error_px": 22.59213069140277
+                  "median_error_px": 28.31663106476934,
+                  "max_error_px": 28.31663106476934
                 },
                 "left_penalty_spot": {
                   "count": 1,
-                  "median_error_px": 22.11763070105885,
-                  "max_error_px": 22.11763070105885
+                  "median_error_px": 31.68867534639347,
+                  "max_error_px": 31.68867534639347
                 },
                 "left_penalty_top": {
                   "count": 1,
-                  "median_error_px": 29.69744001713279,
-                  "max_error_px": 29.69744001713279
+                  "median_error_px": 35.694026776968094,
+                  "max_error_px": 35.694026776968094
                 },
                 "right_goal_area_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 6.992939330208831,
-                  "max_error_px": 7.709560944528927
+                  "median_error_px": 6.152433293913328,
+                  "max_error_px": 7.269672268055413
                 },
                 "right_goal_area_goal_line_top": {
-                  "count": 2,
-                  "median_error_px": 2.1195972111219112,
-                  "max_error_px": 2.131957218838659
+                  "count": 3,
+                  "median_error_px": 3.5312039302547227,
+                  "max_error_px": 8.11091807673355
                 },
                 "right_goal_bottom": {
                   "count": 2,
-                  "median_error_px": 5.413408476072187,
-                  "max_error_px": 7.589354157431878
+                  "median_error_px": 4.959415904336447,
+                  "max_error_px": 6.24925076874981
                 },
                 "right_goal_post_bottom": {
                   "count": 1,
-                  "median_error_px": 2.8696468405466486,
-                  "max_error_px": 2.8696468405466486
+                  "median_error_px": 2.697923326938551,
+                  "max_error_px": 2.697923326938551
+                },
+                "right_goal_post_top": {
+                  "count": 1,
+                  "median_error_px": 8.070260065513997,
+                  "max_error_px": 8.070260065513997
                 },
                 "right_goal_top": {
-                  "count": 2,
-                  "median_error_px": 7.348748097575376,
-                  "max_error_px": 7.714496744845579
+                  "count": 3,
+                  "median_error_px": 6.37141198567736,
+                  "max_error_px": 7.281679719386593
                 },
                 "right_penalty_bottom": {
                   "count": 3,
-                  "median_error_px": 8.362257077162413,
-                  "max_error_px": 9.482182773380634
+                  "median_error_px": 11.887458297124672,
+                  "max_error_px": 12.504370344032267
                 },
                 "right_penalty_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 10.421501765863557,
-                  "max_error_px": 11.194248134978013
+                  "median_error_px": 6.053761112605168,
+                  "max_error_px": 7.617467391592734
                 },
                 "right_penalty_goal_line_top": {
-                  "count": 3,
-                  "median_error_px": 3.7211432164755545,
-                  "max_error_px": 9.116557744048613
+                  "count": 4,
+                  "median_error_px": 7.057088435239093,
+                  "max_error_px": 12.482116078468529
                 },
                 "right_penalty_spot": {
-                  "count": 3,
-                  "median_error_px": 8.158523345319587,
-                  "max_error_px": 10.312600017592453
+                  "count": 4,
+                  "median_error_px": 10.20202823823839,
+                  "max_error_px": 19.28638202710441
                 },
                 "right_penalty_top": {
-                  "count": 2,
-                  "median_error_px": 6.013808034426041,
-                  "max_error_px": 7.01250967935587
+                  "count": 3,
+                  "median_error_px": 8.802190584018126,
+                  "max_error_px": 35.903692851355025
                 },
                 "top_left_corner": {
                   "count": 1,
-                  "median_error_px": 6.851121601065689,
-                  "max_error_px": 6.851121601065689
+                  "median_error_px": 9.691453746497489,
+                  "max_error_px": 9.691453746497489
                 },
                 "top_right_corner": {
-                  "count": 2,
-                  "median_error_px": 4.176996975025489,
-                  "max_error_px": 7.616305122305357
+                  "count": 3,
+                  "median_error_px": 5.870085710152368,
+                  "max_error_px": 13.189058247704965
                 }
               },
               "key_line_holdouts": {
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 }
               }
             },
             "search": {
-              "length_min_m": 101.3,
-              "length_max_m": 101.3,
-              "width_min_m": 70.1,
-              "width_max_m": 70.1,
+              "length_min_m": 100,
+              "length_max_m": 100,
+              "width_min_m": 70.8,
+              "width_max_m": 70.8,
               "coarse_step_m": 0.1,
               "fine_radius_m": 0,
               "fine_step_m": 0.1,
               "near_best_ratio": 0.05,
               "numerical_score_tolerance": 1e-06,
               "coarse_best": {
-                "length_m": 101.3,
-                "width_m": 70.1,
-                "score": 1.1996584796477263,
-                "usable_frames": 4,
+                "length_m": 100,
+                "width_m": 70.8,
+                "score": 1.245402063673689,
+                "usable_frames": 5,
                 "stage": "coarse"
               },
               "score_surface": [
                 {
-                  "length_m": 101.3,
-                  "width_m": 70.1,
-                  "score": 1.1996584796477263,
-                  "usable_frames": 4,
+                  "length_m": 100,
+                  "width_m": 70.8,
+                  "score": 1.245402063673689,
+                  "usable_frames": 5,
                   "stage": "coarse"
                 },
                 {
-                  "length_m": 101.3,
-                  "width_m": 70.1,
-                  "score": 1.1996584796477263,
-                  "usable_frames": 4,
+                  "length_m": 100,
+                  "width_m": 70.8,
+                  "score": 1.245402063673689,
+                  "usable_frames": 5,
                   "stage": "fine"
                 }
               ]
@@ -7694,15 +8676,15 @@
           },
           "final_summary": {
             "status": "estimated",
-            "length_m": 101.3,
-            "width_m": 70.1,
+            "length_m": 100,
+            "width_m": 70.8,
             "length_interval_m": [
-              101.3,
-              101.3
+              100,
+              100
             ],
             "width_interval_m": [
-              70.1,
-              70.1
+              70.8,
+              70.8
             ],
             "boundary_limited": {
               "length": true,
@@ -7710,114 +8692,119 @@
             },
             "length_constrained": false,
             "width_constrained": false,
-            "best_normalised_score": 1.1996584796477263,
-            "frames_usable": 4,
+            "best_normalised_score": 1.245402063673689,
+            "frames_usable": 5,
             "frames_rejected": 0,
             "holdout_summary": {
-              "point_median_error_px": 7.589354157431878,
-              "line_median_error_px": 34.48682751727674,
+              "point_median_error_px": 7.843863728553366,
+              "line_median_error_px": 68.46413873663528,
               "semantics": {
                 "bottom_right_corner": {
                   "count": 1,
-                  "median_error_px": 3.6455652108561525,
-                  "max_error_px": 3.6455652108561525
+                  "median_error_px": 4.241142997432725,
+                  "max_error_px": 4.241142997432725
                 },
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 },
                 "left_goal_area_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 18.01378924945634,
-                  "max_error_px": 18.01378924945634
+                  "median_error_px": 23.514529253993597,
+                  "max_error_px": 23.514529253993597
                 },
                 "left_goal_top": {
                   "count": 1,
-                  "median_error_px": 14.517749159893164,
-                  "max_error_px": 14.517749159893164
+                  "median_error_px": 17.52484074433674,
+                  "max_error_px": 17.52484074433674
                 },
                 "left_penalty_goal_line_top": {
                   "count": 1,
-                  "median_error_px": 22.59213069140277,
-                  "max_error_px": 22.59213069140277
+                  "median_error_px": 28.31663106476934,
+                  "max_error_px": 28.31663106476934
                 },
                 "left_penalty_spot": {
                   "count": 1,
-                  "median_error_px": 22.11763070105885,
-                  "max_error_px": 22.11763070105885
+                  "median_error_px": 31.68867534639347,
+                  "max_error_px": 31.68867534639347
                 },
                 "left_penalty_top": {
                   "count": 1,
-                  "median_error_px": 29.69744001713279,
-                  "max_error_px": 29.69744001713279
+                  "median_error_px": 35.694026776968094,
+                  "max_error_px": 35.694026776968094
                 },
                 "right_goal_area_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 6.992939330208831,
-                  "max_error_px": 7.709560944528927
+                  "median_error_px": 6.152433293913328,
+                  "max_error_px": 7.269672268055413
                 },
                 "right_goal_area_goal_line_top": {
-                  "count": 2,
-                  "median_error_px": 2.1195972111219112,
-                  "max_error_px": 2.131957218838659
+                  "count": 3,
+                  "median_error_px": 3.5312039302547227,
+                  "max_error_px": 8.11091807673355
                 },
                 "right_goal_bottom": {
                   "count": 2,
-                  "median_error_px": 5.413408476072187,
-                  "max_error_px": 7.589354157431878
+                  "median_error_px": 4.959415904336447,
+                  "max_error_px": 6.24925076874981
                 },
                 "right_goal_post_bottom": {
                   "count": 1,
-                  "median_error_px": 2.8696468405466486,
-                  "max_error_px": 2.8696468405466486
+                  "median_error_px": 2.697923326938551,
+                  "max_error_px": 2.697923326938551
+                },
+                "right_goal_post_top": {
+                  "count": 1,
+                  "median_error_px": 8.070260065513997,
+                  "max_error_px": 8.070260065513997
                 },
                 "right_goal_top": {
-                  "count": 2,
-                  "median_error_px": 7.348748097575376,
-                  "max_error_px": 7.714496744845579
+                  "count": 3,
+                  "median_error_px": 6.37141198567736,
+                  "max_error_px": 7.281679719386593
                 },
                 "right_penalty_bottom": {
                   "count": 3,
-                  "median_error_px": 8.362257077162413,
-                  "max_error_px": 9.482182773380634
+                  "median_error_px": 11.887458297124672,
+                  "max_error_px": 12.504370344032267
                 },
                 "right_penalty_goal_line_bottom": {
                   "count": 2,
-                  "median_error_px": 10.421501765863557,
-                  "max_error_px": 11.194248134978013
+                  "median_error_px": 6.053761112605168,
+                  "max_error_px": 7.617467391592734
                 },
                 "right_penalty_goal_line_top": {
-                  "count": 3,
-                  "median_error_px": 3.7211432164755545,
-                  "max_error_px": 9.116557744048613
+                  "count": 4,
+                  "median_error_px": 7.057088435239093,
+                  "max_error_px": 12.482116078468529
                 },
                 "right_penalty_spot": {
-                  "count": 3,
-                  "median_error_px": 8.158523345319587,
-                  "max_error_px": 10.312600017592453
+                  "count": 4,
+                  "median_error_px": 10.20202823823839,
+                  "max_error_px": 19.28638202710441
                 },
                 "right_penalty_top": {
-                  "count": 2,
-                  "median_error_px": 6.013808034426041,
-                  "max_error_px": 7.01250967935587
+                  "count": 3,
+                  "median_error_px": 8.802190584018126,
+                  "max_error_px": 35.903692851355025
                 },
                 "top_left_corner": {
                   "count": 1,
-                  "median_error_px": 6.851121601065689,
-                  "max_error_px": 6.851121601065689
+                  "median_error_px": 9.691453746497489,
+                  "max_error_px": 9.691453746497489
                 },
                 "top_right_corner": {
-                  "count": 2,
-                  "median_error_px": 4.176996975025489,
-                  "max_error_px": 7.616305122305357
+                  "count": 3,
+                  "median_error_px": 5.870085710152368,
+                  "max_error_px": 13.189058247704965
                 }
               },
               "key_line_holdouts": {
                 "bottom_touchline": {
-                  "count": 4,
-                  "median_error_px": 34.48682751727674,
-                  "max_error_px": 74.38265143748231
+                  "count": 5,
+                  "median_error_px": 68.46413873663528,
+                  "max_error_px": 202.82595386946025
                 }
               }
             }
@@ -7826,7 +8813,7 @@
         },
         "needs_more_evidence": {
           "length": true,
-          "width": true,
+          "width": false,
           "usable_frames": false
         },
         "config": {
@@ -7843,7 +8830,13 @@
           "minimum_usable_frames": 3
         }
       },
-      "error": null
+      "rejected_frames": [
+        115
+      ],
+      "last_rejection_message": "Vista descartada: geometr\u00eda insuficiente.",
+      "target_count": 4,
+      "maximum_count": 6,
+      "insufficient_reason": "observable_views"
     }
   },
   "people": {}
