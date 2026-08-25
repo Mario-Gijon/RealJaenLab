@@ -119,6 +119,9 @@ let anchorSelectionError = null;
 let viewScanWorkflow = null;
 let fieldPitchSetup = null;
 let fieldMatchSetup = null;
+let fieldCameraState = null;
+let cameraStateRecoveryInProgress = false;
+let cameraStateRecoverySequence = 0;
 
 workArea.classList.remove("field-editing");
 debugToggle.hidden = true;
@@ -351,7 +354,23 @@ function hasSolvedManualCalibration(calibration = calibrationForCurrentFrame()) 
 function fieldHomographyForCurrentFrame() {
   const calibration = calibrationForCurrentFrame();
   if (hasSolvedManualCalibration(calibration)) return calibration.homography;
-  return refinedFrameForCurrentFrame()?.homography || propagatedFrameForCurrentFrame()?.homography || null;
+  return derivedCameraForCurrentFrame()?.homography
+    || refinedFrameForCurrentFrame()?.homography
+    || propagatedFrameForCurrentFrame()?.homography
+    || null;
+}
+
+function derivedCameraForCurrentFrame() {
+  const cameraState = fieldCameraState?.video === selectedVideo?.name ? fieldCameraState : null;
+  const frame = currentFrameNumber();
+  return cameraState?.derived_frames?.find((camera) => (
+    camera.frame === frame && Array.isArray(camera.homography)
+  )) || null;
+}
+
+function invalidateFieldCameraState() {
+  cameraStateRecoverySequence += 1;
+  fieldCameraState = null;
 }
 
 function currentCameraAtlas() {
@@ -416,6 +435,14 @@ function updateFieldStatus() {
   }
   if (hasSolvedManualCalibration(calibration)) {
     fieldFrameProvenance.textContent = "CALIBRACIÓN MANUAL · APOYO";
+    return;
+  }
+  const derivedCamera = derivedCameraForCurrentFrame();
+  if (derivedCamera) {
+    const confidence = debugOverlayEnabled && derivedCamera.confidence
+      ? ` · ${String(derivedCamera.confidence).toUpperCase()}`
+      : "";
+    fieldFrameProvenance.textContent = `CAMERA STATE · DERIVADA${confidence}`;
     return;
   }
   if (Array.isArray(refinedFrameForCurrentFrame()?.homography) || Array.isArray(propagatedFrameForCurrentFrame()?.homography)) {
@@ -683,6 +710,7 @@ function updatePitchSetupWorkflow() {
   const currentFrame = pitchSetupCurrentFrame();
   const result = state?.result || null;
   const matchState = fieldMatchSetup?.video === selectedVideo?.name ? fieldMatchSetup : null;
+  const cameraState = fieldCameraState?.video === selectedVideo?.name ? fieldCameraState : null;
   const matchCurrentFrame = matchSetupCurrentFrame();
   const matchAttempted = matchSetupAttemptedFrames();
   const isConfirmed = fieldPitchModel.status === "confirmed";
@@ -781,6 +809,10 @@ function updatePitchSetupWorkflow() {
   } else if (matchState.status === "complete") {
     add(`Anchors HUMAN fuertes: ${matchSetupCompletedFrames().length}`);
     add(`Vistas insuficientes: ${matchSetupRejectedFrames().length}`);
+    add(`Cámaras derivadas recuperadas: ${Array.isArray(cameraState?.derived_frames) ? cameraState.derived_frames.length : 0}`);
+    if (Array.isArray(cameraState?.unrecovered_frames) && cameraState.unrecovered_frames.length) {
+      add(`Sin recuperar: ${cameraState.unrecovered_frames.length}`);
+    }
   }
   guidedWorkflowContent.replaceChildren(fragment);
 
@@ -818,6 +850,7 @@ function openMatchSetupAnchor(frame) {
 
 async function startMatchSetup() {
   if (!selectedVideo || fieldPitchModel.status !== "confirmed" || fieldMatchSetup?.processing) return;
+  invalidateFieldCameraState();
   const videoName = selectedVideo.name;
   fieldMatchSetup = {
     video: videoName,
@@ -880,6 +913,60 @@ async function startMatchSetup() {
   updatePitchSetupWorkflow();
 }
 
+async function recoverMatchSetupCameras() {
+  const setup = fieldMatchSetup;
+  if (
+    !selectedVideo
+    || setup?.video !== selectedVideo.name
+    || setup.status !== "complete"
+    || fieldCameraState?.video === selectedVideo.name
+    || cameraStateRecoveryInProgress
+  ) return;
+  const imageWidth = video.videoWidth || selectedVideo.width;
+  const imageHeight = video.videoHeight || selectedVideo.height;
+  if (!imageWidth || !imageHeight) return;
+  const videoName = selectedVideo.name;
+  const sequence = ++cameraStateRecoverySequence;
+  cameraStateRecoveryInProgress = true;
+  try {
+    const response = await fetch("/api/field-camera-state/recover-match-setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calibrations: fieldCalibrations.filter((calibration) => calibration.video === videoName),
+        match_setup: setup,
+        pitch_model: fieldPitchModel,
+        image_width: imageWidth,
+        image_height: imageHeight,
+        video_name: videoName,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "No se pudieron recuperar las cámaras derivadas.");
+    if (sequence !== cameraStateRecoverySequence || selectedVideo?.name !== videoName) return;
+    fieldCameraState = { video: videoName, ...result };
+    setReviewDirty(true);
+    await saveCurrentReview();
+  } catch (error) {
+    if (sequence !== cameraStateRecoverySequence || selectedVideo?.name !== videoName) return;
+    fieldCameraState = {
+      video: videoName,
+      version: 1,
+      status: "error",
+      anchor_frames: [],
+      derived_frames: [],
+      unrecovered_frames: [],
+      error: error instanceof Error ? error.message : "Error desconocido.",
+    };
+    setReviewDirty(true);
+    await saveCurrentReview();
+  } finally {
+    if (sequence === cameraStateRecoverySequence) cameraStateRecoveryInProgress = false;
+    updatePitchSetupWorkflow();
+    drawOverlay();
+  }
+}
+
 async function continueMatchSetup() {
   const state = fieldMatchSetup;
   const nextFrame = matchSetupCurrentFrame();
@@ -894,6 +981,7 @@ async function continueMatchSetup() {
   setReviewDirty(true);
   await saveCurrentReview();
   updatePitchSetupWorkflow();
+  await recoverMatchSetupCameras();
 }
 
 async function completeMatchSetupAnchor() {
@@ -902,6 +990,7 @@ async function completeMatchSetupAnchor() {
   if (!state || state.status !== "measuring" || frame === null || frame !== currentFrameNumber()) return;
   if (!hasSolvedManualCalibration(calibrationForCurrentFrame()) || calibrationSolvePending) return;
   state.completed_frames = [...new Set([...matchSetupCompletedFrames(), frame])];
+  invalidateFieldCameraState();
   state.processing = null;
   setReviewDirty(true);
   await saveCurrentReview();
@@ -914,6 +1003,7 @@ async function rejectMatchSetupAnchor() {
   if (!state || state.status !== "measuring" || frame === null || frame !== currentFrameNumber()) return;
   video.pause();
   state.rejected_frames = [...new Set([...matchSetupRejectedFrames(), frame])];
+  invalidateFieldCameraState();
   const calibration = calibrationForCurrentFrame();
   if (calibration?.purpose === "match_setup") calibration.matchSetupMeasurementStatus = "insufficient_geometry";
   state.processing = null;
@@ -2216,6 +2306,7 @@ async function solveCalibration(calibration) {
   cameraAtlasResult = null;
   anchorSelectionResult = null;
   anchorSelectionError = null;
+  if (calibration.purpose === "match_setup") invalidateFieldCameraState();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
   const constraints = calibrationConstraints(calibration);
@@ -2256,6 +2347,10 @@ async function solveCalibration(calibration) {
     updateCalibrationStatus();
     updatePitchSetupWorkflow();
     drawOverlay();
+    if (calibration.purpose === "match_setup" && fieldMatchSetup?.status === "complete") {
+      await saveCurrentReview();
+      await recoverMatchSetupCameras();
+    }
   } catch (error) {
     if (sequence !== calibrationSolveSequence || !fieldCalibrations.includes(calibration)) return;
     calibrationSolvePending = null;
@@ -2300,6 +2395,7 @@ function clearCurrentCalibration() {
   cameraAtlasResult = null;
   anchorSelectionResult = null;
   anchorSelectionError = null;
+  if (calibration.purpose === "match_setup") invalidateFieldCameraState();
   rememberFieldEdit();
   invalidatePropagationsFromAnchor(calibration);
   invalidateRefinedSegmentsForCalibration(calibration);
@@ -2504,6 +2600,7 @@ function drawCalibrationArc(geometry, selected, displayScale) {
 
 function drawCalibrationOverlay() {
   const calibration = calibrationForCurrentFrame();
+  const derivedCamera = derivedCameraForCurrentFrame();
   const refinedFrame = refinedFrameForCurrentFrame();
   const propagatedFrame = propagatedFrameForCurrentFrame();
   if (!displayedVideoRect || !video.videoWidth) return;
@@ -2512,7 +2609,7 @@ function drawCalibrationOverlay() {
 
   const homography = hasSolvedManualCalibration(calibration)
     ? calibration.homography
-    : refinedFrame?.homography || propagatedFrame?.homography;
+    : derivedCamera?.homography || refinedFrame?.homography || propagatedFrame?.homography;
   if (Array.isArray(homography)) drawProjectedPitch(homography, displayScale);
 
   if (!calibration) {
@@ -2796,6 +2893,9 @@ async function loadVideo(videoInfo) {
   fieldRefinedSegments = [];
   fieldPitchSetup = null;
   fieldMatchSetup = null;
+  fieldCameraState = null;
+  cameraStateRecoveryInProgress = false;
+  cameraStateRecoverySequence += 1;
   applyPitchModel(null);
   fieldUndoStack = [];
   selectedFieldItem = null;
@@ -2834,12 +2934,16 @@ async function loadVideo(videoInfo) {
     fieldMatchSetup = review?.field?.match_setup && typeof review.field.match_setup === "object"
       ? review.field.match_setup
       : null;
+    fieldCameraState = review?.field?.camera_state && typeof review.field.camera_state === "object"
+      ? review.field.camera_state
+      : null;
     applyPitchModel(review?.field?.pitch_model);
     fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
     annotationSequence = fieldAnnotations.length;
     setReviewDirty(false);
     updatePitchSetupWorkflow();
     drawOverlay();
+    if (fieldMatchSetup?.status === "complete" && !fieldCameraState) recoverMatchSetupCameras();
   } catch (error) {
     if (loadSequence !== videoLoadSequence) return;
     setReviewDirty(true);
@@ -2863,6 +2967,7 @@ async function saveCurrentReview() {
       pitch_model: { ...fieldPitchModel },
       pitch_setup: fieldPitchSetup?.video === selectedVideo.name ? fieldPitchSetup : null,
       match_setup: fieldMatchSetup?.video === selectedVideo.name ? fieldMatchSetup : null,
+      camera_state: fieldCameraState?.video === selectedVideo.name ? fieldCameraState : null,
     },
     people: {},
   };

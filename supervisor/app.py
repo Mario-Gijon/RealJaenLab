@@ -29,6 +29,7 @@ from supervisor.field_anchor_selector import (
     select_manual_anchor_frames,
     summarize_anchor_selection,
 )
+from supervisor.field_camera_state_pipeline import recover_match_setup_cameras
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -256,6 +257,28 @@ def next_field_pitch_measurement(payload: dict = Body()) -> dict:
     if not isinstance(scan, dict) or not isinstance(used_frames, list):
         raise HTTPException(status_code=400, detail="La siguiente medición del terreno no es válida")
     return {"recommendation": next_pitch_measurement_frame(scan, used_frames)}
+
+
+@app.post("/api/field-camera-state/recover-match-setup")
+def recover_field_camera_state_match_setup(payload: dict = Body()) -> dict:
+    calibrations = payload.get("calibrations")
+    match_setup = payload.get("match_setup")
+    pitch_model = payload.get("pitch_model")
+    if not isinstance(calibrations, list) or not isinstance(match_setup, dict) or not isinstance(pitch_model, dict):
+        raise HTTPException(status_code=400, detail="La recuperación de Camera State no es válida")
+    try:
+        image_width = int(payload["image_width"])
+        image_height = int(payload["image_height"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail="La resolución de Camera State no es válida") from error
+    return recover_match_setup_cameras(
+        calibrations,
+        match_setup,
+        pitch_model,
+        image_width,
+        image_height,
+        video_name=payload.get("video_name"),
+    )
 
 
 @app.post("/api/field-camera-atlas/analyze")
