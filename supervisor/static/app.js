@@ -370,6 +370,7 @@ function derivedCameraForCurrentFrame() {
 
 function invalidateFieldCameraState() {
   cameraStateRecoverySequence += 1;
+  cameraStateRecoveryInProgress = false;
   fieldCameraState = null;
 }
 
