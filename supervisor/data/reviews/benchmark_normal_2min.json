@@ -1,0 +1,18 @@
+{
+  "format_version": 1,
+  "video": {
+    "filename": "benchmark_normal_2min.mp4"
+  },
+  "field": {
+    "pitch_model": {
+      "length_m": 105,
+      "width_m": 70.8,
+      "status": "confirmed",
+      "dimension_status": {
+        "length": "provisional_reference",
+        "width": "estimated"
+      }
+    }
+  },
+  "people": {}
+}

@@ -31,6 +31,7 @@ const scanVideoButton = document.querySelector("#scan-video");
 const beginGuidedCalibrationButton = document.querySelector("#begin-guided-calibration");
 const beginMatchSetupButton = document.querySelector("#begin-match-setup");
 const openManualCalibrationButton = document.querySelector("#open-manual-calibration");
+const createActiveAnchorButton = document.querySelector("#create-active-anchor");
 const guidedConfirmContinueButton = document.querySelector("#guided-confirm-continue");
 const guidedFrameProgress = document.querySelector("#guided-frame-progress");
 const rejectPitchSetupMeasurementButton = document.querySelector("#reject-pitch-setup-measurement");
@@ -303,7 +304,10 @@ function calibrationForCurrentFrame() {
   if (isMatchSetupMeasurementFrame()) {
     return calibrations.find((calibration) => calibration.purpose === "match_setup") || null;
   }
-  return calibrations.find((calibration) => calibration.purpose !== "pitch_setup") || calibrations[0] || null;
+  return calibrations.find((calibration) => calibration.purpose === "active_anchor")
+    || calibrations.find((calibration) => calibration.purpose !== "pitch_setup")
+    || calibrations[0]
+    || null;
 }
 
 function propagatedFrameForCurrentFrame() {
@@ -854,6 +858,13 @@ function updatePitchSetupWorkflow() {
   beginMatchSetupButton.disabled = !isConfirmed || Boolean(matchState?.processing);
   openManualCalibrationButton.hidden = activeMeasurementFrame === null;
   openManualCalibrationButton.disabled = Boolean(measuringPitch ? state?.processing : matchState?.processing);
+  const canCreateActiveAnchor = active
+    && Boolean(selectedVideo)
+    && isConfirmed
+    && activeMeasurementFrame === null
+    && !calibrationMode;
+  createActiveAnchorButton.hidden = !canCreateActiveAnchor;
+  createActiveAnchorButton.disabled = !canCreateActiveAnchor;
   guidedContextButton.hidden = true;
   guidedSkipButton.hidden = true;
 }
@@ -876,6 +887,39 @@ function openMatchSetupAnchor(frame) {
     video.addEventListener("seeked", open, { once: true });
     seekToFrame(frame);
   }
+}
+
+function openActiveAnchorCalibration() {
+  if (
+    !selectedVideo
+    || fieldPitchModel.status !== "confirmed"
+    || isPitchSetupMeasurementFrame()
+    || isMatchSetupMeasurementFrame()
+    || calibrationMode
+  ) return;
+  const frame = currentFrameNumber();
+  let calibration = fieldCalibrations.find((item) => (
+    item.video === selectedVideo.name
+    && item.frame === frame
+    && item.source === "manual"
+    && item.purpose === "active_anchor"
+  ));
+  if (!calibration) {
+    calibration = {
+      id: `calibration-${Date.now()}`,
+      video: selectedVideo.name,
+      frame,
+      source: "manual",
+      purpose: "active_anchor",
+      correspondences: [],
+      constraints: [],
+      homography: null,
+      reprojectionError: null,
+    };
+    fieldCalibrations.push(calibration);
+    setReviewDirty(true);
+  }
+  enterCalibrationMode();
 }
 
 async function startMatchSetup() {
@@ -3722,6 +3766,7 @@ openManualCalibrationButton.addEventListener("click", () => {
   if (fieldMatchSetup?.status === "measuring") openMatchSetupAnchor(matchSetupCurrentFrame());
   else openPitchSetupMeasurement(pitchSetupCurrentFrame());
 });
+createActiveAnchorButton.addEventListener("click", openActiveAnchorCalibration);
 guidedContextButton.addEventListener("click", playViewScanContext);
 guidedSkipButton.addEventListener("click", skipViewScanRecommendation);
 guidedConfirmContinueButton.addEventListener("click", () => {
