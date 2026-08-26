@@ -144,6 +144,35 @@ def load_review(filename: str) -> dict[str, dict | None]:
         raise HTTPException(status_code=500, detail="Saved review is not valid JSON") from error
 
 
+@app.get("/api/field-camera-atlas/dense-preview/{filename}")
+def load_dense_camera_atlas_preview(filename: str) -> dict:
+    """Serve an existing Dense Camera Atlas only for safe preview use."""
+
+    video_path = available_videos().get(filename)
+    if video_path is None:
+        raise HTTPException(status_code=404, detail="Video not found")
+    safe_stem = "".join(
+        character if character.isalnum() or character in "-_" else "_"
+        for character in video_path.stem
+    )
+    per_video_path = REVIEW_DIR / f"{safe_stem}_camera_atlas_dense_v1.json"
+    if per_video_path.exists():
+        atlas_path = per_video_path
+    elif filename == "benchmark_easy_2min.mp4":
+        atlas_path = REVIEW_DIR / "camera_atlas_dense_v1.json"
+    else:
+        raise HTTPException(status_code=404, detail="Dense Camera Atlas preview not found")
+    if not atlas_path.exists():
+        raise HTTPException(status_code=404, detail="Dense Camera Atlas preview not found")
+    try:
+        atlas = json.loads(atlas_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=500, detail="Dense Camera Atlas preview is not valid JSON") from error
+    if not isinstance(atlas, dict) or not isinstance(atlas.get("records"), list):
+        raise HTTPException(status_code=500, detail="Dense Camera Atlas preview has no valid records")
+    return atlas
+
+
 @app.put("/api/reviews/{filename}")
 def save_review(filename: str, review: dict = Body()) -> dict[str, str]:
     review_path, video_path = review_path_for(filename)

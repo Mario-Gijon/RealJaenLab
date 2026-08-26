@@ -121,6 +121,8 @@ let viewScanWorkflow = null;
 let fieldPitchSetup = null;
 let fieldMatchSetup = null;
 let fieldCameraState = null;
+let fieldDenseCameraAtlas = null;
+let denseCameraAtlasByFrame = new Map();
 let cameraStateRecoveryInProgress = false;
 let cameraStateRecoverySequence = 0;
 const CAMERA_STATE_VERSION = 2;
@@ -363,6 +365,17 @@ function fieldHomographyForCurrentFrame() {
     || refinedFrameForCurrentFrame()?.homography
     || propagatedFrameForCurrentFrame()?.homography
     || null;
+}
+
+function denseAtlasFrameForCurrentFrame() {
+  if (fieldDenseCameraAtlas?.video !== selectedVideo?.name) return null;
+  return denseCameraAtlasByFrame.get(currentFrameNumber()) || null;
+}
+
+function previewHomographyForCurrentFrame() {
+  const calibration = calibrationForCurrentFrame();
+  if (hasSolvedManualCalibration(calibration)) return calibration.homography;
+  return denseAtlasFrameForCurrentFrame()?.homography || fieldHomographyForCurrentFrame();
 }
 
 function derivedCameraForCurrentFrame() {
@@ -2828,6 +2841,15 @@ function updatePreviewProvenance() {
     previewProvenance.textContent = "HUMAN";
     return;
   }
+  const denseAtlas = denseAtlasFrameForCurrentFrame();
+  if (denseAtlas?.source === "camera_atlas_keyframe_v1") {
+    previewProvenance.textContent = "CAMERA ATLAS · RELOCALIZADA";
+    return;
+  }
+  if (denseAtlas?.source === "camera_atlas_ht_v1") {
+    previewProvenance.textContent = "CAMERA ATLAS + Hₜ · DERIVADA";
+    return;
+  }
   const derived = derivedCameraForCurrentFrame();
   if (derived?.source === "camera_ht_v1") {
     previewProvenance.textContent = "CAMERA Hₜ V1 · DERIVADA";
@@ -2846,7 +2868,7 @@ function updatePreviewProvenance() {
 
 function drawPreviewOverlay() {
   if (!displayedVideoRect || !video.videoWidth) return;
-  const homography = fieldHomographyForCurrentFrame();
+  const homography = previewHomographyForCurrentFrame();
   if (!Array.isArray(homography)) return;
   overlayContext.save();
   drawProjectedPitch(homography, displayedVideoRect.width / video.videoWidth);
@@ -2937,6 +2959,29 @@ function resetPlaybackState() {
   overlay.classList.remove("is-loaded");
 }
 
+async function loadDenseCameraAtlasPreview(videoName, loadSequence) {
+  try {
+    const response = await fetch(`/api/field-camera-atlas/dense-preview/${encodeURIComponent(videoName)}`);
+    if (response.status === 404) return;
+    if (!response.ok) return;
+    const atlas = await response.json();
+    if (loadSequence !== videoLoadSequence || selectedVideo?.name !== videoName) return;
+    if (!Array.isArray(atlas?.records)) return;
+    const byFrame = new Map();
+    atlas.records.forEach((record) => {
+      const frame = Number(record?.frame);
+      if (Number.isInteger(frame) && frame >= 0 && Array.isArray(record?.homography)) {
+        byFrame.set(frame, record);
+      }
+    });
+    fieldDenseCameraAtlas = { ...atlas, video: videoName };
+    denseCameraAtlasByFrame = byFrame;
+    drawOverlay();
+  } catch {
+    // Dense Atlas preview is optional and must not affect video playback.
+  }
+}
+
 async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
   cameraAtlasRequestSequence += 1;
@@ -2953,6 +2998,8 @@ async function loadVideo(videoInfo) {
   fieldPitchSetup = null;
   fieldMatchSetup = null;
   fieldCameraState = null;
+  fieldDenseCameraAtlas = null;
+  denseCameraAtlasByFrame = new Map();
   cameraStateRecoveryInProgress = false;
   cameraStateRecoverySequence += 1;
   applyPitchModel(null);
@@ -2977,6 +3024,7 @@ async function loadVideo(videoInfo) {
   workspaceDescription.textContent = videoInfo.name;
   video.src = `/videos/${encodeURIComponent(videoInfo.name)}`;
   video.load();
+  void loadDenseCameraAtlasPreview(videoInfo.name, loadSequence);
 
   try {
     const response = await fetch(`/api/reviews/${encodeURIComponent(videoInfo.name)}`);
