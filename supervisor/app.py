@@ -264,8 +264,14 @@ def recover_field_camera_state_match_setup(payload: dict = Body()) -> dict:
     calibrations = payload.get("calibrations")
     match_setup = payload.get("match_setup")
     pitch_model = payload.get("pitch_model")
+    video_name = payload.get("video_name")
     if not isinstance(calibrations, list) or not isinstance(match_setup, dict) or not isinstance(pitch_model, dict):
         raise HTTPException(status_code=400, detail="La recuperación de Camera State no es válida")
+    if not isinstance(video_name, str) or not video_name:
+        raise HTTPException(status_code=400, detail="El vídeo de Camera State no es válido")
+    video_path = available_videos().get(video_name)
+    if video_path is None:
+        raise HTTPException(status_code=404, detail="Video not found")
     try:
         image_width = int(payload["image_width"])
         image_height = int(payload["image_height"])
@@ -277,7 +283,8 @@ def recover_field_camera_state_match_setup(payload: dict = Body()) -> dict:
         pitch_model,
         image_width,
         image_height,
-        video_name=payload.get("video_name"),
+        video_path=video_path,
+        video_name=video_name,
     )
 
 

@@ -122,6 +122,8 @@ let fieldMatchSetup = null;
 let fieldCameraState = null;
 let cameraStateRecoveryInProgress = false;
 let cameraStateRecoverySequence = 0;
+const CAMERA_STATE_VERSION = 2;
+const CAMERA_STATE_ALGORITHM = "camera_ht_v1";
 
 workArea.classList.remove("field-editing");
 debugToggle.hidden = true;
@@ -361,11 +363,18 @@ function fieldHomographyForCurrentFrame() {
 }
 
 function derivedCameraForCurrentFrame() {
-  const cameraState = fieldCameraState?.video === selectedVideo?.name ? fieldCameraState : null;
+  const cameraState = isCurrentCameraHtState(fieldCameraState) && fieldCameraState.video === selectedVideo?.name
+    ? fieldCameraState
+    : null;
   const frame = currentFrameNumber();
   return cameraState?.derived_frames?.find((camera) => (
     camera.frame === frame && Array.isArray(camera.homography)
   )) || null;
+}
+
+function isCurrentCameraHtState(cameraState) {
+  return cameraState?.version === CAMERA_STATE_VERSION
+    && cameraState?.algorithm === CAMERA_STATE_ALGORITHM;
 }
 
 function invalidateFieldCameraState() {
@@ -443,7 +452,9 @@ function updateFieldStatus() {
     const confidence = debugOverlayEnabled && derivedCamera.confidence
       ? ` · ${String(derivedCamera.confidence).toUpperCase()}`
       : "";
-    fieldFrameProvenance.textContent = `CAMERA STATE · DERIVADA${confidence}`;
+    fieldFrameProvenance.textContent = derivedCamera.source === "camera_state_refined"
+      ? `CAMERA STATE · RECUPERADA${confidence}`
+      : `CAMERA Hₜ · DERIVADA${confidence}`;
     return;
   }
   if (Array.isArray(refinedFrameForCurrentFrame()?.homography) || Array.isArray(propagatedFrameForCurrentFrame()?.homography)) {
@@ -711,7 +722,9 @@ function updatePitchSetupWorkflow() {
   const currentFrame = pitchSetupCurrentFrame();
   const result = state?.result || null;
   const matchState = fieldMatchSetup?.video === selectedVideo?.name ? fieldMatchSetup : null;
-  const cameraState = fieldCameraState?.video === selectedVideo?.name ? fieldCameraState : null;
+  const cameraState = isCurrentCameraHtState(fieldCameraState) && fieldCameraState.video === selectedVideo?.name
+    ? fieldCameraState
+    : null;
   const matchCurrentFrame = matchSetupCurrentFrame();
   const matchAttempted = matchSetupAttemptedFrames();
   const isConfirmed = fieldPitchModel.status === "confirmed";
@@ -810,7 +823,7 @@ function updatePitchSetupWorkflow() {
   } else if (matchState.status === "complete") {
     add(`Anchors HUMAN fuertes: ${matchSetupCompletedFrames().length}`);
     add(`Vistas insuficientes: ${matchSetupRejectedFrames().length}`);
-    add(`Cámaras derivadas recuperadas: ${Array.isArray(cameraState?.derived_frames) ? cameraState.derived_frames.length : 0}`);
+    add(`Cámaras Hₜ derivadas: ${Array.isArray(cameraState?.derived_frames) ? cameraState.derived_frames.length : 0}`);
     if (Array.isArray(cameraState?.unrecovered_frames) && cameraState.unrecovered_frames.length) {
       add(`Sin recuperar: ${cameraState.unrecovered_frames.length}`);
     }
@@ -920,7 +933,7 @@ async function recoverMatchSetupCameras() {
     !selectedVideo
     || setup?.video !== selectedVideo.name
     || setup.status !== "complete"
-    || fieldCameraState?.video === selectedVideo.name
+    || (isCurrentCameraHtState(fieldCameraState) && fieldCameraState.video === selectedVideo.name)
     || cameraStateRecoveryInProgress
   ) return;
   const imageWidth = video.videoWidth || selectedVideo.width;
@@ -944,6 +957,9 @@ async function recoverMatchSetupCameras() {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || "No se pudieron recuperar las cámaras derivadas.");
+    if (!isCurrentCameraHtState(result)) {
+      throw new Error("La respuesta de Camera Hₜ no tiene la versión esperada.");
+    }
     if (sequence !== cameraStateRecoverySequence || selectedVideo?.name !== videoName) return;
     fieldCameraState = { video: videoName, ...result };
     setReviewDirty(true);
@@ -952,7 +968,8 @@ async function recoverMatchSetupCameras() {
     if (sequence !== cameraStateRecoverySequence || selectedVideo?.name !== videoName) return;
     fieldCameraState = {
       video: videoName,
-      version: 1,
+      version: CAMERA_STATE_VERSION,
+      algorithm: CAMERA_STATE_ALGORITHM,
       status: "error",
       anchor_frames: [],
       derived_frames: [],
@@ -2935,8 +2952,9 @@ async function loadVideo(videoInfo) {
     fieldMatchSetup = review?.field?.match_setup && typeof review.field.match_setup === "object"
       ? review.field.match_setup
       : null;
-    fieldCameraState = review?.field?.camera_state && typeof review.field.camera_state === "object"
-      ? review.field.camera_state
+    const storedCameraState = review?.field?.camera_state;
+    fieldCameraState = isCurrentCameraHtState(storedCameraState)
+      ? storedCameraState
       : null;
     applyPitchModel(review?.field?.pitch_model);
     fieldCalibrations.forEach((calibration) => calibrationConstraints(calibration));
