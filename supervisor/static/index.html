@@ -23,6 +23,7 @@
 
         <nav class="mode-tabs" aria-label="Modo de trabajo">
           <button class="mode-tab is-active" type="button" data-mode="video">VIDEO</button>
+          <button class="mode-tab" type="button" data-mode="preview">PREVIEW</button>
           <button class="mode-tab" type="button" data-mode="guided">CALIBRACIÓN</button>
         </nav>
 
@@ -41,6 +42,7 @@
         <div class="work-area">
           <video id="video" class="video" playsinline preload="metadata"></video>
           <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
+          <span class="preview-provenance" id="preview-provenance" hidden></span>
           <div class="work-area-message" id="workspace-message">
             <span class="work-area-kicker" id="mode-label">MODO VÍDEO</span>
             <h1 id="workspace-title">Área de vídeo</h1>

@@ -9,6 +9,7 @@ const workspace = document.querySelector(".workspace");
 const workArea = document.querySelector(".work-area");
 const overlay = document.querySelector("#video-overlay");
 const overlayContext = overlay.getContext("2d");
+const previewProvenance = document.querySelector("#preview-provenance");
 const videoSelect = document.querySelector("#video-select");
 const workspaceMessage = document.querySelector("#workspace-message");
 const workspaceTitle = document.querySelector("#workspace-title");
@@ -135,7 +136,9 @@ modeTabs.forEach((tab) => {
   tab.addEventListener("click", () => {
     modeTabs.forEach((item) => item.classList.toggle("is-active", item === tab));
     activeMode = tab.dataset.mode;
-    modeLabel.textContent = activeMode === "guided" ? "CALIBRACIÓN" : "MODO VÍDEO";
+    modeLabel.textContent = activeMode === "guided"
+      ? "CALIBRACIÓN"
+      : (activeMode === "preview" ? "PREVIEW" : "MODO VÍDEO");
     const guided = activeMode === "guided";
     debugToggle.hidden = !guided;
     undoButton.hidden = !guided;
@@ -2815,14 +2818,52 @@ function drawDebugOverlay() {
   overlayContext.restore();
 }
 
+function updatePreviewProvenance() {
+  const visible = activeMode === "preview";
+  previewProvenance.hidden = !visible;
+  if (!visible) return;
+
+  const calibration = calibrationForCurrentFrame();
+  if (hasSolvedManualCalibration(calibration)) {
+    previewProvenance.textContent = "HUMAN";
+    return;
+  }
+  const derived = derivedCameraForCurrentFrame();
+  if (derived?.source === "camera_ht_v1") {
+    previewProvenance.textContent = "CAMERA Hₜ V1 · DERIVADA";
+    return;
+  }
+  if (derived?.source === "camera_state_refined") {
+    previewProvenance.textContent = "CAMERA STATE · RECUPERADA";
+    return;
+  }
+  if (Array.isArray(refinedFrameForCurrentFrame()?.homography) || Array.isArray(propagatedFrameForCurrentFrame()?.homography)) {
+    previewProvenance.textContent = "APOYO AUTOMÁTICO · NO VALIDADO";
+    return;
+  }
+  previewProvenance.textContent = "SIN ESTADO FIELD";
+}
+
+function drawPreviewOverlay() {
+  if (!displayedVideoRect || !video.videoWidth) return;
+  const homography = fieldHomographyForCurrentFrame();
+  if (!Array.isArray(homography)) return;
+  overlayContext.save();
+  drawProjectedPitch(homography, displayedVideoRect.width / video.videoWidth);
+  overlayContext.restore();
+}
+
 function drawOverlay() {
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
-  if (activeMode === "guided" && calibrationMode) {
+  if (activeMode === "preview") {
+    drawPreviewOverlay();
+  } else if (activeMode === "guided" && calibrationMode) {
     drawFieldAnnotations();
     drawCalibrationOverlay();
     if (debugOverlayEnabled && calibrationMode) drawDebugOverlay();
     updateCurrentReferenceLabel();
   }
+  updatePreviewProvenance();
   updatePitchSetupWorkflow();
 }
 

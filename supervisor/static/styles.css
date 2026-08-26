@@ -58,6 +58,8 @@ button { font: inherit; }
 .video.is-loaded { display: block; }
 .video-overlay { position: absolute; display: none; pointer-events: none; }
 .video-overlay.is-loaded { display: block; }
+.preview-provenance { position: absolute; z-index: 1; right: 18px; bottom: 18px; color: #d8e6f7; border: 1px solid rgba(90, 169, 255, .48); border-radius: 4px; padding: 6px 8px; background: rgba(10, 18, 28, .84); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.preview-provenance[hidden] { display: none; }
 .work-area-message { text-align: center; }
 .work-area-kicker { color: #d4a414; font-size: 11px; font-weight: 750; letter-spacing: .13em; }
 h1 { margin: 12px 0 7px; color: #e9ecef; font-size: 24px; font-weight: 600; }
