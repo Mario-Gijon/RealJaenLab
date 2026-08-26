@@ -348,9 +348,8 @@ def recover_match_setup_cameras(
         pitch_length_m=length_m, pitch_width_m=pitch_width_m,
     )
     derived_by_frame.update({entry["frame"]: entry for entry in recovered})
-    recovered_frames = {entry["frame"] for entry in recovered}
-    failures = [item for item in failures if item.get("frame") not in recovered_frames]
     failures.extend(recovery_failures)
+    failures = [item for item in failures if item.get("frame") not in derived_by_frame]
     unrecovered_by_frame = {item["frame"]: item for item in failures}
     return {
         **base,
