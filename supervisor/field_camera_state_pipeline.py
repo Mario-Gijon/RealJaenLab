@@ -8,9 +8,11 @@ frames containing useful partial HUMAN geometry.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 
 from supervisor.field_camera_state_planar_bridge import (
@@ -24,8 +26,9 @@ from supervisor.field_camera_state_planar_bridge_fusion import (
 )
 from supervisor.field_camera_state_planar_flow import (
     PlanarFlowConfig,
+    _normalise_h,
+    estimate_ground_plane_step,
     homography_disagreement_px,
-    propagate_pitch_homography,
 )
 from supervisor.field_camera_state_planar_selection import PlanarSelectionConfig
 from supervisor.field_camera_state_projective import (
@@ -109,6 +112,196 @@ def _flow_quality(path: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+class _IntervalFrameCache:
+    """Read each decoded source frame at most once for one anchor interval."""
+
+    def __init__(self, video_path: str | Path):
+        self._path = Path(video_path)
+        self._capture = cv2.VideoCapture(str(self._path))
+        self._frames: dict[int, np.ndarray | None] = {}
+
+    @property
+    def opened(self) -> bool:
+        return self._capture.isOpened()
+
+    def frame(self, frame_index: int) -> np.ndarray | None:
+        if frame_index not in self._frames:
+            self._capture.set(cv2.CAP_PROP_POS_FRAMES, int(frame_index))
+            ok, frame = self._capture.read()
+            self._frames[frame_index] = frame if ok and frame is not None else None
+        return self._frames[frame_index]
+
+    def close(self) -> None:
+        self._capture.release()
+
+
+def _flow_success_result(
+    start_frame: int,
+    end_frame: int,
+    homography: np.ndarray,
+    steps: list[dict[str, Any]],
+    config: PlanarFlowConfig,
+) -> dict[str, Any]:
+    """Mirror ``propagate_pitch_homography`` aggregate diagnostics exactly."""
+
+    inlier_ratios = [
+        float(step["inlier_ratio"])
+        for step in steps
+        if step.get("status") == "ok" and step.get("inlier_ratio") is not None
+    ]
+    reprojections = [
+        float(step["median_reprojection_px"])
+        for step in steps
+        if step.get("status") == "ok" and step.get("median_reprojection_px") is not None
+    ]
+    tracks = [
+        int(step["inlier_count"])
+        for step in steps
+        if step.get("status") == "ok" and step.get("inlier_count") is not None
+    ]
+    return {
+        "status": "ok",
+        "start_frame": int(start_frame),
+        "end_frame": int(end_frame),
+        "frame_span": abs(int(end_frame) - int(start_frame)),
+        "step_count": len(steps),
+        "homography": homography.tolist(),
+        "median_inlier_ratio": float(np.median(inlier_ratios)) if inlier_ratios else None,
+        "minimum_inlier_ratio": float(np.min(inlier_ratios)) if inlier_ratios else None,
+        "median_reprojection_px": float(np.median(reprojections)) if reprojections else None,
+        "median_inlier_count": float(np.median(tracks)) if tracks else None,
+        "steps": steps,
+        "config": asdict(config),
+    }
+
+
+class _CachedDirectionalFlow:
+    """Cache the exact 2-frame prefixes used by ``propagate_pitch_homography``."""
+
+    def __init__(
+        self,
+        frames: _IntervalFrameCache,
+        start_frame: int,
+        end_frame: int,
+        start_homography: Any,
+        *,
+        pitch_length_m: float,
+        pitch_width_m: float,
+        config: PlanarFlowConfig,
+    ):
+        self._frames = frames
+        self._start = int(start_frame)
+        self._end = int(end_frame)
+        self._direction = 1 if self._end >= self._start else -1
+        self._pitch_length_m = pitch_length_m
+        self._pitch_width_m = pitch_width_m
+        self._config = config
+        self._prefix: dict[int, dict[str, Any]] = {}
+        self._failure: dict[str, Any] | None = None
+        self._initial_failure: dict[str, Any] | None = None
+
+        h = _normalise_h(start_homography)
+        if h is None:
+            self._initial_failure = {"status": "invalid_start_homography"}
+            return
+        if not frames.opened:
+            self._initial_failure = {"status": "video_open_failed", "video": str(frames._path)}
+            return
+        if frames.frame(self._start) is None:
+            self._initial_failure = {"status": "frame_read_failed", "frame": self._start}
+            return
+        self._prefix[self._start] = {"homography": h, "steps": []}
+        self._build_even_prefixes()
+
+    def _build_even_prefixes(self) -> None:
+        distance = abs(self._end - self._start)
+        last_even = self._start + self._direction * (distance // 2 * 2)
+        current = self._start
+        while current != last_even and self._failure is None:
+            self._extend(current, current + self._direction * 2, cache_prefix=True)
+            current += self._direction * 2
+
+    def _extend(
+        self,
+        previous_index: int,
+        current_index: int,
+        *,
+        cache_prefix: bool,
+    ) -> dict[str, Any]:
+        previous = self._prefix.get(previous_index)
+        if previous is None:
+            return self._failure or {"status": "path_failed"}
+        current_frame = self._frames.frame(current_index)
+        if current_frame is None:
+            result = {
+                "status": "frame_read_failed",
+                "frame": current_index,
+                "steps": previous["steps"],
+            }
+            if cache_prefix:
+                self._failure = result
+            return result
+        step = estimate_ground_plane_step(
+            self._frames.frame(previous_index), current_frame, previous["homography"],
+            pitch_length_m=self._pitch_length_m,
+            pitch_width_m=self._pitch_width_m,
+            config=self._config,
+        )
+        step_record = {
+            "from_frame": int(previous_index),
+            "to_frame": int(current_index),
+            **{key: value for key, value in step.items() if key != "matrix"},
+        }
+        steps = [*previous["steps"], step_record]
+        if step.get("status") != "ok":
+            result = {
+                "status": "path_failed",
+                "failed_from_frame": step_record["from_frame"],
+                "failed_to_frame": step_record["to_frame"],
+                "failure": step,
+                "steps": steps,
+                "homography": previous["homography"].tolist(),
+                "config": asdict(self._config),
+            }
+            if cache_prefix:
+                self._failure = result
+            return result
+        # Reuse the core module's exact normalisation instead of reimplementing
+        # projective composition in orchestration.
+        homography = _normalise_h(np.asarray(step["matrix"], dtype=np.float64) @ previous["homography"])
+        if homography is None:
+            result = {"status": "composition_failed", "steps": steps, "config": asdict(self._config)}
+            if cache_prefix:
+                self._failure = result
+            return result
+        result = {"homography": homography, "steps": steps}
+        if cache_prefix:
+            self._prefix[current_index] = result
+        return result
+
+    def path_to(self, target_frame: int) -> dict[str, Any]:
+        if self._initial_failure is not None:
+            return self._initial_failure
+        target = int(target_frame)
+        distance = (target - self._start) * self._direction
+        total = (self._end - self._start) * self._direction
+        if distance < 0 or distance > total:
+            return {"status": "invalid_target_frame"}
+        if distance % 2 == 0:
+            prefix = self._prefix.get(target)
+            if prefix is None:
+                return self._failure or {"status": "path_failed"}
+            return _flow_success_result(self._start, target, prefix["homography"], prefix["steps"], self._config)
+        previous = target - self._direction
+        prefix = self._prefix.get(previous)
+        if prefix is None:
+            return self._failure or {"status": "path_failed"}
+        result = self._extend(previous, target, cache_prefix=False)
+        if result.get("status") is not None or "homography" not in result:
+            return result
+        return _flow_success_result(self._start, target, result["homography"], result["steps"], self._config)
+
+
 def _camera_ht_between_anchors(
     video_path: str | Path,
     left_frame: int,
@@ -134,85 +327,86 @@ def _camera_ht_between_anchors(
         maximum_fusion_disagreement_px=90.0,
         reliability_power=1.0,
     )
-    # Each endpoint closure is computed once and supplies bridge correction.
-    left_closure = propagate_pitch_homography(
-        video_path, left_frame, right_frame, left_homography,
-        pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m, config=flow_config,
-    )
-    right_closure = propagate_pitch_homography(
-        video_path, right_frame, left_frame, right_homography,
-        pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m, config=flow_config,
-    )
-
     derived: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     span = float(right_frame - left_frame)
-    for frame in range(left_frame + 1, right_frame):
-        left_raw = propagate_pitch_homography(
-            video_path, left_frame, frame, left_homography,
-            pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m, config=flow_config,
+    frame_cache = _IntervalFrameCache(video_path)
+    try:
+        left_paths = _CachedDirectionalFlow(
+            frame_cache, left_frame, right_frame, left_homography,
+            pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
+            config=flow_config,
         )
-        right_raw = propagate_pitch_homography(
-            video_path, right_frame, frame, right_homography,
-            pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m, config=flow_config,
+        right_paths = _CachedDirectionalFlow(
+            frame_cache, right_frame, left_frame, right_homography,
+            pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
+            config=flow_config,
         )
-        left_corrected = corrected_path_result(
-            left_raw,
-            bridge_correct_homography(
-                left_raw, left_closure, right_homography,
-                progress_to_endpoint=(frame - left_frame) / span,
+        # Endpoint closures are now the cached full directional paths.
+        left_closure = left_paths.path_to(right_frame)
+        right_closure = right_paths.path_to(left_frame)
+        for frame in range(left_frame + 1, right_frame):
+            left_raw = left_paths.path_to(frame)
+            right_raw = right_paths.path_to(frame)
+            left_corrected = corrected_path_result(
+                left_raw,
+                bridge_correct_homography(
+                    left_raw, left_closure, right_homography,
+                    progress_to_endpoint=(frame - left_frame) / span,
+                    image_width=image_width, image_height=image_height,
+                    pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
+                    config=bridge_config,
+                ),
+            )
+            right_corrected = corrected_path_result(
+                right_raw,
+                bridge_correct_homography(
+                    right_raw, right_closure, left_homography,
+                    progress_to_endpoint=(right_frame - frame) / span,
+                    image_width=image_width, image_height=image_height,
+                    pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
+                    config=bridge_config,
+                ),
+            )
+            disagreement = homography_disagreement_px(
+                left_corrected.get("homography"), right_corrected.get("homography"),
+                pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
+                image_width=image_width, image_height=image_height,
+            )
+            disagreement_px = disagreement.get("median_px") if disagreement.get("status") == "ok" else None
+            fusion = fuse_corrected_planar_paths(
+                left_corrected, right_corrected,
+                disagreement_px=disagreement_px,
                 image_width=image_width, image_height=image_height,
                 pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
-                config=bridge_config,
-            ),
-        )
-        right_corrected = corrected_path_result(
-            right_raw,
-            bridge_correct_homography(
-                right_raw, right_closure, left_homography,
-                progress_to_endpoint=(right_frame - frame) / span,
-                image_width=image_width, image_height=image_height,
-                pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
-                config=bridge_config,
-            ),
-        )
-        disagreement = homography_disagreement_px(
-            left_corrected.get("homography"), right_corrected.get("homography"),
-            pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
-            image_width=image_width, image_height=image_height,
-        )
-        disagreement_px = disagreement.get("median_px") if disagreement.get("status") == "ok" else None
-        fusion = fuse_corrected_planar_paths(
-            left_corrected, right_corrected,
-            disagreement_px=disagreement_px,
-            image_width=image_width, image_height=image_height,
-            pitch_length_m=pitch_length_m, pitch_width_m=pitch_width_m,
-            selection_config=selection_config, fusion_config=fusion_config,
-        )
-        if fusion.get("status") != "ok" or not isinstance(fusion.get("homography"), list):
-            failures.append(_unrecovered(
-                frame, "camera_ht_unavailable", left_anchor_frame=left_frame,
-                right_anchor_frame=right_frame, fusion_status=fusion.get("status"),
-            ))
-            continue
-        selection = fusion.get("selection", {})
-        derived.append({
-            "frame": frame,
-            "homography": fusion["homography"],
-            "source": CAMERA_STATE_ALGORITHM,
-            "purpose": "derived_camera",
-            "method": fusion.get("mode", "selected_only"),
-            "confidence": selection.get("confidence"),
-            "left_anchor_frame": left_frame,
-            "right_anchor_frame": right_frame,
-            "corrected_disagreement_px": disagreement_px,
-            "selected_side": selection.get("selected_side"),
-            "fusion_weights": fusion.get("weights", {}),
-            "flow_quality": {
-                "left": _flow_quality(left_corrected),
-                "right": _flow_quality(right_corrected),
-            },
-        })
+                selection_config=selection_config, fusion_config=fusion_config,
+            )
+            if fusion.get("status") != "ok" or not isinstance(fusion.get("homography"), list):
+                failures.append(_unrecovered(
+                    frame, "camera_ht_unavailable", left_anchor_frame=left_frame,
+                    right_anchor_frame=right_frame, fusion_status=fusion.get("status"),
+                ))
+                continue
+            selection = fusion.get("selection", {})
+            derived.append({
+                "frame": frame,
+                "homography": fusion["homography"],
+                "source": CAMERA_STATE_ALGORITHM,
+                "purpose": "derived_camera",
+                "method": fusion.get("mode", "selected_only"),
+                "confidence": selection.get("confidence"),
+                "left_anchor_frame": left_frame,
+                "right_anchor_frame": right_frame,
+                "corrected_disagreement_px": disagreement_px,
+                "selected_side": selection.get("selected_side"),
+                "fusion_weights": fusion.get("weights", {}),
+                "flow_quality": {
+                    "left": _flow_quality(left_corrected),
+                    "right": _flow_quality(right_corrected),
+                },
+            })
+    finally:
+        frame_cache.close()
     return derived, failures
 
 
