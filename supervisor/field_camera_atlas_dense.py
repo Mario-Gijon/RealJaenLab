@@ -13,13 +13,19 @@ Architecture
 4. The already validated Camera H_t planar-flow bridge/fusion fills every frame
    between consecutive soft anchors.
 
-This module deliberately reuses the validated H_t mathematics instead of
-creating another interpolation model.
+CAT02 change
+------------
+The one-sided start/end tails now reuse the validated cached directional-flow
+implementation from `field_camera_state_pipeline`.
 
-Provenance is preserved:
-    HUMAN -> direct relocalized keyframe -> local H_t dense frame
+CAT01 called `propagate_pitch_homography(anchor -> target)` independently for
+every tail target. That repeatedly recomputed all prefixes and was O(n^2) in
+the tail length.
 
-No derived keyframe is ever promoted to HUMAN.
+CAT02 builds the directional path once and then queries cached prefixes, making
+tail recovery approximately O(n).
+
+No camera mathematics or provenance policy has changed.
 """
 
 from __future__ import annotations
@@ -28,14 +34,14 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-import cv2
 import numpy as np
 
-from supervisor.field_camera_state_pipeline import _camera_ht_between_anchors
-from supervisor.field_camera_state_planar_flow import (
-    PlanarFlowConfig,
-    propagate_pitch_homography,
+from supervisor.field_camera_state_pipeline import (
+    _CachedDirectionalFlow,
+    _IntervalFrameCache,
+    _camera_ht_between_anchors,
 )
+from supervisor.field_camera_state_planar_flow import PlanarFlowConfig
 
 
 @dataclass(frozen=True)
@@ -122,7 +128,10 @@ def _valid_soft_anchors(
         ):
             deduplicated[frame] = anchor
 
-    return sorted(deduplicated.values(), key=lambda item: int(item["frame"]))
+    return sorted(
+        deduplicated.values(),
+        key=lambda item: int(item["frame"]),
+    )
 
 
 def _soft_anchor_record(anchor: dict[str, Any]) -> dict[str, Any]:
@@ -139,8 +148,12 @@ def _soft_anchor_record(anchor: dict[str, Any]) -> dict[str, Any]:
             "match_count": anchor.get("match_count"),
             "inlier_count": anchor.get("inlier_count"),
             "inlier_ratio": anchor.get("inlier_ratio"),
-            "median_reprojection_px": anchor.get("median_reprojection_px"),
-            "direct_state_distance": anchor.get("direct_state_distance"),
+            "median_reprojection_px": anchor.get(
+                "median_reprojection_px"
+            ),
+            "direct_state_distance": anchor.get(
+                "direct_state_distance"
+            ),
         },
         "policy": {
             "is_human_anchor": False,
@@ -163,19 +176,57 @@ def _dense_record(
     output["atlas_left_keyframe"] = int(left_anchor["frame"])
     output["atlas_right_keyframe"] = int(right_anchor["frame"])
     output["atlas_left_confidence"] = left_anchor.get(
-        "confidence_tier", "verified"
+        "confidence_tier",
+        "verified",
     )
     output["atlas_right_confidence"] = right_anchor.get(
-        "confidence_tier", "verified"
+        "confidence_tier",
+        "verified",
     )
     output["atlas_left_human_origin"] = left_anchor.get("anchor_frame")
-    output["atlas_right_human_origin"] = right_anchor.get("anchor_frame")
+    output["atlas_right_human_origin"] = right_anchor.get(
+        "anchor_frame"
+    )
     output["policy"] = {
         "is_human_anchor": False,
         "may_train_camera_state": False,
         "uses_only_derived_keyframe_endpoints": True,
     }
     return output
+
+
+def _tail_record(
+    *,
+    frame: int,
+    path: dict[str, Any],
+    anchor: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "frame": int(frame),
+        "homography": path["homography"],
+        "source": "camera_atlas_ht_v1",
+        "purpose": "derived_camera",
+        "method": "atlas_one_sided_tail_flow_cached",
+        "confidence_tier": anchor.get(
+            "confidence_tier",
+            "verified",
+        ),
+        "atlas_anchor_frame": int(anchor["frame"]),
+        "atlas_human_origin": anchor.get("anchor_frame"),
+        "flow_quality": {
+            "step_count": path.get("step_count"),
+            "median_inlier_ratio": path.get(
+                "median_inlier_ratio"
+            ),
+            "median_reprojection_px": path.get(
+                "median_reprojection_px"
+            ),
+        },
+        "policy": {
+            "is_human_anchor": False,
+            "may_train_camera_state": False,
+        },
+    }
 
 
 def _one_sided_tail(
@@ -187,64 +238,78 @@ def _one_sided_tail(
     pitch_width_m: float,
     config: DenseCameraAtlasConfig,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    derived = []
-    failures = []
+    """Recover one tail using one cached directional-flow path.
+
+    This preserves the same PlanarFlowConfig and the same per-target path
+    semantics as CAT01, but avoids re-decoding/re-estimating the common prefix
+    independently for every target.
+    """
+
+    if not target_frames:
+        return [], []
+
+    derived: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
 
     flow_cfg = PlanarFlowConfig(
-        sample_step_frames=max(1, int(config.tail_flow_step_frames))
+        sample_step_frames=max(
+            1,
+            int(config.tail_flow_step_frames),
+        )
     )
     anchor_frame = int(anchor["frame"])
 
-    for frame in target_frames:
-        path = propagate_pitch_homography(
-            video_path,
+    ordered_targets = sorted(
+        {int(frame) for frame in target_frames},
+        key=lambda frame: abs(frame - anchor_frame),
+    )
+
+    furthest_target = max(
+        ordered_targets,
+        key=lambda frame: abs(frame - anchor_frame),
+    )
+
+    frame_cache = _IntervalFrameCache(video_path)
+    try:
+        cached_flow = _CachedDirectionalFlow(
+            frame_cache,
             anchor_frame,
-            int(frame),
+            furthest_target,
             anchor["homography"],
             pitch_length_m=pitch_length_m,
             pitch_width_m=pitch_width_m,
             config=flow_cfg,
         )
 
-        if path.get("status") != "ok" or not isinstance(
-            path.get("homography"), list
-        ):
-            failures.append(
-                {
-                    "frame": int(frame),
-                    "reason": "atlas_tail_flow_failed",
-                    "anchor_frame": anchor_frame,
-                    "flow_status": path.get("status"),
-                }
+        for frame in ordered_targets:
+            path = cached_flow.path_to(frame)
+
+            if (
+                path.get("status") != "ok"
+                or not isinstance(path.get("homography"), list)
+            ):
+                failures.append(
+                    {
+                        "frame": int(frame),
+                        "reason": "atlas_tail_flow_failed",
+                        "anchor_frame": anchor_frame,
+                        "flow_status": path.get("status"),
+                    }
+                )
+                continue
+
+            derived.append(
+                _tail_record(
+                    frame=frame,
+                    path=path,
+                    anchor=anchor,
+                )
             )
-            continue
+    finally:
+        frame_cache.close()
 
-        derived.append(
-            {
-                "frame": int(frame),
-                "homography": path["homography"],
-                "source": "camera_atlas_ht_v1",
-                "purpose": "derived_camera",
-                "method": "atlas_one_sided_tail_flow",
-                "confidence_tier": anchor.get(
-                    "confidence_tier", "verified"
-                ),
-                "atlas_anchor_frame": anchor_frame,
-                "atlas_human_origin": anchor.get("anchor_frame"),
-                "flow_quality": {
-                    "step_count": path.get("step_count"),
-                    "median_inlier_ratio": path.get("median_inlier_ratio"),
-                    "median_reprojection_px": path.get(
-                        "median_reprojection_px"
-                    ),
-                },
-                "policy": {
-                    "is_human_anchor": False,
-                    "may_train_camera_state": False,
-                },
-            }
-        )
-
+    derived.sort(key=lambda record: int(record["frame"]))
+    failures.sort(key=lambda record: int(record["frame"]))
     return derived, failures
 
 
@@ -264,7 +329,10 @@ def build_dense_camera_atlas(
     """Densify relocalized keyframes into per-frame pitch homographies."""
 
     cfg = config or DenseCameraAtlasConfig()
-    anchors = _valid_soft_anchors(soft_anchors, config=cfg)
+    anchors = _valid_soft_anchors(
+        soft_anchors,
+        config=cfg,
+    )
 
     if not anchors:
         return {"status": "no_valid_soft_anchors"}
@@ -283,12 +351,15 @@ def build_dense_camera_atlas(
             records_by_frame[frame] = _soft_anchor_record(anchor)
 
     interval_count = max(0, len(anchors) - 1)
-    for index, (left, right) in enumerate(zip(anchors[:-1], anchors[1:])):
+    for index, (left, right) in enumerate(
+        zip(anchors[:-1], anchors[1:])
+    ):
         left_frame = int(left["frame"])
         right_frame = int(right["frame"])
 
         if right_frame <= start or left_frame >= end:
             continue
+
         if right_frame <= left_frame + 1:
             if progress_callback is not None:
                 progress_callback(
@@ -344,8 +415,11 @@ def build_dense_camera_atlas(
             )
 
     first_anchor = anchors[0]
-    if start < int(first_anchor["frame"]):
-        target_frames = list(range(start, int(first_anchor["frame"])))
+    first_anchor_frame = int(first_anchor["frame"])
+    if start < first_anchor_frame:
+        target_frames = list(
+            range(start, first_anchor_frame)
+        )
         tail, tail_failures = _one_sided_tail(
             video_path,
             anchor=first_anchor,
@@ -358,10 +432,21 @@ def build_dense_camera_atlas(
             records_by_frame[int(record["frame"])] = record
         failures.extend(tail_failures)
 
+        if progress_callback is not None:
+            progress_callback(
+                "tail_start",
+                len(target_frames),
+                len(target_frames),
+                start,
+                first_anchor_frame,
+                len(records_by_frame),
+            )
+
     last_anchor = anchors[-1]
-    if end > int(last_anchor["frame"]):
+    last_anchor_frame = int(last_anchor["frame"])
+    if end > last_anchor_frame:
         target_frames = list(
-            range(int(last_anchor["frame"]) + 1, end + 1)
+            range(last_anchor_frame + 1, end + 1)
         )
         tail, tail_failures = _one_sided_tail(
             video_path,
@@ -374,6 +459,16 @@ def build_dense_camera_atlas(
         for record in tail:
             records_by_frame[int(record["frame"])] = record
         failures.extend(tail_failures)
+
+        if progress_callback is not None:
+            progress_callback(
+                "tail_end",
+                len(target_frames),
+                len(target_frames),
+                last_anchor_frame,
+                end,
+                len(records_by_frame),
+            )
 
     expected_frames = end - start + 1
     records = [
@@ -390,7 +485,9 @@ def build_dense_camera_atlas(
     source_counts: dict[str, int] = {}
     for record in records:
         source = str(record.get("source") or "unknown")
-        source_counts[source] = source_counts.get(source, 0) + 1
+        source_counts[source] = (
+            source_counts.get(source, 0) + 1
+        )
 
     high_endpoint_frames = sum(
         1
@@ -408,6 +505,7 @@ def build_dense_camera_atlas(
         "status": "ok",
         "version": 1,
         "algorithm": "dense_camera_atlas_v1",
+        "implementation": "CAT02_cached_tails",
         "config": asdict(cfg),
         "frame_range": {
             "start": start,
@@ -416,7 +514,8 @@ def build_dense_camera_atlas(
         },
         "soft_anchor_count": len(anchors),
         "derived_frame_count": len(records),
-        "coverage_fraction": len(records) / max(float(expected_frames), 1.0),
+        "coverage_fraction": len(records)
+        / max(float(expected_frames), 1.0),
         "missing_frame_count": len(missing),
         "high_endpoint_frame_count": high_endpoint_frames,
         "source_counts": source_counts,
