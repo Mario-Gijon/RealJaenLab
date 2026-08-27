@@ -7,10 +7,13 @@ const saveStatusLabel = document.querySelector("#save-status-label");
 const video = document.querySelector("#video");
 const workspace = document.querySelector(".workspace");
 const workArea = document.querySelector(".work-area");
+const videoStage = document.querySelector("#video-stage");
 const overlay = document.querySelector("#video-overlay");
 const overlayContext = overlay.getContext("2d");
 const previewProvenance = document.querySelector("#preview-provenance");
 const videoSelect = document.querySelector("#video-select");
+const backToLibraryButton = document.querySelector("#back-to-library");
+const libraryScreen = document.querySelector("#library-screen");
 const workspaceMessage = document.querySelector("#workspace-message");
 const workspaceTitle = document.querySelector("#workspace-title");
 const workspaceDescription = document.querySelector("#workspace-description");
@@ -268,19 +271,11 @@ function browserToVideoCoordinates({ clientX, clientY }) {
 function getDisplayedVideoRect() {
   if (!video.videoWidth || !video.videoHeight) return null;
   const videoBounds = video.getBoundingClientRect();
-  const videoAspectRatio = video.videoWidth / video.videoHeight;
-  const elementAspectRatio = videoBounds.width / videoBounds.height;
-  const width = elementAspectRatio > videoAspectRatio
-    ? videoBounds.height * videoAspectRatio
-    : videoBounds.width;
-  const height = elementAspectRatio > videoAspectRatio
-    ? videoBounds.height
-    : videoBounds.width / videoAspectRatio;
   return {
-    left: videoBounds.left + (videoBounds.width - width) / 2,
-    top: videoBounds.top + (videoBounds.height - height) / 2,
-    width,
-    height,
+    left: videoBounds.left,
+    top: videoBounds.top,
+    width: videoBounds.width,
+    height: videoBounds.height,
   };
 }
 
@@ -2934,17 +2929,23 @@ function drawOverlay() {
 }
 
 function syncOverlay() {
+  if (video.videoWidth && video.videoHeight) {
+    const availableWidth = workArea.clientWidth;
+    const availableHeight = workArea.clientHeight;
+    const scale = Math.min(availableWidth / video.videoWidth, availableHeight / video.videoHeight);
+    videoStage.style.width = `${Math.max(0, video.videoWidth * scale)}px`;
+    videoStage.style.height = `${Math.max(0, video.videoHeight * scale)}px`;
+  }
   displayedVideoRect = getDisplayedVideoRect();
   if (!displayedVideoRect) {
     overlay.classList.remove("is-loaded");
     return;
   }
 
-  const workspaceBounds = workArea.getBoundingClientRect();
   overlay.width = video.videoWidth;
   overlay.height = video.videoHeight;
-  overlay.style.left = `${displayedVideoRect.left - workspaceBounds.left}px`;
-  overlay.style.top = `${displayedVideoRect.top - workspaceBounds.top}px`;
+  overlay.style.left = "0px";
+  overlay.style.top = "0px";
   overlay.style.width = `${displayedVideoRect.width}px`;
   overlay.style.height = `${displayedVideoRect.height}px`;
   overlay.classList.add("is-loaded");
@@ -3001,6 +3002,7 @@ function resetPlaybackState() {
   displayedVideoRect = null;
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   overlay.classList.remove("is-loaded");
+  videoStage.classList.remove("is-loaded");
 }
 
 async function loadDenseCameraAtlasPreview(videoName, loadSequence) {
@@ -3065,8 +3067,8 @@ async function loadVideo(videoInfo) {
   video.classList.remove("is-loaded");
   workspaceMessage.hidden = false;
   workspaceTitle.textContent = "Cargando vídeo";
-  workspaceDescription.textContent = videoInfo.name;
-  video.src = `/videos/${encodeURIComponent(videoInfo.name)}`;
+  workspaceDescription.textContent = videoInfo.displayName || videoInfo.name;
+  video.src = videoInfo.playbackUrl || `/videos/${encodeURIComponent(videoInfo.name)}`;
   video.load();
   void loadDenseCameraAtlasPreview(videoInfo.name, loadSequence);
 
@@ -3366,6 +3368,7 @@ video.addEventListener("loadedmetadata", () => {
   video.currentTime = 0;
   workspaceMessage.hidden = true;
   video.classList.add("is-loaded");
+  videoStage.classList.add("is-loaded");
   setControlsEnabled(true);
   updatePlaybackDisplay();
   syncOverlay();
@@ -3835,11 +3838,27 @@ async function initialiseVideos() {
 
     videos.forEach((videoInfo) => videoSelect.add(new Option(videoInfo.name, videoInfo.name)));
     videoSelect.disabled = false;
-    loadVideo(videos[0]);
   } catch (error) {
     workspaceTitle.textContent = "Lista de vídeos no disponible";
     workspaceDescription.textContent = "No se pudo leer el directorio input.";
   }
 }
 
+function openWorkspaceVideo(videoInfo) {
+  if (!videoInfo?.name) return;
+  document.body.classList.remove("is-library");
+  libraryScreen.hidden = true;
+  loadVideo(videoInfo);
+}
+
+function returnToLibrary() {
+  video.pause();
+  document.body.classList.add("is-library");
+  libraryScreen.hidden = false;
+  window.SupervisorLibrary?.show?.();
+}
+
+backToLibraryButton.addEventListener("click", returnToLibrary);
+window.SupervisorWorkspace = { openVideo: openWorkspaceVideo, returnToLibrary };
+document.body.classList.add("is-library");
 initialiseVideos();

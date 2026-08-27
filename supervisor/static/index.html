@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
+    <section class="library-screen" id="library-screen" aria-label="Biblioteca de vídeos"></section>
     <main class="supervisor-shell">
       <header class="topbar">
         <div class="brand">
@@ -14,7 +15,7 @@
           <span>REALJAEN SUPERVISOR</span>
         </div>
 
-        <label class="video-selector" for="video-select">
+        <label class="video-selector" for="video-select" hidden>
           <span>VIDEO</span>
           <select id="video-select" disabled>
             <option>Cargando vídeos…</option>
@@ -28,6 +29,7 @@
         </nav>
 
         <div class="actions">
+          <button class="button button-secondary" id="back-to-library" type="button">← Biblioteca</button>
           <button class="button button-secondary debug-toggle" id="debug-toggle" type="button" aria-pressed="false">Depuración</button>
           <span class="save-status" id="save-status" role="status">
             <span class="status-dot" aria-hidden="true"></span>
@@ -40,9 +42,11 @@
 
       <section class="workspace" aria-label="Área de vídeo">
         <div class="work-area">
-          <video id="video" class="video" playsinline preload="metadata"></video>
-          <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
-          <span class="preview-provenance" id="preview-provenance" hidden></span>
+          <div class="video-stage" id="video-stage">
+            <video id="video" class="video" playsinline preload="metadata"></video>
+            <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
+            <span class="preview-provenance" id="preview-provenance" hidden></span>
+          </div>
           <div class="work-area-message" id="workspace-message">
             <span class="work-area-kicker" id="mode-label">MODO VÍDEO</span>
             <h1 id="workspace-title">Área de vídeo</h1>
@@ -120,5 +124,6 @@
 
     <script src="/static/pitch.js"></script>
     <script src="/static/app.js"></script>
+    <script src="/static/library.js"></script>
   </body>
 </html>
