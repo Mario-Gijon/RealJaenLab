@@ -13,6 +13,8 @@ from tempfile import NamedTemporaryFile
 from threading import Lock
 from typing import Any, Callable
 
+import numpy as np
+
 from supervisor.field_camera_active_anchor import ActiveAnchorConfig, select_next_active_anchor
 from supervisor.field_camera_anchor_relocalization import AnchorRelocalizationConfig, analyse_anchor_relocalization
 from supervisor.field_camera_atlas_dense import DenseCameraAtlasConfig, build_dense_camera_atlas
@@ -30,6 +32,21 @@ def _now() -> str:
 
 def _valid_homography(value: Any) -> bool:
     return isinstance(value, list) and len(value) == 3 and all(isinstance(row, list) and len(row) == 3 for row in value)
+
+
+def _json_safe(value: Any) -> Any:
+    """Convert CV diagnostics to JSON-safe values only at persistence edges."""
+    if isinstance(value, np.ndarray):
+        return [_json_safe(item) for item in value.tolist()]
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def extract_human_anchors(review: dict[str, Any]) -> list[dict[str, Any]]:
@@ -80,10 +97,10 @@ class FieldWorkflowManager:
         return self.review_dir / source.result_basename(suffix)
 
     @staticmethod
-    def _write(path: Path, value: dict[str, Any]) -> None:
+    def _write(path: Path, value: Any) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as temporary:
-            json.dump(value, temporary, indent=2)
+            json.dump(_json_safe(value), temporary, indent=2)
             temporary.write("\n"); temporary.flush(); os.fsync(temporary.fileno())
             name = temporary.name
         os.replace(name, path)
@@ -158,7 +175,14 @@ class FieldWorkflowManager:
         review, metadata, anchors, signature = self._prepare(source)
         with self.lock:
             future = self.jobs.get(source.reference)
-            if future is not None and not future.done(): return self.get(source)
+        if future is not None and not future.done():
+            # Do not call get() while holding self.lock: it also reads jobs.
+            return self._read_state(source) or {"version": 1, "source_reference": source.reference, "source_key": source.result_key, "camera": {"status": "queued", "phase": "queued", "progress_fraction": 0.0}}
+        with self.lock:
+            # A request may have raced between the first lookup and this lock.
+            future = self.jobs.get(source.reference)
+            if future is not None and not future.done():
+                return self._read_state(source) or {"version": 1, "source_reference": source.reference, "source_key": source.result_key, "camera": {"status": "queued", "phase": "queued", "progress_fraction": 0.0}}
             state = {"version": 1, "source_reference": source.reference, "source_key": source.result_key, "input_signature": signature, "metadata": metadata, "camera": {"status": "queued", "phase": "queued", "progress_fraction": 0.0, "human_message": "Preparando análisis de cámara…", "human_anchor_count": len(anchors), "total_frames": int(metadata["frame_count"]), "trajectory_keyframe_count": 0, "relocalized_keyframe_count": 0, "direct_unresolved_keyframe_count": 0, "dense_frame_count": 0, "dense_missing_frame_count": 0, "dense_coverage_fraction": 0.0, "recommended_human_frame": None}}
             self._save_state(source, state)
             self.jobs[source.reference] = self.executor.submit(self._run, source, state)
@@ -166,28 +190,51 @@ class FieldWorkflowManager:
 
     def _run(self, source, state: dict[str, Any]) -> None:
         camera = state["camera"]
+        persisted_progress = -1.0
         def progress(phase, fraction, message):
-            camera.update({"status": "running", "phase": phase, "progress_fraction": fraction, "human_message": message}); self._save_state(source, state)
+            nonlocal persisted_progress
+            fraction = max(float(camera.get("progress_fraction") or 0.0), min(0.99, float(fraction)))
+            changed_phase = camera.get("phase") != phase
+            camera.update({"status": "running", "phase": phase, "progress_fraction": fraction, "human_message": message})
+            if changed_phase or fraction - persisted_progress >= 0.005:
+                persisted_progress = fraction
+                self._save_state(source, state)
+        def phase_failure(phase: str, result: Any) -> None:
+            detail = result.get("status") if isinstance(result, dict) else "resultado inválido"
+            camera.update({"status": "needs_attention", "phase": phase, "human_message": "No se pudo completar automáticamente la cámara.", "error": f"{phase}: {detail}"})
+            self._save_state(source, state)
         try:
             review, metadata, anchors, signature = self._prepare(source)
             total, width, height = int(metadata["frame_count"]), int(metadata["width"]), int(metadata["height"])
             pitch = review["field"]["pitch_model"]
             progress("trajectory", 0.0, "Analizando movimiento de cámara…")
-            trajectory = self.dependencies.trajectory(source.path, start_frame=0, end_frame=total - 1, motion_config=GlobalCameraMotionConfig(analysis_width=960, sample_step_frames=2), trajectory_config=CameraTrajectoryConfig(sample_step_frames=2), progress_callback=lambda *_args: progress("trajectory", .35, "Analizando movimiento de cámara…"))
+            def trajectory_progress(done, count, *_args):
+                progress("trajectory", .35 * (float(done) / max(float(count), 1.0)), "Analizando movimiento de cámara…")
+            trajectory = self.dependencies.trajectory(source.path, start_frame=0, end_frame=total - 1, motion_config=GlobalCameraMotionConfig(analysis_width=960, sample_step_frames=2), trajectory_config=CameraTrajectoryConfig(sample_step_frames=2), progress_callback=trajectory_progress)
             self._write(self._path(source, "_camera_trajectory_v1.json"), trajectory)
+            if not isinstance(trajectory, dict) or trajectory.get("status") != "ok":
+                phase_failure("trajectory", trajectory); return
             keyframes = trajectory.get("keyframes", []) if isinstance(trajectory, dict) else []
             targets = [{"frame": int(item["frame"]), "keyframe_index": index} for index, item in enumerate(keyframes) if isinstance(item, dict) and "frame" in item]
             camera["trajectory_keyframe_count"] = len(targets)
             progress("relocalization", .35, "Buscando vistas conocidas…")
-            relocalization = self.dependencies.relocalization(source.path, anchors=anchors, targets=targets, config=AnchorRelocalizationConfig(analysis_width=960), exclude_same_frame=False, progress_callback=lambda *_args: progress("relocalization", .70, "Buscando vistas conocidas…"))
+            def relocalization_progress(phase, done, count, *_args):
+                if phase == "targets": progress("relocalization", .35 + .35 * (float(done) / max(float(count), 1.0)), "Buscando vistas conocidas…")
+            relocalization = self.dependencies.relocalization(source.path, anchors=anchors, targets=targets, config=AnchorRelocalizationConfig(analysis_width=960), exclude_same_frame=False, progress_callback=relocalization_progress)
             self._write(self._path(source, "_camera_anchor_relocalization_v1.json"), relocalization)
+            if not isinstance(relocalization, dict) or relocalization.get("status") != "ok":
+                phase_failure("relocalization", relocalization); return
             results = relocalization.get("results", []) if isinstance(relocalization, dict) else []
             soft = [{key: item.get(key) for key in ("frame", "homography", "confidence_tier", "anchor_frame", "score", "match_count", "inlier_count", "inlier_ratio", "median_reprojection_px", "direct_state_distance")} for item in results if isinstance(item, dict) and item.get("status") == "ok" and isinstance(item.get("homography"), list)]
             unresolved = [int(item["frame"]) for item in results if isinstance(item, dict) and item.get("status") != "ok" and "frame" in item]
             camera["relocalized_keyframe_count"] = len(soft); camera["direct_unresolved_keyframe_count"] = len(unresolved)
             progress("dense", .70, "Completando el vídeo…")
-            dense = self.dependencies.dense(source.path, soft_anchors=soft, image_width=width, image_height=height, pitch_length_m=float(pitch["length_m"]), pitch_width_m=float(pitch["width_m"]), start_frame=0, end_frame=total - 1, config=DenseCameraAtlasConfig(), progress_callback=lambda *_args: progress("dense", .95, "Completando el vídeo…"))
+            def dense_progress(_phase, done, count, *_args):
+                progress("dense", .70 + .29 * (float(done) / max(float(count), 1.0)), "Completando el vídeo…")
+            dense = self.dependencies.dense(source.path, soft_anchors=soft, image_width=width, image_height=height, pitch_length_m=float(pitch["length_m"]), pitch_width_m=float(pitch["width_m"]), start_frame=0, end_frame=total - 1, config=DenseCameraAtlasConfig(), progress_callback=dense_progress)
             self._write(self._path(source, "_camera_atlas_dense_v1.json"), dense)
+            if not isinstance(dense, dict) or dense.get("status") != "ok" or not isinstance(dense.get("records"), list):
+                phase_failure("dense", dense); return
             records = dense.get("records", []) if isinstance(dense, dict) else []
             present = {int(item["frame"]) for item in records if isinstance(item, dict) and "frame" in item}
             missing_candidates = sorted(set(unresolved) - present)
@@ -199,7 +246,7 @@ class FieldWorkflowManager:
                 selection = self.dependencies.active_anchor(source.path, missing_candidates, config=ActiveAnchorConfig(analysis_width=960))
                 recommendations = selection.get("recommendations", []) if isinstance(selection, dict) else []
                 if recommendations:
-                    recommendation = recommendations[0]; camera.update({"status": "needs_human", "phase": "needs_human", "progress_fraction": 1.0, "human_message": "Necesitamos una referencia manual en una vista nueva.", "recommended_human_frame": int(recommendation.get("frame")), "active_candidate_count": len(missing_candidates), "expected_gain": recommendation.get("expected_gain")})
+                    recommendation = recommendations[0]; camera.update({"status": "needs_human", "phase": "needs_human", "progress_fraction": 1.0, "human_message": "Necesitamos una referencia manual en una vista nueva.", "recommended_human_frame": int(recommendation.get("frame")), "active_candidate_count": len(missing_candidates), "expected_gain": recommendation.get("expected_gain_count", recommendation.get("expected_gain"))})
                 else:
                     camera.update({"status": "needs_attention", "phase": "needs_attention", "progress_fraction": 1.0, "human_message": "No se pudo completar automáticamente la cámara."})
             else:
