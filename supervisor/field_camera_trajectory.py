@@ -26,7 +26,9 @@ Later loop-closure will validate/refine candidates with direct image matching.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import math
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 
 import cv2
@@ -261,6 +263,7 @@ def analyse_camera_trajectory(
             }
         )
 
+    started_at = perf_counter()
     path = Path(video_path)
     capture = cv2.VideoCapture(str(path))
     if not capture.isOpened():
@@ -288,7 +291,8 @@ def analyse_camera_trajectory(
     if sampled_frames[-1] != end:
         sampled_frames.append(end)
 
-    capture.set(cv2.CAP_PROP_POS_FRAMES, start)
+    if start > 0:
+        capture.set(cv2.CAP_PROP_POS_FRAMES, start)
     ok, previous_frame = capture.read()
     if not ok or previous_frame is None:
         capture.release()
@@ -324,13 +328,22 @@ def analyse_camera_trajectory(
     ]
 
     current_capture_index = start
+    last_decoded_frame = start
+    decoded_frame_count = 1
+    trailing_unreadable_frame_count = 0
+    effective_end_frame = end
     try:
-        for sample_index, current_index in enumerate(sampled_frames[1:], start=1):
-            # VideoCapture is already positioned after the previous decoded
-            # frame only when stride=1. Seek explicitly for deterministic use.
-            capture.set(cv2.CAP_PROP_POS_FRAMES, int(current_index))
+        # Decode forward once.  ``previous_frame`` always remains the previous
+        # *sampled* image; decoded intermediates merely advance the codec.
+        next_sample_index = 1
+        for current_index in range(start + 1, end + 1):
             ok, current_frame = capture.read()
             if not ok or current_frame is None:
+                trailing_unreadable_frame_count = max(0, end - last_decoded_frame)
+                tolerance_frames = int(math.ceil(max(fps, 1.0) * 3.0))
+                if end - last_decoded_frame <= tolerance_frames:
+                    effective_end_frame = last_decoded_frame
+                    break
                 return {
                     "status": "frame_read_failed",
                     "frame": int(current_index),
@@ -361,8 +374,20 @@ def analyse_camera_trajectory(
                         "height": height,
                         "fps": fps,
                         "total_frames": total_frames,
+                        "reported_frame_count": total_frames,
+                        "reported_end_frame": end,
+                        "effective_end_frame": last_decoded_frame,
+                        "trailing_unreadable_frame_count": 0,
                     },
                 }
+
+            last_decoded_frame = current_index
+            decoded_frame_count += 1
+            if next_sample_index >= len(sampled_frames) or current_index != sampled_frames[next_sample_index]:
+                continue
+
+            sample_index = next_sample_index
+            next_sample_index += 1
 
             step_matrix = _normalise_h(motion["matrix"])
             cumulative = _normalise_h(step_matrix @ cumulative)
@@ -495,6 +520,7 @@ def analyse_camera_trajectory(
 
     regions = _camera_regions(keyframes, recurrence_edges)
 
+    effective_sampled_end_frame = int(trajectory[-1]["frame"])
     return {
         "status": "ok",
         "version": 1,
@@ -505,8 +531,15 @@ def analyse_camera_trajectory(
             "height": height,
             "fps": fps,
             "total_frames": total_frames,
+            "reported_frame_count": total_frames,
+            "effective_frame_count": effective_end_frame + 1,
             "start_frame": start,
             "end_frame": end,
+            "reported_end_frame": end,
+            "effective_end_frame": effective_end_frame,
+            "effective_sampled_end_frame": effective_sampled_end_frame,
+            "last_decoded_frame": last_decoded_frame,
+            "trailing_unreadable_frame_count": trailing_unreadable_frame_count,
         },
         "motion_config": asdict(mcfg),
         "trajectory_config": asdict(tcfg),
@@ -514,6 +547,9 @@ def analyse_camera_trajectory(
         "keyframe_count": len(keyframes),
         "recurrence_edge_count": len(recurrence_edges),
         "region_count": len(regions),
+        "elapsed_seconds": perf_counter() - started_at,
+        "decoded_frame_count": decoded_frame_count,
+        "sampled_frame_count": len(trajectory),
         "trajectory": trajectory,
         "keyframes": keyframes,
         "recurrence_edges": recurrence_edges,

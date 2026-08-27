@@ -860,6 +860,9 @@ function updatePitchSetupWorkflow() {
     } else if (cameraWorkflow?.status === "complete") {
       add("Cámara preparada", true);
       add(`${cameraWorkflow.dense_frame_count} / ${cameraWorkflow.total_frames} fotogramas`);
+      if (cameraWorkflow.trailing_unreadable_frame_count) {
+        add(`El archivo contiene ${cameraWorkflow.trailing_unreadable_frame_count} fotogramas finales que no se pueden leer.`);
+      }
       add(`${cameraWorkflow.human_anchor_count} referencias HUMAN`);
     } else if (cameraWorkflow?.status === "needs_human") {
       add("Necesitamos una referencia manual en una vista nueva.", false, true);

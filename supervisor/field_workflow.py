@@ -183,7 +183,8 @@ class FieldWorkflowManager:
             future = self.jobs.get(source.reference)
             if future is not None and not future.done():
                 return self._read_state(source) or {"version": 1, "source_reference": source.reference, "source_key": source.result_key, "camera": {"status": "queued", "phase": "queued", "progress_fraction": 0.0}}
-            state = {"version": 1, "source_reference": source.reference, "source_key": source.result_key, "input_signature": signature, "metadata": metadata, "camera": {"status": "queued", "phase": "queued", "progress_fraction": 0.0, "human_message": "Preparando análisis de cámara…", "human_anchor_count": len(anchors), "total_frames": int(metadata["frame_count"]), "trajectory_keyframe_count": 0, "relocalized_keyframe_count": 0, "direct_unresolved_keyframe_count": 0, "dense_frame_count": 0, "dense_missing_frame_count": 0, "dense_coverage_fraction": 0.0, "recommended_human_frame": None}}
+            reported_total = int(metadata["frame_count"])
+            state = {"version": 1, "source_reference": source.reference, "source_key": source.result_key, "input_signature": signature, "metadata": metadata, "camera": {"status": "queued", "phase": "queued", "progress_fraction": 0.0, "human_message": "Preparando análisis de cámara…", "human_anchor_count": len(anchors), "total_frames": reported_total, "reported_total_frames": reported_total, "effective_total_frames": reported_total, "trailing_unreadable_frame_count": 0, "trajectory_keyframe_count": 0, "relocalized_keyframe_count": 0, "direct_unresolved_keyframe_count": 0, "dense_frame_count": 0, "dense_missing_frame_count": 0, "dense_coverage_fraction": 0.0, "recommended_human_frame": None}}
             self._save_state(source, state)
             self.jobs[source.reference] = self.executor.submit(self._run, source, state)
             return state
@@ -214,6 +215,16 @@ class FieldWorkflowManager:
             self._write(self._path(source, "_camera_trajectory_v1.json"), trajectory)
             if not isinstance(trajectory, dict) or trajectory.get("status") != "ok":
                 phase_failure("trajectory", trajectory); return
+            trajectory_video = trajectory.get("video") if isinstance(trajectory.get("video"), dict) else {}
+            effective_end = int(trajectory_video.get("effective_end_frame", total - 1))
+            effective_end = min(total - 1, max(0, effective_end))
+            effective_total = effective_end + 1
+            camera.update({
+                "total_frames": effective_total,
+                "reported_total_frames": total,
+                "effective_total_frames": effective_total,
+                "trailing_unreadable_frame_count": int(trajectory_video.get("trailing_unreadable_frame_count", 0) or 0),
+            })
             keyframes = trajectory.get("keyframes", []) if isinstance(trajectory, dict) else []
             targets = [{"frame": int(item["frame"]), "keyframe_index": index} for index, item in enumerate(keyframes) if isinstance(item, dict) and "frame" in item]
             camera["trajectory_keyframe_count"] = len(targets)
@@ -231,16 +242,16 @@ class FieldWorkflowManager:
             progress("dense", .70, "Completando el vídeo…")
             def dense_progress(_phase, done, count, *_args):
                 progress("dense", .70 + .29 * (float(done) / max(float(count), 1.0)), "Completando el vídeo…")
-            dense = self.dependencies.dense(source.path, soft_anchors=soft, image_width=width, image_height=height, pitch_length_m=float(pitch["length_m"]), pitch_width_m=float(pitch["width_m"]), start_frame=0, end_frame=total - 1, config=DenseCameraAtlasConfig(), progress_callback=dense_progress)
+            dense = self.dependencies.dense(source.path, soft_anchors=soft, image_width=width, image_height=height, pitch_length_m=float(pitch["length_m"]), pitch_width_m=float(pitch["width_m"]), start_frame=0, end_frame=effective_end, config=DenseCameraAtlasConfig(), progress_callback=dense_progress)
             self._write(self._path(source, "_camera_atlas_dense_v1.json"), dense)
             if not isinstance(dense, dict) or dense.get("status") != "ok" or not isinstance(dense.get("records"), list):
                 phase_failure("dense", dense); return
             records = dense.get("records", []) if isinstance(dense, dict) else []
             present = {int(item["frame"]) for item in records if isinstance(item, dict) and "frame" in item}
             missing_candidates = sorted(set(unresolved) - present)
-            camera.update({"dense_frame_count": int(dense.get("derived_frame_count", len(records))) if isinstance(dense, dict) else 0, "dense_missing_frame_count": int(dense.get("missing_frame_count", total - len(records))) if isinstance(dense, dict) else total, "dense_coverage_fraction": float(dense.get("coverage_fraction", len(records) / max(total, 1))) if isinstance(dense, dict) else 0.0})
+            camera.update({"dense_frame_count": int(dense.get("derived_frame_count", len(records))) if isinstance(dense, dict) else 0, "dense_missing_frame_count": int(dense.get("missing_frame_count", effective_total - len(records))) if isinstance(dense, dict) else effective_total, "dense_coverage_fraction": float(dense.get("coverage_fraction", len(records) / max(effective_total, 1))) if isinstance(dense, dict) else 0.0})
             state["artifacts"] = {"trajectory": self._path(source, "_camera_trajectory_v1.json").name, "relocalization": self._path(source, "_camera_anchor_relocalization_v1.json").name, "dense": self._path(source, "_camera_atlas_dense_v1.json").name}
-            if dense.get("status") == "ok" and camera["dense_missing_frame_count"] == 0 and camera["dense_frame_count"] == total:
+            if dense.get("status") == "ok" and camera["dense_missing_frame_count"] == 0 and camera["dense_frame_count"] == effective_total:
                 camera.update({"status": "complete", "phase": "complete", "progress_fraction": 1.0, "human_message": "Cámara preparada"})
             elif missing_candidates:
                 selection = self.dependencies.active_anchor(source.path, missing_candidates, config=ActiveAnchorConfig(analysis_width=960))
