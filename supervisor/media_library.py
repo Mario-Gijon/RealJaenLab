@@ -72,11 +72,13 @@ class MediaLibrary:
         project_root: Path,
         input_dir: Path,
         metadata_reader: Callable[[Path], dict[str, Any]] | None = None,
+        managed_videos_dir: Path | None = None,
     ):
         self.catalog_path = Path(catalog_path)
         self.project_root = Path(project_root).resolve()
         self.input_dir = Path(input_dir).resolve()
         self.metadata_reader = metadata_reader or (lambda _path: {})
+        self.managed_videos_dir = Path(managed_videos_dir or self.catalog_path.parent / "videos").resolve()
 
     @staticmethod
     def empty_catalog() -> dict[str, Any]:
@@ -139,6 +141,17 @@ class MediaLibrary:
         path = (self.input_dir / candidate_name).resolve()
         if path.parent != self.input_dir or not path.is_file():
             raise MediaLibraryNotFoundError("Input video not found")
+        return path, path.relative_to(self.project_root).as_posix()
+
+    def _managed_video_path(self, server_filename: Any) -> tuple[Path, str]:
+        if not isinstance(server_filename, str) or not server_filename:
+            raise MediaLibraryError("managed server filename is required")
+        candidate_name = Path(server_filename).name
+        if candidate_name != server_filename or Path(candidate_name).suffix.lower() != ".mp4":
+            raise MediaLibraryError("managed server filename must be a safe MP4 filename")
+        path = (self.managed_videos_dir / candidate_name).resolve()
+        if path.parent != self.managed_videos_dir or not path.is_file():
+            raise MediaLibraryNotFoundError("Managed video not found")
         return path, path.relative_to(self.project_root).as_posix()
 
     @staticmethod
@@ -291,6 +304,69 @@ class MediaLibrary:
         catalog["assets"].append(asset)
         self._save(catalog)
         return deepcopy(asset)
+
+    def register_managed_original(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Register only a server-controlled file under ``managed_videos_dir``."""
+
+        catalog = self.load()
+        path, relative_path = self._managed_video_path(data.get("server_filename"))
+        if any(
+            asset.get("storage_type") in {"legacy_input", "managed_original"}
+            and asset.get("relative_path") == relative_path
+            for asset in catalog["assets"]
+        ):
+            raise MediaLibraryConflictError("This managed physical video is already registered")
+        match_id, venue_id = self._validate_match_and_venue(
+            catalog, data.get("match_id"), data.get("venue_id")
+        )
+        technical = data.get("technical")
+        if not isinstance(technical, dict):
+            raise MediaLibraryError("technical metadata is required")
+        now = _timestamp()
+        asset = {
+            "id": _identifier("asset"),
+            "display_name": _required_text(data.get("display_name"), "display_name"),
+            "kind": self._validate_kind(data.get("kind")),
+            "match_id": match_id,
+            "venue_id": venue_id,
+            "storage_type": "managed_original",
+            "relative_path": relative_path,
+            "source_asset_id": None,
+            "segment_start_seconds": None,
+            "segment_end_seconds": None,
+            "technical": deepcopy(technical),
+            "original_filename": _optional_text(data.get("original_filename"), "original_filename"),
+            "created_at": now,
+            "updated_at": now,
+        }
+        catalog["assets"].append(asset)
+        self._save(catalog)
+        return deepcopy(asset)
+
+    def asset_by_relative_path(self, relative_path: str) -> dict[str, Any] | None:
+        catalog = self.load()
+        for asset in catalog["assets"]:
+            if asset.get("relative_path") == relative_path:
+                return deepcopy(asset)
+        return None
+
+    def resolve_asset_path(self, asset_id: str) -> Path:
+        catalog = self.load()
+        asset = self._find(catalog["assets"], asset_id, "Video asset")
+        visited: set[str] = set()
+        while asset.get("storage_type") == "segment_derived":
+            if asset["id"] in visited:
+                raise MediaLibraryError("Segment source chain is invalid")
+            visited.add(asset["id"])
+            asset = self._find(catalog["assets"], asset.get("source_asset_id"), "Segment source")
+        relative_path = asset.get("relative_path")
+        if not isinstance(relative_path, str):
+            raise MediaLibraryError("Asset path is invalid")
+        root = self.input_dir if asset.get("storage_type") == "legacy_input" else self.managed_videos_dir
+        path = (self.project_root / relative_path).resolve()
+        if path.parent != root or not path.is_file():
+            raise MediaLibraryNotFoundError("Asset video not found")
+        return path
 
     def update_asset(self, asset_id: str, data: dict[str, Any]) -> dict[str, Any]:
         catalog = self.load()

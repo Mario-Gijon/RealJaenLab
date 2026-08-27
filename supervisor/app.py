@@ -4,7 +4,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -32,8 +32,16 @@ from supervisor.field_anchor_selector import (
 from supervisor.field_camera_state_pipeline import recover_match_setup_cameras
 from supervisor.media_library import (
     MediaLibrary,
+    MediaLibraryConflictError,
     MediaLibraryError,
     MediaLibraryNotFoundError,
+)
+from supervisor.media_uploads import (
+    MediaUploadConflictError,
+    MediaUploadError,
+    MediaUploadManager,
+    MediaUploadNotFoundError,
+    parse_content_range,
 )
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
@@ -52,6 +60,7 @@ STATIC_DIR = BASE_DIR / "static"
 INPUT_DIR = BASE_DIR.parent / "input"
 REVIEW_DIR = BASE_DIR / "data" / "reviews"
 LIBRARY_DIR = BASE_DIR / "data" / "library"
+_media_upload_manager: MediaUploadManager | None = None
 
 app = FastAPI(title="RealJaen Supervisor")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -110,11 +119,29 @@ def media_library() -> MediaLibrary:
         project_root=BASE_DIR.parent,
         input_dir=INPUT_DIR,
         metadata_reader=read_video_metadata,
+        managed_videos_dir=LIBRARY_DIR / "videos",
     )
 
 
 def media_library_error(error: MediaLibraryError) -> HTTPException:
     status = 404 if isinstance(error, MediaLibraryNotFoundError) else 400
+    return HTTPException(status_code=status, detail=str(error))
+
+
+def media_uploads() -> MediaUploadManager:
+    global _media_upload_manager
+    if _media_upload_manager is None:
+        _media_upload_manager = MediaUploadManager(LIBRARY_DIR, media_library())
+    return _media_upload_manager
+
+
+def media_upload_error(error: MediaUploadError | MediaLibraryError) -> HTTPException:
+    if isinstance(error, (MediaUploadNotFoundError, MediaLibraryNotFoundError)):
+        status = 404
+    elif isinstance(error, (MediaUploadConflictError, MediaLibraryConflictError)):
+        status = 409
+    else:
+        status = 400
     return HTTPException(status_code=status, detail=str(error))
 
 
@@ -191,6 +218,62 @@ def create_library_segment(asset_id: str, payload: dict = Body()) -> dict:
         return {"asset": media_library().create_segment(asset_id, payload)}
     except MediaLibraryError as error:
         raise media_library_error(error) from error
+
+
+@app.post("/api/library/uploads")
+def create_library_upload(payload: dict = Body()) -> dict:
+    try:
+        return media_uploads().create(payload)
+    except (MediaUploadError, MediaLibraryError) as error:
+        raise media_upload_error(error) from error
+
+
+@app.get("/api/library/uploads")
+def list_library_uploads() -> dict:
+    return {"uploads": media_uploads().list()}
+
+
+@app.get("/api/library/uploads/{upload_id}")
+def get_library_upload(upload_id: str) -> dict:
+    try:
+        return media_uploads().get(upload_id)
+    except MediaUploadError as error:
+        raise media_upload_error(error) from error
+
+
+@app.put("/api/library/uploads/{upload_id}/chunk")
+async def upload_library_chunk(upload_id: str, request: Request) -> dict:
+    try:
+        start, end, total = parse_content_range(request.headers.get("content-range"))
+        return await media_uploads().append_chunk(upload_id, start, end, total, request.stream())
+    except (MediaUploadError, MediaLibraryError) as error:
+        raise media_upload_error(error) from error
+
+
+@app.post("/api/library/uploads/{upload_id}/complete")
+def complete_library_upload(upload_id: str) -> dict:
+    try:
+        return {"asset": media_uploads().complete(upload_id)}
+    except (MediaUploadError, MediaLibraryError) as error:
+        raise media_upload_error(error) from error
+
+
+@app.delete("/api/library/uploads/{upload_id}")
+def abort_library_upload(upload_id: str) -> dict:
+    try:
+        media_uploads().abort(upload_id)
+        return {"status": "aborted"}
+    except MediaUploadError as error:
+        raise media_upload_error(error) from error
+
+
+@app.api_route("/api/library/assets/{asset_id}/video", methods=["GET", "HEAD"])
+def serve_library_asset_video(asset_id: str) -> FileResponse:
+    try:
+        video_path = media_library().resolve_asset_path(asset_id)
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+    return FileResponse(video_path, media_type="video/mp4")
 
 
 @app.get("/videos/{filename}")

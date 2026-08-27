@@ -9,6 +9,8 @@ outputs/
 logs/
 
 input/*.mp4
+supervisor/data/library/uploads/
+supervisor/data/library/videos/
 
 *.zip
 
