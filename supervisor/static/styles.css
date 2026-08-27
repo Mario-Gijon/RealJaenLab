@@ -172,6 +172,7 @@ body.is-library .supervisor-shell { display: none; }
 .asset-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; }
 .asset-row strong { font-size: 12px; }
 .asset-row .button { flex: 0 0 auto; padding: 6px 9px; }
+.asset-actions { display: flex; flex: 0 0 auto; gap: 5px; }
 .library-empty { padding: 22px; color: #929aa2; }
 .library-modal { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(5, 7, 9, .72); }
 .library-modal[hidden] { display: none; }

@@ -1,0 +1,52 @@
+{
+  "assets": [
+    {
+      "created_at": "2026-08-27T11:48:35+00:00",
+      "display_name": "Real Ja\u00e9n - C\u00f3rdoba - clip",
+      "id": "asset_1ecb232751c54a05af367e3636665450",
+      "kind": "clip",
+      "match_id": null,
+      "relative_path": "input/benchmark_easy_2min.mp4",
+      "segment_end_seconds": null,
+      "segment_start_seconds": null,
+      "source_asset_id": null,
+      "storage_type": "legacy_input",
+      "technical": {
+        "duration": 119.986533,
+        "file_size_bytes": 139975610,
+        "fps": 29.97002997002997,
+        "frame_count": 3596,
+        "height": 1080,
+        "width": 1920
+      },
+      "updated_at": "2026-08-27T12:09:34+00:00",
+      "venue_id": null
+    },
+    {
+      "created_at": "2026-08-27T12:01:16+00:00",
+      "display_name": "Real Ja\u00e9n - C\u00f3rdoba",
+      "id": "asset_7fbc47b7b83647bc8fd52e6a676c9425",
+      "kind": "clip",
+      "match_id": null,
+      "original_filename": "Real Ja\u00e9n vs C\u00f3rdoba - clip 5min.mp4",
+      "relative_path": "supervisor/data/library/videos/managed_upload_559cfa321d00455d9ef8b6465dc23594.mp4",
+      "segment_end_seconds": null,
+      "segment_start_seconds": null,
+      "source_asset_id": null,
+      "storage_type": "managed_original",
+      "technical": {
+        "duration": 300.0234,
+        "file_size_bytes": 174734567,
+        "fps": 29.97002997002997,
+        "frame_count": 9053,
+        "height": 1080,
+        "width": 1920
+      },
+      "updated_at": "2026-08-27T12:01:16+00:00",
+      "venue_id": null
+    }
+  ],
+  "matches": [],
+  "schema_version": 1,
+  "venues": []
+}

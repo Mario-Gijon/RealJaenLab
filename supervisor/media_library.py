@@ -401,7 +401,10 @@ class MediaLibrary:
             asset["kind"] = self._validate_kind(data["kind"])
         if "match_id" in data or "venue_id" in data:
             match_id = data.get("match_id", asset.get("match_id"))
-            venue_id = data.get("venue_id", asset.get("venue_id"))
+            # Match-owned assets inherit their venue from the selected match.
+            # A library edit changes match_id without exposing a separate asset
+            # venue control, so never retain a stale direct venue assignment.
+            venue_id = data.get("venue_id", None if "match_id" in data else asset.get("venue_id"))
             asset["match_id"], asset["venue_id"] = self._validate_match_and_venue(catalog, match_id, venue_id)
         asset["updated_at"] = _timestamp()
         self._save(catalog)

@@ -40,7 +40,7 @@
     const name = legacy ? asset.display_name : asset.display_name;
     const action = legacy
       ? `<button class="button button-secondary" data-organize="${escapeHtml(asset.filename)}" type="button">Organizar</button>`
-      : `<button class="button button-secondary" data-open="${escapeHtml(asset.id)}" type="button">Abrir</button>`;
+      : `<div class="asset-actions"><button class="button button-secondary" data-open="${escapeHtml(asset.id)}" type="button">Abrir</button><button class="button button-secondary" data-edit="${escapeHtml(asset.id)}" type="button">Editar</button></div>`;
     return `<div class="asset-row"><div><strong>${escapeHtml(name)}</strong><div class="asset-meta">${escapeHtml(KIND_LABELS[asset.kind] || "Vídeo")}</div></div>${action}</div>`;
   }
   function render() {
@@ -66,6 +66,10 @@
     root.querySelectorAll("[data-open]").forEach((button) => button.addEventListener("click", () => {
       const asset = catalog.assets.find((item) => item.id === button.dataset.open);
       if (asset) window.SupervisorWorkspace.openVideo(currentAsset(asset));
+    }));
+    root.querySelectorAll("[data-edit]").forEach((button) => button.addEventListener("click", () => {
+      const asset = catalog.assets.find((item) => item.id === button.dataset.edit);
+      if (asset) openEdit(asset);
     }));
     root.querySelectorAll("[data-organize]").forEach((button) => button.addEventListener("click", () => openImport(button.dataset.organize)));
     root.querySelectorAll("[data-resume]").forEach((button) => button.addEventListener("click", () => openPending(button.dataset.resume)));
@@ -107,6 +111,41 @@
     ["dragleave", "drop"].forEach((name) => zone?.addEventListener(name, (event) => { event.preventDefault(); zone.classList.remove("is-dragging"); }));
     zone?.addEventListener("drop", (event) => selectFile(event.dataTransfer.files[0]));
     modal.querySelector("#import-form").addEventListener("submit", async (event) => { event.preventDefault(); await submitImport(modal, close); });
+  }
+  function editDialogHtml(asset) {
+    const catalog = state.catalog;
+    return `<div class="library-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title"><div class="import-dialog">
+      <div class="import-dialog-header"><h2 id="edit-title">Editar vídeo</h2><button class="import-close" id="edit-close" type="button" aria-label="Cerrar">×</button></div>
+      <form class="import-form" id="edit-form"><label>Nombre<input id="asset-name" required value="${escapeHtml(asset.display_name)}" /></label><label>Tipo<select id="asset-kind">${Object.entries(KIND_LABELS).map(([value, label]) => `<option value="${value}"${asset.kind === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+      <label>Partido<select id="match-select">${options(catalog.matches, "Sin organizar")}</select></label><button class="button button-secondary" id="new-match-toggle" type="button">+ Crear nuevo partido</button>
+      <div class="import-inline" id="new-match" hidden><label>Partido<input id="match-title" /></label><label>Fecha <input id="match-date" type="date" /></label><label>Estadio<select id="venue-select">${options(catalog.venues, "Sin estadio")}</select></label><button class="button button-secondary" id="new-venue-toggle" type="button">+ Crear estadio</button><div id="new-venue" hidden><label>Nombre del estadio<input id="venue-name" /></label></div></div>
+      <div class="import-error" id="import-error" hidden></div><div class="import-actions"><button class="button button-secondary" id="cancel-edit" type="button">Cancelar</button><button class="button button-primary" type="submit">Guardar cambios</button></div></form>
+    </div></div>`;
+  }
+  function openEdit(asset) {
+    document.body.insertAdjacentHTML("beforeend", editDialogHtml(asset));
+    const modal = document.body.lastElementChild;
+    modal.querySelector("#match-select").value = asset.match_id || "";
+    const close = () => modal.remove();
+    modal.querySelector("#edit-close").addEventListener("click", close);
+    modal.querySelector("#cancel-edit").addEventListener("click", close);
+    modal.querySelector("#new-match-toggle").addEventListener("click", () => { modal.querySelector("#new-match").hidden = !modal.querySelector("#new-match").hidden; });
+    modal.querySelector("#new-venue-toggle").addEventListener("click", () => { modal.querySelector("#new-venue").hidden = !modal.querySelector("#new-venue").hidden; });
+    modal.querySelector("#edit-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const display_name = modal.querySelector("#asset-name").value.trim();
+        if (!display_name) throw new Error("Indica un nombre para el vídeo.");
+        const relationships = await relationshipPayload(modal);
+        await api(`/api/library/assets/${encodeURIComponent(asset.id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_name, kind: modal.querySelector("#asset-kind").value, match_id: relationships.match_id }),
+        });
+        close();
+        await refresh();
+      } catch (error) { setError(modal, error.message || "No se pudo guardar el vídeo."); }
+    });
   }
   function setError(modal, message) { const node = modal.querySelector("#import-error"); node.textContent = message; node.hidden = false; }
   async function relationshipPayload(modal) {
