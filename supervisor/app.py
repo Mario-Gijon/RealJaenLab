@@ -60,6 +60,7 @@ from supervisor.field_local_observer import observe_field_lines
 from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
 from supervisor.field_spatial_gating import apply_field_spatial_gating
+from supervisor.field_workflow import FieldWorkflowError, FieldWorkflowManager
 
 
 BASE_DIR = Path(__file__).parent
@@ -68,6 +69,7 @@ INPUT_DIR = BASE_DIR.parent / "input"
 REVIEW_DIR = BASE_DIR / "data" / "reviews"
 LIBRARY_DIR = BASE_DIR / "data" / "library"
 _media_upload_manager: MediaUploadManager | None = None
+_field_workflow_manager: FieldWorkflowManager | None = None
 
 app = FastAPI(title="RealJaen Supervisor")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -142,6 +144,13 @@ def media_uploads() -> MediaUploadManager:
     return _media_upload_manager
 
 
+def field_workflows() -> FieldWorkflowManager:
+    global _field_workflow_manager
+    if _field_workflow_manager is None:
+        _field_workflow_manager = FieldWorkflowManager(REVIEW_DIR, read_video_metadata)
+    return _field_workflow_manager
+
+
 def media_upload_error(error: MediaUploadError | MediaLibraryError) -> HTTPException:
     if isinstance(error, (MediaUploadNotFoundError, MediaLibraryNotFoundError)):
         status = 404
@@ -150,6 +159,10 @@ def media_upload_error(error: MediaUploadError | MediaLibraryError) -> HTTPExcep
     else:
         status = 400
     return HTTPException(status_code=status, detail=str(error))
+
+
+def field_workflow_error(error: FieldWorkflowError) -> HTTPException:
+    return HTTPException(status_code=400, detail=str(error))
 
 
 def workspace_video_source(reference: str) -> VideoSource:
@@ -333,6 +346,21 @@ def load_review(filename: str) -> dict[str, dict | None]:
         return {"review": json.loads(review_path.read_text(encoding="utf-8"))}
     except json.JSONDecodeError as error:
         raise HTTPException(status_code=500, detail="Saved review is not valid JSON") from error
+
+
+@app.get("/api/field-workflow/{video_reference}")
+def get_field_workflow(video_reference: str) -> dict:
+    source = workspace_video_source(video_reference)
+    return field_workflows().get(source)
+
+
+@app.post("/api/field-workflow/{video_reference}/camera/run")
+def run_field_workflow_camera(video_reference: str) -> dict:
+    source = workspace_video_source(video_reference)
+    try:
+        return field_workflows().start(source)
+    except FieldWorkflowError as error:
+        raise field_workflow_error(error) from error
 
 
 @app.get("/api/field-camera-atlas/dense-preview/{filename}")

@@ -102,6 +102,8 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .guided-workflow-heading { color: #8fd4ce; font-size: 10px; font-weight: 750; letter-spacing: .09em; }
 .guided-workflow-content { display: grid; gap: 4px; color: #b8c0c7; font-size: 11px; line-height: 1.4; }
 .guided-workflow-content strong { color: #dfe5e8; }
+.guided-camera-progress { height: 6px; overflow: hidden; border-radius: 999px; background: #303940; }
+.guided-camera-progress span { display: block; height: 100%; background: #8fd4ce; }
 .guided-workflow-actions { display: flex; flex-wrap: wrap; gap: 5px; }
 .guided-workflow-actions .button { padding: 7px 9px; font-size: 11px; }
 .calibration-panel { position: absolute; z-index: 3; top: 60px; left: 14px; width: min(450px, calc(100% - 16px)); box-sizing: border-box; padding: 10px; border: 1px solid #2f5654; border-radius: 5px; background: rgba(16, 35, 35, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }

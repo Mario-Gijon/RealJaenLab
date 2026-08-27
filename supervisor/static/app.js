@@ -33,6 +33,9 @@ const guidedWorkflowContent = document.querySelector("#guided-workflow-content")
 const scanVideoButton = document.querySelector("#scan-video");
 const beginGuidedCalibrationButton = document.querySelector("#begin-guided-calibration");
 const beginMatchSetupButton = document.querySelector("#begin-match-setup");
+const completeCameraButton = document.querySelector("#complete-camera");
+const cameraWorkflowActionButton = document.querySelector("#camera-workflow-action");
+const viewCameraResultButton = document.querySelector("#view-camera-result");
 const openManualCalibrationButton = document.querySelector("#open-manual-calibration");
 const createActiveAnchorButton = document.querySelector("#create-active-anchor");
 const guidedConfirmContinueButton = document.querySelector("#guided-confirm-continue");
@@ -125,6 +128,8 @@ let viewScanWorkflow = null;
 let fieldPitchSetup = null;
 let fieldMatchSetup = null;
 let fieldCameraState = null;
+let fieldWorkflow = null;
+let fieldWorkflowPoll = null;
 let fieldDenseCameraAtlas = null;
 let denseCameraAtlasByFrame = new Map();
 let cameraStateRecoveryInProgress = false;
@@ -743,6 +748,7 @@ function updatePitchSetupWorkflow() {
   const matchCurrentFrame = matchSetupCurrentFrame();
   const matchAttempted = matchSetupAttemptedFrames();
   const isConfirmed = fieldPitchModel.status === "confirmed";
+  const cameraWorkflow = fieldWorkflow?.source_reference === selectedVideo?.name ? fieldWorkflow.camera : null;
   const measuringPitch = state?.status === "measuring" && currentFrame !== null;
   const measuringMatch = matchState?.status === "measuring" && matchCurrentFrame !== null;
   const activeMeasurementFrame = measuringPitch ? currentFrame : (measuringMatch ? matchCurrentFrame : null);
@@ -774,6 +780,14 @@ function updatePitchSetupWorkflow() {
     element.textContent = text;
     if (warning) element.classList.add("guided-warning");
     fragment.append(element);
+  };
+  const addProgress = (value) => {
+    const meter = document.createElement("div");
+    meter.className = "guided-camera-progress";
+    const fill = document.createElement("span");
+    fill.style.width = `${Math.max(0, Math.min(100, value * 100))}%`;
+    meter.append(fill);
+    fragment.append(meter);
   };
   add(`1 · TERRENO${isConfirmed ? "  ✓" : ""}`, true);
   if (!selectedVideo) {
@@ -836,11 +850,24 @@ function updatePitchSetupWorkflow() {
     add(`PARTIDO · ${matchAttempted.length} / ${matchSetupAnchorFrames().length}`);
     add(`Siguiente anchor: fotograma ${matchCurrentFrame}.`);
   } else if (matchState.status === "complete") {
-    add(`Anchors HUMAN fuertes: ${matchSetupCompletedFrames().length}`);
-    add(`Vistas insuficientes: ${matchSetupRejectedFrames().length}`);
-    add(`Cámaras Hₜ derivadas: ${Array.isArray(cameraState?.derived_frames) ? cameraState.derived_frames.length : 0}`);
-    if (Array.isArray(cameraState?.unrecovered_frames) && cameraState.unrecovered_frames.length) {
-      add(`Sin recuperar: ${cameraState.unrecovered_frames.length}`);
+    add("Calibración inicial completada ✓");
+    add(`${matchSetupCompletedFrames().length} referencias HUMAN válidas`);
+    add(`3 · CÁMARA${cameraWorkflow?.status === "complete" ? "  ✓" : ""}`, true);
+    if (cameraWorkflow?.status === "queued" || cameraWorkflow?.status === "running") {
+      add(cameraWorkflow.human_message || "Completando el vídeo…");
+      addProgress(cameraWorkflow.progress_fraction || 0);
+      add(`${Math.round((cameraWorkflow.progress_fraction || 0) * 100)} %`);
+    } else if (cameraWorkflow?.status === "complete") {
+      add("Cámara preparada", true);
+      add(`${cameraWorkflow.dense_frame_count} / ${cameraWorkflow.total_frames} fotogramas`);
+      add(`${cameraWorkflow.human_anchor_count} referencias HUMAN`);
+    } else if (cameraWorkflow?.status === "needs_human") {
+      add("Necesitamos una referencia manual en una vista nueva.", false, true);
+      add(`Fotograma ${cameraWorkflow.recommended_human_frame}`);
+    } else if (["needs_attention", "error", "interrupted"].includes(cameraWorkflow?.status)) {
+      add(cameraWorkflow.human_message || "No se pudo completar automáticamente la cámara.", false, true);
+    } else {
+      add("Lista para completar la cámara.");
     }
   }
   guidedWorkflowContent.replaceChildren(fragment);
@@ -853,15 +880,22 @@ function updatePitchSetupWorkflow() {
   beginMatchSetupButton.disabled = !isConfirmed || Boolean(matchState?.processing);
   openManualCalibrationButton.hidden = activeMeasurementFrame === null;
   openManualCalibrationButton.disabled = Boolean(measuringPitch ? state?.processing : matchState?.processing);
-  const canCreateActiveAnchor = active
-    && Boolean(selectedVideo)
-    && isConfirmed
-    && activeMeasurementFrame === null
-    && !calibrationMode;
+  const canCreateActiveAnchor = false;
   createActiveAnchorButton.hidden = !canCreateActiveAnchor;
   createActiveAnchorButton.disabled = !canCreateActiveAnchor;
   guidedContextButton.hidden = true;
   guidedSkipButton.hidden = true;
+  const cameraReady = active && isConfirmed && matchState?.status === "complete" && !calibrationMode;
+  completeCameraButton.hidden = !cameraReady || ["queued", "running", "complete", "needs_human"].includes(cameraWorkflow?.status);
+  completeCameraButton.disabled = !cameraReady;
+  cameraWorkflowActionButton.hidden = !cameraReady || !["needs_human", "needs_attention", "error", "interrupted"].includes(cameraWorkflow?.status);
+  const recommendedSolved = cameraWorkflow?.status === "needs_human"
+    && Number(cameraWorkflow.recommended_human_frame) === currentFrameNumber()
+    && hasSolvedManualCalibration(calibrationForCurrentFrame());
+  cameraWorkflowActionButton.textContent = cameraWorkflow?.status === "needs_human"
+    ? (recommendedSolved ? "Continuar análisis" : "Calibrar este frame")
+    : "Reintentar";
+  viewCameraResultButton.hidden = !cameraReady || cameraWorkflow?.status !== "complete";
 }
 
 function openPitchSetupMeasurement(frame) {
@@ -3030,6 +3064,7 @@ async function loadDenseCameraAtlasPreview(videoName, loadSequence) {
 
 async function loadVideo(videoInfo) {
   const loadSequence = ++videoLoadSequence;
+  stopFieldWorkflowPolling();
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
   anchorSelectionResult = null;
@@ -3044,6 +3079,7 @@ async function loadVideo(videoInfo) {
   fieldPitchSetup = null;
   fieldMatchSetup = null;
   fieldCameraState = null;
+  fieldWorkflow = null;
   fieldDenseCameraAtlas = null;
   denseCameraAtlasByFrame = new Map();
   cameraStateRecoveryInProgress = false;
@@ -3097,6 +3133,7 @@ async function loadVideo(videoInfo) {
     setReviewDirty(false);
     updatePitchSetupWorkflow();
     drawOverlay();
+    void refreshFieldWorkflow();
     if (fieldMatchSetup?.status === "complete" && !fieldCameraState) recoverMatchSetupCameras();
   } catch (error) {
     if (loadSequence !== videoLoadSequence) return;
@@ -3142,6 +3179,56 @@ async function saveCurrentReview() {
   } finally {
     saveButton.disabled = false;
   }
+}
+
+function stopFieldWorkflowPolling() {
+  if (fieldWorkflowPoll) window.clearTimeout(fieldWorkflowPoll);
+  fieldWorkflowPoll = null;
+}
+
+async function refreshFieldWorkflow() {
+  if (!selectedVideo) return null;
+  try {
+    const response = await fetch(`/api/field-workflow/${encodeURIComponent(selectedVideo.name)}`);
+    if (!response.ok) return null;
+    const state = await response.json();
+    if (selectedVideo?.name !== state?.source_reference) return null;
+    fieldWorkflow = state;
+    updatePitchSetupWorkflow();
+    const status = state.camera?.status;
+    if (["queued", "running"].includes(status)) {
+      stopFieldWorkflowPolling();
+      fieldWorkflowPoll = window.setTimeout(refreshFieldWorkflow, 1200);
+    } else {
+      stopFieldWorkflowPolling();
+      if (status === "complete") void loadDenseCameraAtlasPreview(selectedVideo.name, videoLoadSequence);
+    }
+    return state;
+  } catch { return null; }
+}
+
+async function runCameraWorkflow() {
+  if (!selectedVideo) return;
+  if (reviewIsDirty && !(await saveCurrentReview())) return;
+  try {
+    const response = await fetch(`/api/field-workflow/${encodeURIComponent(selectedVideo.name)}/camera/run`, { method: "POST" });
+    const state = await response.json();
+    if (!response.ok) throw new Error(state.detail || "No se pudo iniciar la cámara.");
+    fieldWorkflow = state;
+    updatePitchSetupWorkflow();
+    void refreshFieldWorkflow();
+  } catch (error) {
+    fieldWorkflow = { source_reference: selectedVideo.name, camera: { status: "error", human_message: error.message || "No se pudo iniciar la cámara." } };
+    updatePitchSetupWorkflow();
+  }
+}
+
+function calibrateRecommendedHumanFrame() {
+  const frame = Number(fieldWorkflow?.camera?.recommended_human_frame);
+  if (!Number.isFinite(frame)) return;
+  const open = () => openActiveAnchorCalibration();
+  if (currentFrameNumber() === frame) open();
+  else { video.addEventListener("seeked", open, { once: true }); seekToFrame(frame); }
 }
 
 async function propagateCurrentCalibration() {
@@ -3765,6 +3852,16 @@ fieldToolButtons.forEach((button) => {
 scanVideoButton.addEventListener("click", startPitchSetup);
 beginGuidedCalibrationButton.addEventListener("click", confirmPitchSetup);
 beginMatchSetupButton.addEventListener("click", startMatchSetup);
+completeCameraButton.addEventListener("click", runCameraWorkflow);
+cameraWorkflowActionButton.addEventListener("click", () => {
+  if (fieldWorkflow?.camera?.status === "needs_human" && !(Number(fieldWorkflow.camera.recommended_human_frame) === currentFrameNumber() && hasSolvedManualCalibration(calibrationForCurrentFrame()))) calibrateRecommendedHumanFrame();
+  else runCameraWorkflow();
+});
+viewCameraResultButton.addEventListener("click", () => {
+  const preview = [...modeTabs].find((tab) => tab.dataset.mode === "preview");
+  preview?.click();
+  void loadDenseCameraAtlasPreview(selectedVideo?.name, videoLoadSequence);
+});
 openManualCalibrationButton.addEventListener("click", () => {
   if (fieldMatchSetup?.status === "measuring") openMatchSetupAnchor(matchSetupCurrentFrame());
   else openPitchSetupMeasurement(pitchSetupCurrentFrame());

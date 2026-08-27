@@ -12,6 +12,7 @@ input/*.mp4
 supervisor/data/library/uploads/
 supervisor/data/library/videos/
 supervisor/data/library/catalog_v1.json
+supervisor/data/reviews/asset_*.json
 
 *.zip
 
