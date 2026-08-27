@@ -15,24 +15,27 @@ def _tiny_video(path: Path, frames: int = 9) -> None:
     writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 30.0, (96, 54))
     assert writer.isOpened()
     for index in range(frames):
-        image = np.zeros((54, 96, 3), dtype=np.uint8)
-        cv2.circle(image, (10 + index * 5, 27), 7, (255, 255, 255), -1)
+        image = np.full((54, 96, 3), index * 20, dtype=np.uint8)
         writer.write(image)
     writer.release()
 
 
 def main() -> None:
     with TemporaryDirectory() as temporary:
-        path = Path(temporary) / "tiny.mp4"; _tiny_video(path)
-        result = analyse_camera_trajectory(path, trajectory_config=CameraTrajectoryConfig(sample_step_frames=2))
-        # A tiny feature-poor clip may reject motion, but sequential decoding
-        # must still preserve the intended sampled-frame policy up to failure.
-        if result.get("status") == "ok":
-            frames = [item["frame"] for item in result["trajectory"]]
-            assert frames == [0, 2, 4, 6, 8]
-            assert result["decoded_frame_count"] == 9
-            assert result["sampled_frame_count"] == len(frames)
-            assert result["video"]["effective_end_frame"] == 8
+        def run(frames: int, expected_pairs: list[tuple[int, int]]) -> None:
+            path = Path(temporary) / f"tiny-{frames}.mp4"; _tiny_video(path, frames)
+            pairs: list[tuple[int, int]] = []
+            def motion(previous, current, **_kwargs):
+                pairs.append((round(float(previous.mean()) / 20), round(float(current.mean()) / 20)))
+                return {"status": "ok", "matrix": np.eye(3).tolist()}
+            result = analyse_camera_trajectory(path, trajectory_config=CameraTrajectoryConfig(sample_step_frames=2), motion_estimator=motion)
+            assert result.get("status") == "ok", result
+            assert pairs == expected_pairs, pairs
+            assert result["motion_estimation_count"] == len(expected_pairs)
+            assert result["decoded_frame_count"] == frames
+            assert result["sampled_frame_count"] == len(expected_pairs) + 1
+        run(9, [(0, 2), (2, 4), (4, 6), (6, 8)])
+        run(10, [(0, 2), (2, 4), (4, 6), (6, 8), (8, 9)])
     print("check_camera_trajectory_sequential: ok")
 
 

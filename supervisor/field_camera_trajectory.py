@@ -246,10 +246,12 @@ def analyse_camera_trajectory(
     motion_config: GlobalCameraMotionConfig | None = None,
     trajectory_config: CameraTrajectoryConfig | None = None,
     progress_callback=None,
+    motion_estimator=None,
 ) -> dict[str, Any]:
     """Build a raw H-independent camera trajectory and coarse state atlas."""
 
     tcfg = trajectory_config or CameraTrajectoryConfig()
+    motion_estimator = motion_estimator or estimate_global_camera_step
     mcfg = motion_config or GlobalCameraMotionConfig(
         sample_step_frames=tcfg.sample_step_frames
     )
@@ -330,6 +332,7 @@ def analyse_camera_trajectory(
     current_capture_index = start
     last_decoded_frame = start
     decoded_frame_count = 1
+    motion_estimation_count = 0
     trailing_unreadable_frame_count = 0
     effective_end_frame = end
     try:
@@ -351,7 +354,15 @@ def analyse_camera_trajectory(
                     "keyframes": keyframes,
                 }
 
-            motion = estimate_global_camera_step(
+            # Physical decoding and sampled camera motion are deliberately
+            # separate: intermediate frames only advance the codec.
+            last_decoded_frame = current_index
+            decoded_frame_count += 1
+            if next_sample_index >= len(sampled_frames) or current_index != sampled_frames[next_sample_index]:
+                continue
+
+            motion_estimation_count += 1
+            motion = motion_estimator(
                 previous_frame,
                 current_frame,
                 config=mcfg,
@@ -380,11 +391,6 @@ def analyse_camera_trajectory(
                         "trailing_unreadable_frame_count": 0,
                     },
                 }
-
-            last_decoded_frame = current_index
-            decoded_frame_count += 1
-            if next_sample_index >= len(sampled_frames) or current_index != sampled_frames[next_sample_index]:
-                continue
 
             sample_index = next_sample_index
             next_sample_index += 1
@@ -550,6 +556,7 @@ def analyse_camera_trajectory(
         "elapsed_seconds": perf_counter() - started_at,
         "decoded_frame_count": decoded_frame_count,
         "sampled_frame_count": len(trajectory),
+        "motion_estimation_count": motion_estimation_count,
         "trajectory": trajectory,
         "keyframes": keyframes,
         "recurrence_edges": recurrence_edges,
