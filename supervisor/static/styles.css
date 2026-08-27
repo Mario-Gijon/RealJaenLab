@@ -187,6 +187,7 @@ body.is-library .supervisor-shell { display: none; }
 .import-form label { display: grid; gap: 5px; color: #b6bec5; font-size: 12px; }
 .import-form input, .import-form select { width: 100%; color: #e1e5e8; border: 1px solid #394149; border-radius: 4px; padding: 8px; background: #20252a; }
 .import-inline { display: grid; gap: 8px; padding: 10px; border-left: 2px solid #4f5961; }
+.import-inline[hidden] { display: none; }
 .import-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .upload-progress { display: grid; gap: 8px; margin-top: 16px; padding: 12px; border: 1px solid #374149; border-radius: 4px; background: #14181b; }
 .upload-meter { height: 7px; overflow: hidden; border-radius: 999px; background: #30373d; }
