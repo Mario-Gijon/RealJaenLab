@@ -350,6 +350,30 @@ class MediaLibrary:
                 return deepcopy(asset)
         return None
 
+    def get_asset(self, asset_id: str) -> dict[str, Any]:
+        """Return one catalog asset without exposing catalog internals."""
+
+        catalog = self.load()
+        return deepcopy(self._find(catalog["assets"], asset_id, "Video asset"))
+
+    def resolve_original_asset_path(self, asset_id: str) -> Path:
+        """Resolve a direct legacy/managed original, never a derived segment."""
+
+        asset = self.get_asset(asset_id)
+        storage_type = asset.get("storage_type")
+        if storage_type == "segment_derived":
+            raise MediaLibraryError("Derived segments do not have an independent video timeline")
+        if storage_type not in {"legacy_input", "managed_original"}:
+            raise MediaLibraryError("Asset storage type is invalid")
+        relative_path = asset.get("relative_path")
+        if not isinstance(relative_path, str):
+            raise MediaLibraryError("Asset path is invalid")
+        root = self.input_dir if storage_type == "legacy_input" else self.managed_videos_dir
+        path = (self.project_root / relative_path).resolve()
+        if path.parent != root or not path.is_file():
+            raise MediaLibraryNotFoundError("Asset video not found")
+        return path
+
     def resolve_asset_path(self, asset_id: str) -> Path:
         catalog = self.load()
         asset = self._find(catalog["assets"], asset_id, "Video asset")

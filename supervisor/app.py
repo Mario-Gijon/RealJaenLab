@@ -43,6 +43,13 @@ from supervisor.media_uploads import (
     MediaUploadNotFoundError,
     parse_content_range,
 )
+from supervisor.video_sources import (
+    VideoSource,
+    VideoSourceError,
+    VideoSourceNotFoundError,
+    VideoSourceUnsupportedError,
+    resolve_video_source,
+)
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -143,6 +150,17 @@ def media_upload_error(error: MediaUploadError | MediaLibraryError) -> HTTPExcep
     else:
         status = 400
     return HTTPException(status_code=status, detail=str(error))
+
+
+def workspace_video_source(reference: str) -> VideoSource:
+    """Resolve legacy ``filename`` API values or managed asset ids safely."""
+
+    try:
+        return resolve_video_source(reference, library=media_library(), input_dir=INPUT_DIR)
+    except VideoSourceNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except (VideoSourceUnsupportedError, VideoSourceError, MediaLibraryError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/api/videos")
@@ -285,19 +303,25 @@ def serve_video(filename: str) -> FileResponse:
 
 
 def review_path_for(filename: str) -> tuple[Path, Path]:
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
-    safe_stem = "".join(character if character.isalnum() or character in "-_" else "_" for character in video_path.stem)
-    return REVIEW_DIR / f"{safe_stem or 'review'}.json", video_path
+    source = workspace_video_source(filename)
+    return source.review_path(REVIEW_DIR), source.path
 
 
-def video_identity(video_path: Path) -> dict[str, str | int | float | None]:
-    return {
+def video_identity(video_path: Path, source: VideoSource | None = None) -> dict[str, str | int | float | None]:
+    identity: dict[str, str | int | float | None] = {
         "filename": video_path.name,
         "size_bytes": video_path.stat().st_size,
         **read_video_metadata(video_path),
     }
+    if source is not None and source.source_type == "managed_original":
+        identity.update({
+            "filename": source.reference,
+            "source_type": source.source_type,
+            "asset_id": source.asset_id,
+            "original_filename": source.original_filename,
+            "physical_filename": video_path.name,
+        })
+    return identity
 
 
 @app.get("/api/reviews/{filename}")
@@ -315,17 +339,11 @@ def load_review(filename: str) -> dict[str, dict | None]:
 def load_dense_camera_atlas_preview(filename: str) -> dict:
     """Serve an existing Dense Camera Atlas only for safe preview use."""
 
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
-    safe_stem = "".join(
-        character if character.isalnum() or character in "-_" else "_"
-        for character in video_path.stem
-    )
-    per_video_path = REVIEW_DIR / f"{safe_stem}_camera_atlas_dense_v1.json"
+    source = workspace_video_source(filename)
+    per_video_path = REVIEW_DIR / source.result_basename("_camera_atlas_dense_v1.json")
     if per_video_path.exists():
         atlas_path = per_video_path
-    elif filename == "benchmark_easy_2min.mp4":
+    elif source.source_type == "legacy_input" and source.legacy_filename == "benchmark_easy_2min.mp4":
         atlas_path = REVIEW_DIR / "camera_atlas_dense_v1.json"
     else:
         raise HTTPException(status_code=404, detail="Dense Camera Atlas preview not found")
@@ -342,10 +360,12 @@ def load_dense_camera_atlas_preview(filename: str) -> dict:
 
 @app.put("/api/reviews/{filename}")
 def save_review(filename: str, review: dict = Body()) -> dict[str, str]:
-    review_path, video_path = review_path_for(filename)
+    source = workspace_video_source(filename)
+    review_path = source.review_path(REVIEW_DIR)
+    video_path = source.path
     saved_review = {
         "format_version": 1,
-        "video": video_identity(video_path),
+        "video": video_identity(video_path, source),
         "field": review.get("field", {"annotations": []}),
         "people": {},
     }
@@ -412,9 +432,7 @@ def solve_calibration(payload: dict = Body()) -> dict:
 @app.post("/api/field-view-scan/analyze")
 def analyze_field_view_scan(payload: dict = Body()) -> dict:
     filename = payload.get("filename")
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video_path = workspace_video_source(filename).path
 
     try:
         result = scan_field_view_states(video_path)
@@ -465,9 +483,8 @@ def recover_field_camera_state_match_setup(payload: dict = Body()) -> dict:
         raise HTTPException(status_code=400, detail="La recuperación de Camera State no es válida")
     if not isinstance(video_name, str) or not video_name:
         raise HTTPException(status_code=400, detail="El vídeo de Camera State no es válido")
-    video_path = available_videos().get(video_name)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video_source = workspace_video_source(video_name)
+    video_path = video_source.path
     try:
         image_width = int(payload["image_width"])
         image_height = int(payload["image_height"])
@@ -480,7 +497,7 @@ def recover_field_camera_state_match_setup(payload: dict = Body()) -> dict:
         image_width,
         image_height,
         video_path=video_path,
-        video_name=video_name,
+        video_name=video_source.reference,
     )
 
 
@@ -502,6 +519,7 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
         raise HTTPException(status_code=400, detail="Los probes de Camera Atlas no son válidos")
     if not isinstance(video_name, str) or not video_name:
         raise HTTPException(status_code=400, detail="El vídeo de Camera Atlas no es válido")
+    video_source = workspace_video_source(video_name)
 
     calibrations = [
         calibration
@@ -514,7 +532,7 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
         calibrations,
         image_width,
         image_height,
-        video_name=video_name,
+        video_name=video_source.reference,
     )
     structure = analyze_camera_atlas_structure(atlas, image_width, image_height)
     coverage = analyze_camera_atlas_coverage(
@@ -523,7 +541,7 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
         refined_segments,
         image_width,
         image_height,
-        video_name=video_name,
+        video_name=video_source.reference,
     )
     return {
         "summary": summarize_camera_atlas(atlas),
@@ -538,9 +556,8 @@ def analyze_field_camera_atlas(payload: dict = Body()) -> dict:
 @app.post("/api/field-anchor-selector/analyze")
 def analyze_field_anchor_selector(payload: dict = Body()) -> dict:
     filename = payload.get("filename")
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video_source = workspace_video_source(filename)
+    video_path = video_source.path
 
     calibrations = payload.get("calibrations", [])
     propagations = payload.get("propagations", [])
@@ -565,7 +582,7 @@ def analyze_field_anchor_selector(payload: dict = Body()) -> dict:
         calibrations,
         image_width,
         image_height,
-        video_name=filename,
+        video_name=video_source.reference,
     )
     coverage = analyze_camera_atlas_coverage(
         atlas,
@@ -573,7 +590,7 @@ def analyze_field_anchor_selector(payload: dict = Body()) -> dict:
         refined_segments,
         image_width,
         image_height,
-        video_name=filename,
+        video_name=video_source.reference,
     )
     selection = select_manual_anchor_frames(
         video_path,
@@ -583,7 +600,7 @@ def analyze_field_anchor_selector(payload: dict = Body()) -> dict:
         refined_segments,
         image_width,
         image_height,
-        video_name=filename,
+        video_name=video_source.reference,
     )
     return {
         "selection": selection,
@@ -717,9 +734,7 @@ def observe_field_lines_for_frame(payload: dict = Body()) -> dict:
 @app.post("/api/field-propagation")
 def propagate_calibration(payload: dict = Body()) -> dict:
     filename = payload.get("filename")
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video_path = workspace_video_source(filename).path
 
     try:
         anchor_frame = int(payload["anchor_frame"])
@@ -741,9 +756,7 @@ def propagate_calibration(payload: dict = Body()) -> dict:
 @app.post("/api/field-segment/refine")
 def refine_calibration_segment(payload: dict = Body()) -> dict:
     filename = payload.get("filename")
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
+    video_path = workspace_video_source(filename).path
 
     try:
         left_anchor_frame = int(payload["left_anchor_frame"])
