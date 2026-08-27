@@ -18,6 +18,7 @@ const workspaceMessage = document.querySelector("#workspace-message");
 const workspaceTitle = document.querySelector("#workspace-title");
 const workspaceDescription = document.querySelector("#workspace-description");
 const playPauseButton = document.querySelector("#play-pause");
+const muteToggleButton = document.querySelector("#mute-toggle");
 const previousFrameButtons = document.querySelectorAll("#previous-frame, #previous-frame-label");
 const nextFrameButtons = document.querySelectorAll("#next-frame, #next-frame-label");
 const timeline = document.querySelector("#timeline");
@@ -3001,9 +3002,18 @@ function formatTime(seconds) {
 
 function setControlsEnabled(enabled) {
   playPauseButton.disabled = !enabled;
+  muteToggleButton.disabled = !enabled;
   timeline.disabled = !enabled;
   previousFrameButtons.forEach((button) => { button.disabled = !enabled; });
   nextFrameButtons.forEach((button) => { button.disabled = !enabled; });
+}
+
+function updateMuteControl() {
+  const muted = video.muted;
+  muteToggleButton.textContent = muted ? "🔇" : "🔊";
+  muteToggleButton.setAttribute("aria-pressed", String(muted));
+  muteToggleButton.setAttribute("aria-label", muted ? "Activar sonido" : "Silenciar");
+  muteToggleButton.title = muted ? "Activar sonido" : "Silenciar";
 }
 
 function updatePlaybackDisplay() {
@@ -3075,6 +3085,8 @@ async function loadVideo(videoInfo) {
   anchorSelectionInProgress = false;
   viewScanWorkflow = null;
   selectedVideo = videoInfo;
+  video.muted = true;
+  updateMuteControl();
   fieldAnnotations = [];
   fieldCalibrations = [];
   fieldPropagations = [];
@@ -3446,6 +3458,7 @@ playPauseButton.addEventListener("click", () => {
   if (video.paused) video.play();
   else video.pause();
 });
+muteToggleButton.addEventListener("click", () => { video.muted = !video.muted; });
 
 previousFrameButtons.forEach((button) => button.addEventListener("click", () => stepFrame(-1)));
 nextFrameButtons.forEach((button) => button.addEventListener("click", () => stepFrame(1)));
@@ -3464,6 +3477,7 @@ video.addEventListener("loadedmetadata", () => {
   syncOverlay();
   updatePitchSetupWorkflow();
 });
+video.addEventListener("volumechange", updateMuteControl);
 
 video.addEventListener("timeupdate", () => {
   if (viewScanWorkflow?.contextEndTime && video.currentTime >= viewScanWorkflow.contextEndTime) {
