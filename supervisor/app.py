@@ -30,6 +30,11 @@ from supervisor.field_anchor_selector import (
     summarize_anchor_selection,
 )
 from supervisor.field_camera_state_pipeline import recover_match_setup_cameras
+from supervisor.media_library import (
+    MediaLibrary,
+    MediaLibraryError,
+    MediaLibraryNotFoundError,
+)
 from supervisor.field_auto_refinement import propose_field_auto_refinement
 from supervisor.field_online_adaptation import (
     build_field_online_profile,
@@ -46,6 +51,7 @@ BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 INPUT_DIR = BASE_DIR.parent / "input"
 REVIEW_DIR = BASE_DIR / "data" / "reviews"
+LIBRARY_DIR = BASE_DIR / "data" / "library"
 
 app = FastAPI(title="RealJaen Supervisor")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -98,6 +104,20 @@ def available_videos() -> dict[str, Path]:
     return {path.name: path for path in INPUT_DIR.iterdir() if path.is_file() and path.suffix.lower() == ".mp4"}
 
 
+def media_library() -> MediaLibrary:
+    return MediaLibrary(
+        catalog_path=LIBRARY_DIR / "catalog_v1.json",
+        project_root=BASE_DIR.parent,
+        input_dir=INPUT_DIR,
+        metadata_reader=read_video_metadata,
+    )
+
+
+def media_library_error(error: MediaLibraryError) -> HTTPException:
+    status = 404 if isinstance(error, MediaLibraryNotFoundError) else 400
+    return HTTPException(status_code=status, detail=str(error))
+
+
 @app.get("/api/videos")
 def list_videos() -> dict[str, list[dict[str, str | float | int | None]]]:
     videos = available_videos()
@@ -107,6 +127,70 @@ def list_videos() -> dict[str, list[dict[str, str | float | int | None]]]:
             for name, path in sorted(videos.items())
         ]
     }
+
+
+@app.get("/api/library")
+def get_media_library() -> dict:
+    try:
+        return media_library().list()
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.post("/api/library/venues")
+def create_library_venue(payload: dict = Body()) -> dict:
+    try:
+        return {"venue": media_library().create_venue(payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.patch("/api/library/venues/{venue_id}")
+def update_library_venue(venue_id: str, payload: dict = Body()) -> dict:
+    try:
+        return {"venue": media_library().update_venue(venue_id, payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.post("/api/library/matches")
+def create_library_match(payload: dict = Body()) -> dict:
+    try:
+        return {"match": media_library().create_match(payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.patch("/api/library/matches/{match_id}")
+def update_library_match(match_id: str, payload: dict = Body()) -> dict:
+    try:
+        return {"match": media_library().update_match(match_id, payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.post("/api/library/assets/register")
+def register_library_asset(payload: dict = Body()) -> dict:
+    try:
+        return {"asset": media_library().register_legacy_input(payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.patch("/api/library/assets/{asset_id}")
+def update_library_asset(asset_id: str, payload: dict = Body()) -> dict:
+    try:
+        return {"asset": media_library().update_asset(asset_id, payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+
+
+@app.post("/api/library/assets/{asset_id}/segments")
+def create_library_segment(asset_id: str, payload: dict = Body()) -> dict:
+    try:
+        return {"asset": media_library().create_segment(asset_id, payload)}
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
 
 
 @app.get("/videos/{filename}")
