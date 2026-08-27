@@ -884,9 +884,29 @@ function updatePitchSetupWorkflow() {
   beginMatchSetupButton.disabled = !isConfirmed || Boolean(matchState?.processing);
   openManualCalibrationButton.hidden = activeMeasurementFrame === null;
   openManualCalibrationButton.disabled = Boolean(measuringPitch ? state?.processing : matchState?.processing);
-  const canCreateActiveAnchor = false;
+  const canCreateActiveAnchor = active
+    && Boolean(selectedVideo)
+    && isConfirmed
+    && activeMeasurementFrame === null
+    && !calibrationMode;
   createActiveAnchorButton.hidden = !canCreateActiveAnchor;
   createActiveAnchorButton.disabled = !canCreateActiveAnchor;
+  if (canCreateActiveAnchor) {
+    const activeAnchorAtFrame = fieldCalibrations.find((calibration) => (
+      calibration.video === selectedVideo.name
+      && calibration.frame === currentFrameNumber()
+      && calibration.source === "manual"
+      && calibration.purpose === "active_anchor"
+      && hasSolvedManualCalibration(calibration)
+    ));
+    const cameraResultAvailable = Boolean(
+      fieldDenseCameraAtlas?.video === selectedVideo.name
+      || ["complete", "needs_human", "needs_attention"].includes(cameraWorkflow?.status)
+    );
+    createActiveAnchorButton.textContent = activeAnchorAtFrame
+      ? "Editar corrección HUMAN"
+      : (cameraResultAvailable ? "Corregir este frame" : "Crear HUMAN aquí");
+  }
   guidedContextButton.hidden = true;
   guidedSkipButton.hidden = true;
   const cameraReady = active && isConfirmed && matchState?.status === "complete" && !calibrationMode;
