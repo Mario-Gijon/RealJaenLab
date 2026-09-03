@@ -103,6 +103,24 @@
                 <option disabled>Cámara + distorsión</option>
               </select>
             </section>
+            <section class="lab-section lab-tools">
+              <span class="lab-section-title">EDITOR EXPERIMENTAL</span>
+              <label for="lab-constraint-type">Tipo de referencia</label>
+              <select id="lab-constraint-type">
+                <option value="point">Punto</option>
+                <option value="line">Línea</option>
+                <option value="arc">Arco</option>
+              </select>
+              <label for="lab-landmark">Referencia semántica</label>
+              <select id="lab-landmark"></select>
+              <div class="lab-tool-actions">
+                <button class="button button-secondary" id="lab-clear" type="button">Limpiar experimento</button>
+                <button class="button button-secondary" id="lab-delete" type="button" disabled>Eliminar seleccionada</button>
+                <button class="button button-secondary" id="lab-import-human" type="button" hidden>Importar HUMAN de este frame</button>
+              </div>
+              <span class="lab-tool-hint">Selecciona una referencia y marca el mismo punto o tramo en el vídeo.</span>
+              <strong class="lab-solve-status" id="lab-solve-status">Sin referencias experimentales</strong>
+            </section>
             <section class="lab-section lab-diagnostics">
               <span class="lab-section-title">BASELINE HOMOGRAFÍA</span>
               <div class="lab-metric-row"><span>Fotograma</span><strong id="lab-frame">—</strong></div>

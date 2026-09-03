@@ -74,6 +74,12 @@ const labPitchDimensions = document.querySelector("#lab-pitch-dimensions");
 const labConstraints = document.querySelector("#lab-constraints");
 const labEmptyState = document.querySelector("#lab-empty-state");
 const labOpenCalibrationButton = document.querySelector("#lab-open-calibration");
+const labConstraintType = document.querySelector("#lab-constraint-type");
+const labLandmark = document.querySelector("#lab-landmark");
+const labClearButton = document.querySelector("#lab-clear");
+const labDeleteButton = document.querySelector("#lab-delete");
+const labImportHumanButton = document.querySelector("#lab-import-human");
+const labSolveStatus = document.querySelector("#lab-solve-status");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
 const calibrationHeading = document.querySelector("#calibration-heading");
@@ -133,8 +139,13 @@ let calibrationArcDraft = null;
 let selectedCalibrationConstraint = null;
 let calibrationPanelPosition = { x: 14, y: 60 };
 let calibrationPanelDrag = null;
-// Deliberately transient: laboratory TEST/FIT roles never enter the review model.
-let homographyLabTestReferences = new Map();
+// Deliberately transient: laboratory experiments never enter the review model.
+let homographyLabExperiments = new Map();
+let homographyLabDraft = null;
+let homographyLabDragState = null;
+let homographyLabType = "point";
+let homographyLabSemantic = null;
+let homographyLabSelectedConstraintKey = null;
 let cameraAtlasResult = null;
 let cameraAtlasRequestSequence = 0;
 let anchorSelectionResult = null;
@@ -381,57 +392,144 @@ function hasSolvedManualCalibration(calibration = calibrationForCurrentFrame()) 
     && calibration.homography.length === 3;
 }
 
-function homographyLabReferenceKey(calibration, constraint) {
-  return `${selectedVideo?.name || ""}:${calibration?.frame ?? ""}:${constraint.type}:${constraint.semantic || ""}`;
+function homographyLabExperimentKey(videoName = selectedVideo?.name, frame = currentFrameNumber()) {
+  return `${videoName || ""}:${frame}`;
 }
 
-function homographyLabIsTest(calibration, constraint) {
-  return homographyLabTestReferences.has(homographyLabReferenceKey(calibration, constraint));
+function homographyLabCurrentExperiment(create = false) {
+  if (!selectedVideo) return null;
+  const key = homographyLabExperimentKey();
+  let experiment = homographyLabExperiments.get(key);
+  if (!experiment && create) {
+    experiment = { video: selectedVideo.name, frame: currentFrameNumber(), constraints: [], homography: null, reprojectionError: null, status: "empty", error: null };
+    homographyLabExperiments.set(key, experiment);
+  }
+  return experiment || null;
+}
+
+function homographyLabConstraintKey(constraint) {
+  return `${constraint.type}:${constraint.semantic || ""}`;
+}
+
+function syncHomographyLabSelector() {
+  if (!labLandmark) return;
+  const definitions = semanticDefinitionsForType(homographyLabType);
+  if (!definitions.some((item) => item.id === homographyLabSemantic)) homographyLabSemantic = definitions[0]?.id || null;
+  labLandmark.replaceChildren(...definitions.map((item) => new Option(item.label, item.id)));
+  labLandmark.value = homographyLabSemantic || "";
+}
+
+function homographyLabSetSelection(type, semantic) {
+  homographyLabType = type;
+  homographyLabSemantic = semantic || null;
+  labConstraintType.value = type;
+  syncHomographyLabSelector();
+}
+
+function homographyLabSolveConstraints(experiment) {
+  const fitConstraints = experiment.constraints.filter((constraint) => !constraint.labTest);
+  const pointCount = fitConstraints.filter((constraint) => constraint.type === "point").length;
+  const enoughEvidence = fitConstraints.length && (pointCount >= 4 || fitConstraints.some((constraint) => constraint.type !== "point"));
+  if (!enoughEvidence) {
+    experiment.solveToken = null;
+    experiment.homography = null;
+    experiment.reprojectionError = null;
+    experiment.status = fitConstraints.length ? "insufficient" : "empty";
+    experiment.error = null;
+    updateHomographyLab();
+    drawOverlay();
+    return;
+  }
+  const solveToken = `${homographyLabExperimentKey()}:${Date.now()}`;
+  experiment.solveToken = solveToken;
+  experiment.status = "solving";
+  labSolveStatus.textContent = "Resolviendo homografía experimental…";
+  fetch("/api/field-calibration/solve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ constraints: fitConstraints, image_width: video.videoWidth, image_height: video.videoHeight, initial_homography: null }),
+  }).then(async (response) => {
+    const result = await response.json();
+    if (!response.ok || !["solved", "solved_with_warnings"].includes(result.status)) throw new Error(result.detail || "No se pudo resolver la homografía experimental");
+    if (experiment.solveToken !== solveToken || homographyLabCurrentExperiment() !== experiment) return;
+    experiment.homography = result.homography;
+    experiment.reprojectionError = result.reprojection_error;
+    experiment.status = result.status;
+    experiment.error = null;
+    updateHomographyLab();
+    drawOverlay();
+  }).catch((error) => {
+    if (experiment.solveToken !== solveToken || homographyLabCurrentExperiment() !== experiment) return;
+    experiment.homography = null;
+    experiment.reprojectionError = null;
+    experiment.status = "error";
+    experiment.error = error instanceof Error ? error.message : "No se pudo resolver la homografía experimental";
+    updateHomographyLab();
+    drawOverlay();
+  });
 }
 
 function updateHomographyLab() {
   if (activeMode !== "homography-lab") return;
+  syncHomographyLabSelector();
   const calibration = calibrationForCurrentFrame();
-  const solved = hasSolvedManualCalibration(calibration);
-  const constraints = solved ? calibrationConstraints(calibration) : [];
-  const fitConstraints = constraints.filter((constraint) => !homographyLabIsTest(calibration, constraint));
-  const testConstraints = constraints.filter((constraint) => homographyLabIsTest(calibration, constraint));
+  const experiment = homographyLabCurrentExperiment();
+  const constraints = experiment?.constraints || [];
+  const solved = Boolean(experiment?.homography);
+  const fitConstraints = constraints.filter((constraint) => !constraint.labTest);
+  const testConstraints = constraints.filter((constraint) => constraint.labTest);
   labFrame.textContent = selectedVideo ? String(currentFrameNumber()) : "—";
   labPitchDimensions.textContent = `${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`;
-  labFitCount.textContent = solved ? String(fitConstraints.length) : "—";
-  labFitError.textContent = solved && Number.isFinite(Number(calibration.reprojectionError))
-    ? `${Number(calibration.reprojectionError).toFixed(2)} px`
+  labFitCount.textContent = String(fitConstraints.length);
+  labFitError.textContent = solved && Number.isFinite(Number(experiment.reprojectionError))
+    ? `${Number(experiment.reprojectionError).toFixed(2)} px`
     : "—";
   labTestCount.textContent = String(testConstraints.length);
   labTestError.textContent = "Pendiente";
-  labEmptyState.hidden = solved;
+  labEmptyState.hidden = Boolean(experiment) && constraints.length > 0;
+  labImportHumanButton.hidden = !hasSolvedManualCalibration(calibrationForCurrentFrame());
   labConstraints.replaceChildren();
-  if (!solved) return;
+  if (!experiment) {
+    labSolveStatus.textContent = "Sin referencias experimentales";
+    labDeleteButton.disabled = true;
+    return;
+  }
+  labSolveStatus.textContent = experiment.status === "error"
+    ? `Error: ${experiment.error}`
+    : experiment.status === "solving" ? "Resolviendo homografía experimental…"
+      : solved ? "Baseline experimental resuelto" : fitConstraints.length ? "Necesita más FIT" : "Sin referencias experimentales";
   constraints.forEach((constraint, index) => {
     const row = document.createElement("div");
-    row.className = `lab-constraint-row${homographyLabIsTest(calibration, constraint) ? " is-test" : ""}`;
+    row.className = `lab-constraint-row${constraint.labTest ? " is-test" : ""}`;
+    if (homographyLabConstraintKey(constraint) === homographyLabSelectedConstraintKey) row.classList.add("is-selected");
     const label = document.createElement("span");
     label.textContent = `${index + 1}. ${constraint.semantic || constraint.type}`;
     const role = document.createElement("button");
     role.type = "button";
     role.className = "lab-reference-role";
-    role.dataset.labReferenceKey = homographyLabReferenceKey(calibration, constraint);
-    role.textContent = homographyLabIsTest(calibration, constraint) ? "TEST" : "FIT";
+    role.dataset.labReferenceKey = homographyLabConstraintKey(constraint);
+    role.textContent = constraint.labTest ? "TEST" : "FIT";
     role.title = "Cambiar el rol experimental de esta referencia";
     row.append(label, role);
+    row.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      homographyLabSelectedConstraintKey = homographyLabConstraintKey(constraint);
+      updateHomographyLab();
+    });
     labConstraints.append(row);
   });
+  labDeleteButton.disabled = !homographyLabSelectedConstraintKey;
 }
 
 function drawHomographyLabOverlay() {
   if (!displayedVideoRect || !video.videoWidth) return;
-  const calibration = calibrationForCurrentFrame();
-  if (!hasSolvedManualCalibration(calibration)) return;
+  const experiment = homographyLabCurrentExperiment();
+  if (!experiment) return;
   const displayScale = displayedVideoRect.width / video.videoWidth;
   overlayContext.save();
-  drawProjectedPitch(calibration.homography, displayScale, { color: "#5aa9ff", lineWidth: 2 / displayScale });
-  calibrationConstraints(calibration).forEach((constraint) => {
-    const isTest = homographyLabIsTest(calibration, constraint);
+  if (Array.isArray(experiment.homography)) drawProjectedPitch(experiment.homography, displayScale, { color: "#5aa9ff", lineWidth: 2 / displayScale });
+  experiment.constraints.forEach((constraint) => {
+    const isTest = Boolean(constraint.labTest);
     const color = isTest ? "#e78b77" : "#d4a414";
     overlayContext.strokeStyle = color;
     overlayContext.fillStyle = color;
@@ -454,6 +552,72 @@ function drawHomographyLabOverlay() {
     }
   });
   overlayContext.restore();
+}
+
+function homographyLabHitTest(coordinates) {
+  const experiment = homographyLabCurrentExperiment();
+  if (!experiment || !displayedVideoRect) return null;
+  const hitRadius = 14 / (displayedVideoRect.width / video.videoWidth);
+  const constraint = experiment.constraints.find((item) => {
+    if (item.type === "point") return distanceBetween(item.image, coordinates) <= hitRadius;
+    if (item.type === "line") return distanceToLineSegment(coordinates, item.image.start, item.image.end) <= hitRadius;
+    if (item.type === "arc") return distanceBetween(item.image.geometry.center, coordinates) <= hitRadius;
+    return false;
+  });
+  return constraint ? { experiment, constraint } : null;
+}
+
+function addHomographyLabConstraint(image) {
+  const definition = semanticDefinitionsForType(homographyLabType).find((item) => item.id === homographyLabSemantic);
+  if (!definition) return;
+  const experiment = homographyLabCurrentExperiment(true);
+  const constraint = {
+    type: homographyLabType,
+    semantic: definition.id,
+    world: JSON.parse(JSON.stringify(definition.world)),
+    image,
+    source: "lab",
+    labTest: false,
+  };
+  const existingIndex = experiment.constraints.findIndex((item) => homographyLabConstraintKey(item) === homographyLabConstraintKey(constraint));
+  if (existingIndex >= 0) experiment.constraints[existingIndex] = constraint;
+  else experiment.constraints.push(constraint);
+  homographyLabSolveConstraints(experiment);
+  updateHomographyLab();
+  drawOverlay();
+}
+
+function clearHomographyLabExperiment() {
+  const key = homographyLabExperimentKey();
+  homographyLabExperiments.delete(key);
+  homographyLabDraft = null;
+  homographyLabDragState = null;
+  homographyLabSelectedConstraintKey = null;
+  updateHomographyLab();
+  drawOverlay();
+}
+
+function deleteSelectedHomographyLabConstraint() {
+  const experiment = homographyLabCurrentExperiment();
+  if (!experiment || !homographyLabSelectedConstraintKey) return;
+  experiment.constraints = experiment.constraints.filter((constraint) => homographyLabConstraintKey(constraint) !== homographyLabSelectedConstraintKey);
+  homographyLabSelectedConstraintKey = null;
+  homographyLabSolveConstraints(experiment);
+  updateHomographyLab();
+  drawOverlay();
+}
+
+function importHumanIntoHomographyLab() {
+  const calibration = calibrationForCurrentFrame();
+  if (!hasSolvedManualCalibration(calibration)) return;
+  const experiment = homographyLabCurrentExperiment(true);
+  experiment.constraints = calibrationConstraints(calibration).map((constraint) => ({
+    ...JSON.parse(JSON.stringify(constraint)), source: "lab-import", labTest: false,
+  }));
+  experiment.homography = null;
+  homographyLabSolveConstraints(experiment);
+  updateHomographyLab();
+  drawOverlay();
 }
 
 function fieldHomographyForCurrentFrame() {
@@ -3211,7 +3375,10 @@ async function loadVideo(videoInfo) {
   if (viewDiversityPoll) window.clearTimeout(viewDiversityPoll);
   viewDiversityPoll = null;
   selectedVideo = videoInfo;
-  homographyLabTestReferences = new Map();
+  homographyLabExperiments = new Map();
+  homographyLabDraft = null;
+  homographyLabDragState = null;
+  homographyLabSelectedConstraintKey = null;
   video.muted = true;
   updateMuteControl();
   fieldAnnotations = [];
@@ -3696,9 +3863,11 @@ debugToggle.addEventListener("click", () => {
 labConstraints.addEventListener("click", (event) => {
   const roleButton = event.target.closest("[data-lab-reference-key]");
   if (!roleButton) return;
-  const key = roleButton.dataset.labReferenceKey;
-  if (homographyLabTestReferences.has(key)) homographyLabTestReferences.delete(key);
-  else homographyLabTestReferences.set(key, true);
+  const experiment = homographyLabCurrentExperiment();
+  const constraint = experiment?.constraints.find((item) => homographyLabConstraintKey(item) === roleButton.dataset.labReferenceKey);
+  if (!constraint) return;
+  constraint.labTest = !constraint.labTest;
+  homographyLabSolveConstraints(experiment);
   updateHomographyLab();
   drawOverlay();
 });
@@ -3707,6 +3876,17 @@ labOpenCalibrationButton.addEventListener("click", () => {
   const guided = [...modeTabs].find((tab) => tab.dataset.mode === "guided");
   guided?.click();
 });
+
+labConstraintType.addEventListener("change", () => {
+  homographyLabSetSelection(labConstraintType.value, null);
+  updateHomographyLab();
+});
+labLandmark.addEventListener("change", () => {
+  homographyLabSemantic = labLandmark.value;
+});
+labClearButton.addEventListener("click", clearHomographyLabExperiment);
+labDeleteButton.addEventListener("click", deleteSelectedHomographyLabConstraint);
+labImportHumanButton.addEventListener("click", importHumanIntoHomographyLab);
 
 calibrationPanel.addEventListener("pointerdown", (event) => {
   event.stopPropagation();
@@ -3763,6 +3943,35 @@ calibrationPanelToggle.addEventListener("click", (event) => {
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
   pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
+  if (activeMode === "homography-lab" && pointerVideoCoordinates) {
+    const coordinates = clampToVideo(pointerVideoCoordinates);
+    if (homographyLabDragState) {
+      const { constraint, origin, image } = homographyLabDragState;
+      const deltaX = coordinates.x - origin.x;
+      const deltaY = coordinates.y - origin.y;
+      if (constraint.type === "point") constraint.image = coordinates;
+      if (constraint.type === "line") {
+        constraint.image.start = clampToVideo({ x: image.start.x + deltaX, y: image.start.y + deltaY });
+        constraint.image.end = clampToVideo({ x: image.end.x + deltaX, y: image.end.y + deltaY });
+      }
+      if (constraint.type === "arc") constraint.image.geometry.center = clampToVideo({ x: image.geometry.center.x + deltaX, y: image.geometry.center.y + deltaY });
+      homographyLabDragState.didMove = true;
+      homographyLabSolveConstraints(homographyLabDragState.experiment);
+      drawOverlay();
+      return;
+    }
+    if (homographyLabDraft?.type === "line") {
+      homographyLabDraft.end = coordinates;
+      drawOverlay();
+      return;
+    }
+    if (homographyLabDraft?.type === "arc") {
+      const previous = homographyLabDraft.samples[homographyLabDraft.samples.length - 1];
+      if (distanceBetween(previous, coordinates) >= 3 / (displayedVideoRect.width / video.videoWidth)) homographyLabDraft.samples.push(coordinates);
+      drawOverlay();
+      return;
+    }
+  }
   if (calibrationDragState && pointerVideoCoordinates) {
     const coordinates = clampToVideo(pointerVideoCoordinates);
     const { constraint, handle, origin, image } = calibrationDragState;
@@ -3869,6 +4078,29 @@ workArea.addEventListener("pointerleave", () => {
 
 workArea.addEventListener("pointerdown", (event) => {
   const pointerCoordinates = browserToVideoCoordinates(event);
+  if (activeMode === "homography-lab" && pointerCoordinates && video.videoWidth) {
+    event.preventDefault();
+    video.pause();
+    const coordinates = clampToVideo(pointerCoordinates);
+    const hit = homographyLabHitTest(coordinates);
+    if (hit) {
+      homographyLabSelectedConstraintKey = homographyLabConstraintKey(hit.constraint);
+      homographyLabDragState = { ...hit, origin: coordinates, image: JSON.parse(JSON.stringify(hit.constraint.image)), didMove: false };
+      workArea.setPointerCapture(event.pointerId);
+      drawOverlay();
+    } else if (homographyLabType === "point") {
+      addHomographyLabConstraint(coordinates);
+    } else if (homographyLabType === "line") {
+      homographyLabDraft = { type: "line", semantic: homographyLabSemantic, start: coordinates, end: coordinates, pointerId: event.pointerId };
+      workArea.setPointerCapture(event.pointerId);
+      drawOverlay();
+    } else if (homographyLabType === "arc") {
+      homographyLabDraft = { type: "arc", semantic: homographyLabSemantic, samples: [coordinates], pointerId: event.pointerId };
+      workArea.setPointerCapture(event.pointerId);
+      drawOverlay();
+    }
+    return;
+  }
   if (activeMode !== "guided" || !pointerCoordinates || !video.videoWidth) return;
   event.preventDefault();
   video.pause();
@@ -3950,6 +4182,26 @@ workArea.addEventListener("pointerdown", (event) => {
 });
 
 workArea.addEventListener("pointerup", (event) => {
+  if (homographyLabDragState) {
+    const drag = homographyLabDragState;
+    homographyLabDragState = null;
+    homographyLabSolveConstraints(drag.experiment);
+    if (workArea.hasPointerCapture(event.pointerId)) workArea.releasePointerCapture(event.pointerId);
+    drawOverlay();
+    return;
+  }
+  if (homographyLabDraft?.pointerId === event.pointerId) {
+    const draft = homographyLabDraft;
+    homographyLabDraft = null;
+    const coordinates = browserToVideoCoordinates(event);
+    if (coordinates) {
+      if (draft.type === "line" && distanceBetween(draft.start, coordinates) > 2) addHomographyLabConstraint({ start: draft.start, end: clampToVideo(coordinates) });
+      if (draft.type === "arc" && draft.samples.length >= 6) addHomographyLabConstraint({ samples: draft.samples, geometry: fitEllipse(draft.samples) });
+    }
+    if (workArea.hasPointerCapture(event.pointerId)) workArea.releasePointerCapture(event.pointerId);
+    drawOverlay();
+    return;
+  }
   if (calibrationDragState) {
     if (calibrationDragState.didMove) {
       fieldUndoStack.push(calibrationDragState.before);
