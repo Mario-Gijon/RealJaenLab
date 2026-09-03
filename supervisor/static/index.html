@@ -84,16 +84,20 @@
             </div>
           </div>
         </div>
-        <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración del terreno">
-          <span class="guided-workflow-heading">CALIBRACIÓN</span>
+        <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración del campo">
+          <span class="guided-workflow-heading">CALIBRACIÓN DEL CAMPO</span>
+          <div class="guided-workflow-progress" id="guided-workflow-progress" aria-label="Progreso de calibración"></div>
+          <span class="guided-workflow-step" id="guided-workflow-step">Paso 1 de 6</span>
+          <strong class="guided-workflow-title" id="guided-workflow-title">Preparar terreno</strong>
+          <p class="guided-workflow-description" id="guided-workflow-description">Antes de analizar la cámara necesitamos definir y confirmar el terreno de juego.</p>
           <div class="guided-workflow-content" id="guided-workflow-content"></div>
           <div class="guided-workflow-actions">
-            <button class="button button-primary" id="scan-video" type="button">Comenzar calibración del terreno</button>
+            <button class="button button-primary" id="scan-video" type="button">Comenzar</button>
             <button class="button button-primary" id="begin-guided-calibration" type="button" hidden>Confirmar terreno</button>
-            <button class="button button-primary" id="begin-match-setup" type="button" hidden>Comenzar calibración del partido</button>
-            <button class="button button-primary" id="complete-camera" type="button" hidden>Completar cámara</button>
+            <button class="button button-primary" id="begin-match-setup" type="button" hidden>Calibrar vistas</button>
+            <button class="button button-primary" id="complete-camera" type="button" hidden>Construir calibración</button>
             <button class="button button-primary" id="camera-workflow-action" type="button" hidden></button>
-            <button class="button button-secondary" id="view-camera-result" type="button" hidden>Ver resultado</button>
+            <button class="button button-secondary" id="view-camera-result" type="button" hidden>Revisar resultado</button>
             <button class="button button-secondary" id="open-manual-calibration" type="button" hidden>Continuar medición</button>
             <button class="button button-secondary" id="create-active-anchor" type="button" hidden>Crear HUMAN aquí</button>
             <button class="button button-secondary" id="guided-context" type="button" hidden></button>

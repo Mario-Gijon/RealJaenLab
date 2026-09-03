@@ -30,6 +30,10 @@ const deleteFieldItemButton = document.querySelector("#delete-field-item");
 const undoFieldEditButton = document.querySelector("#undo-field-edit");
 const guidedWorkflowPanel = document.querySelector("#guided-workflow-panel");
 const guidedWorkflowContent = document.querySelector("#guided-workflow-content");
+const guidedWorkflowProgress = document.querySelector("#guided-workflow-progress");
+const guidedWorkflowStep = document.querySelector("#guided-workflow-step");
+const guidedWorkflowTitle = document.querySelector("#guided-workflow-title");
+const guidedWorkflowDescription = document.querySelector("#guided-workflow-description");
 const scanVideoButton = document.querySelector("#scan-video");
 const beginGuidedCalibrationButton = document.querySelector("#begin-guided-calibration");
 const beginMatchSetupButton = document.querySelector("#begin-match-setup");
@@ -732,6 +736,42 @@ function formatPitchInterval(interval) {
   return `${formatPitchDimension(Number(interval[0]))}–${formatPitchDimension(Number(interval[1]))} m`;
 }
 
+const GUIDED_WORKFLOW_PHASES = [
+  { title: "Preparar terreno", description: "Antes de analizar la cámara necesitamos definir y confirmar el terreno de juego." },
+  { title: "Analizar vídeo", description: "Analizamos el vídeo para localizar vistas útiles para la calibración." },
+  { title: "Calibrar vistas", description: "Confirma las mediciones y referencias que servirán de base para la cámara." },
+  { title: "Construir calibración", description: "Construimos la calibración de cámara a partir de las referencias confirmadas." },
+  { title: "Revisar resultado", description: "Revisa el resultado generado antes de dar el proceso por terminado." },
+  { title: "Completar", description: "Este paso se completará cuando esté disponible el cierre de la calibración." },
+];
+
+function guidedWorkflowPhase({ state, matchState, isConfirmed, cameraWorkflow }) {
+  if (state?.status === "error" || state?.status === "insufficient") return { current: 1, error: true };
+  if (matchState?.error) return { current: 3, error: true };
+  if (state?.processing === "scan" || state?.processing === "estimate" || matchState?.processing === "scan") {
+    return { current: 2 };
+  }
+  if (!isConfirmed || state?.status === "measuring" || state?.status === "ready_to_confirm" || matchState?.status === "measuring" || !matchState) {
+    return { current: isConfirmed && !matchState ? 3 : 1 };
+  }
+  if (cameraWorkflow?.status === "complete") return { current: 5 };
+  return { current: 4, error: ["needs_human", "needs_attention", "error", "interrupted"].includes(cameraWorkflow?.status) };
+}
+
+function renderGuidedWorkflowProgress(current, error) {
+  const fragment = document.createDocumentFragment();
+  GUIDED_WORKFLOW_PHASES.forEach((phase, index) => {
+    const item = document.createElement("span");
+    item.className = "guided-workflow-progress-item";
+    if (index + 1 < current) item.classList.add("is-complete");
+    if (index + 1 === current) item.classList.add(error ? "is-error" : "is-active");
+    item.title = `Paso ${index + 1}: ${phase.title}`;
+    item.setAttribute("aria-label", item.title);
+    fragment.append(item);
+  });
+  guidedWorkflowProgress.replaceChildren(fragment);
+}
+
 function updatePitchSetupWorkflow() {
   const active = activeMode === "guided";
   const state = fieldPitchSetup?.video === selectedVideo?.name ? fieldPitchSetup : null;
@@ -774,6 +814,14 @@ function updatePitchSetupWorkflow() {
 
   if (!active || calibrationMode) return;
 
+  const workflowPhase = guidedWorkflowPhase({ state, matchState, isConfirmed, cameraWorkflow });
+  const { current: currentPhase, error: phaseHasError } = workflowPhase;
+  const phaseDefinition = GUIDED_WORKFLOW_PHASES[currentPhase - 1];
+  guidedWorkflowStep.textContent = `Paso ${currentPhase} de ${GUIDED_WORKFLOW_PHASES.length}`;
+  guidedWorkflowTitle.textContent = phaseDefinition.title;
+  guidedWorkflowDescription.textContent = phaseDefinition.description;
+  renderGuidedWorkflowProgress(currentPhase, phaseHasError);
+
   const fragment = document.createDocumentFragment();
   const add = (text, strong = false, warning = false) => {
     const element = document.createElement(strong ? "strong" : "span");
@@ -789,24 +837,20 @@ function updatePitchSetupWorkflow() {
     meter.append(fill);
     fragment.append(meter);
   };
-  add(`1 · TERRENO${isConfirmed ? "  ✓" : ""}`, true);
   if (!selectedVideo) {
-    add("Selecciona un vídeo para comenzar.");
-  } else if (isConfirmed && !state) {
-    add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`);
-    add(pitchModelProvenanceLabel());
-  } else if (!state) {
-    add("Mide el terreno con vistas seleccionadas automáticamente del vídeo.");
-  } else if (state.processing === "scan") {
-    add("Analizando vídeo para seleccionar mediciones…");
-  } else if (state.processing === "estimate") {
-    add("Estimando las dimensiones del terreno…");
-  } else if (state.error) {
-    add(`No se pudo continuar: ${state.error}`, false, true);
-  } else if (state.status === "measuring") {
-    add(`${attempted.length} / ${frames.length}`);
+    add("Selecciona un vídeo desde la biblioteca.");
+  } else if (state?.processing === "scan" || state?.processing === "estimate" || matchState?.processing === "scan") {
+    add(state?.processing === "estimate" ? "Estimando el terreno…" : "Analizando el vídeo…", true);
+  } else if (state?.error || state?.status === "insufficient") {
+    add(state.error || (state.insufficient_reason === "observable_views"
+      ? "No hay suficientes vistas observables para calibrar el terreno."
+      : "No hay evidencia suficiente para estimar el terreno."), false, true);
+    const missing = pitchSetupMissingEvidence(result);
+    if (missing.length) add(`Falta confianza en: ${missing.join(", ")}.`);
+  } else if (state?.status === "measuring") {
+    add(`${attempted.length} de ${frames.length} mediciones intentadas.`);
     add(`Siguiente medición: fotograma ${currentFrame}.`);
-  } else if (state.status === "ready_to_confirm" && result?.pitch_model) {
+  } else if (state?.status === "ready_to_confirm" && result?.pitch_model) {
     const dimensionStatus = result.pitch_model.dimension_status;
     if (dimensionStatus) {
       add("Terreno listo para confirmar", true);
@@ -823,71 +867,53 @@ function updatePitchSetupWorkflow() {
       add(`${formatPitchDimension(result.pitch_model.length_m)} × ${formatPitchDimension(result.pitch_model.width_m)} m`);
       add(`Longitud: ${formatPitchInterval(result.confidence?.length_interval_m)} · Anchura: ${formatPitchInterval(result.confidence?.width_interval_m)}`);
     }
-  } else if (state.status === "insufficient") {
-    add(
-      state.insufficient_reason === "observable_views"
-        ? "No hay suficientes vistas geométricamente observables para calibrar el terreno."
-        : "No hay evidencia geométrica suficiente para estimar el terreno con confianza.",
-      false,
-      true,
-    );
-    const missing = pitchSetupMissingEvidence(result);
-    if (missing.length) add(`Falta confianza en: ${missing.join(", ")}.`);
-  } else if (state.status === "confirmed") {
+  } else if (isConfirmed) {
     add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`);
     add(pitchModelProvenanceLabel());
   }
-  add(`2 · PARTIDO${matchState?.status === "complete" ? "  ✓" : ""}`, true);
-  if (!isConfirmed) {
-    add("Bloqueado hasta confirmar el terreno.");
-  } else if (!matchState) {
-    add("Selecciona vistas representativas y crea anchors HUMAN independientes.");
-  } else if (matchState.processing === "scan") {
-    add("Analizando vídeo para seleccionar anchors…");
-  } else if (matchState.error) {
-    add(`No se pudo continuar: ${matchState.error}`, false, true);
-  } else if (matchState.status === "measuring") {
-    add(`PARTIDO · ${matchAttempted.length} / ${matchSetupAnchorFrames().length}`);
-    add(`Siguiente anchor: fotograma ${matchCurrentFrame}.`);
-  } else if (matchState.status === "complete") {
-    add("Calibración inicial completada ✓");
-    add(`${matchSetupCompletedFrames().length} referencias HUMAN válidas`);
-    add(`3 · CÁMARA${cameraWorkflow?.status === "complete" ? "  ✓" : ""}`, true);
+  if (matchState?.status === "measuring") {
+    add(`${matchAttempted.length} de ${matchSetupAnchorFrames().length} vistas intentadas.`);
+    add(`Siguiente referencia: fotograma ${matchCurrentFrame}.`);
+  } else if (matchState?.error) {
+    add(matchState.error, false, true);
+  } else if (matchState?.status === "complete") {
+    add(`${matchSetupCompletedFrames().length} referencias de vista confirmadas.`);
     if (cameraWorkflow?.status === "queued" || cameraWorkflow?.status === "running") {
-      add(cameraWorkflow.human_message || "Completando el vídeo…");
+      add(cameraWorkflow.human_message || "Construyendo la calibración…", true);
       addProgress(cameraWorkflow.progress_fraction || 0);
-      add(`${Math.round((cameraWorkflow.progress_fraction || 0) * 100)} %`);
-    } else if (cameraWorkflow?.status === "complete") {
-      add("Cámara preparada", true);
-      add(`${cameraWorkflow.dense_frame_count} / ${cameraWorkflow.total_frames} fotogramas`);
-      if (cameraWorkflow.trailing_unreadable_frame_count) {
-        add(`El archivo contiene ${cameraWorkflow.trailing_unreadable_frame_count} fotogramas finales que no se pueden leer.`);
+      if (Number.isFinite(Number(cameraWorkflow.progress_fraction))) {
+        add(`${Math.round(cameraWorkflow.progress_fraction * 100)} %`);
       }
-      add(`${cameraWorkflow.human_anchor_count} referencias HUMAN`);
+    } else if (cameraWorkflow?.status === "complete") {
+      add("Calibración construida. Revisa el resultado en PREVIEW.", true);
     } else if (cameraWorkflow?.status === "needs_human") {
       add("Necesitamos una referencia manual en una vista nueva.", false, true);
       add(`Fotograma ${cameraWorkflow.recommended_human_frame}`);
     } else if (["needs_attention", "error", "interrupted"].includes(cameraWorkflow?.status)) {
-      add(cameraWorkflow.human_message || "No se pudo completar automáticamente la cámara.", false, true);
+      add(cameraWorkflow.human_message || "La calibración necesita atención.", false, true);
     } else {
-      add("Lista para completar la cámara.");
+      add("Las vistas están listas para construir la calibración.");
     }
   }
+  if (currentPhase === 6) add("La finalización estará disponible en una fase posterior.");
   guidedWorkflowContent.replaceChildren(fragment);
 
   scanVideoButton.hidden = (Boolean(state) && state.status !== "error") || isConfirmed;
   scanVideoButton.disabled = !selectedVideo;
+  scanVideoButton.textContent = "Comenzar";
   beginGuidedCalibrationButton.hidden = state?.status !== "ready_to_confirm";
   beginGuidedCalibrationButton.disabled = Boolean(state?.processing);
   beginMatchSetupButton.hidden = !isConfirmed || Boolean(matchState);
   beginMatchSetupButton.disabled = !isConfirmed || Boolean(matchState?.processing);
+  beginMatchSetupButton.textContent = "Calibrar vistas";
   openManualCalibrationButton.hidden = activeMeasurementFrame === null;
   openManualCalibrationButton.disabled = Boolean(measuringPitch ? state?.processing : matchState?.processing);
   const canCreateActiveAnchor = active
     && Boolean(selectedVideo)
     && isConfirmed
     && activeMeasurementFrame === null
-    && !calibrationMode;
+    && !calibrationMode
+    && (cameraWorkflow?.status === "needs_human" || debugOverlayEnabled);
   createActiveAnchorButton.hidden = !canCreateActiveAnchor;
   createActiveAnchorButton.disabled = !canCreateActiveAnchor;
   if (canCreateActiveAnchor) {
@@ -912,8 +938,8 @@ function updatePitchSetupWorkflow() {
   completeCameraButton.hidden = !cameraReady || ["queued", "running", "complete", "needs_human"].includes(cameraWorkflow?.status);
   completeCameraButton.disabled = !cameraReady;
   completeCameraButton.textContent = cameraWorkflow?.status === "ready" && cameraWorkflow?.phase === "stale"
-    ? "Recalcular cámara"
-    : "Completar cámara";
+    ? "Recalcular calibración"
+    : "Construir calibración";
   cameraWorkflowActionButton.hidden = !cameraReady || !["needs_human", "needs_attention", "error", "interrupted"].includes(cameraWorkflow?.status);
   const recommendedSolved = cameraWorkflow?.status === "needs_human"
     && Number(cameraWorkflow.recommended_human_frame) === currentFrameNumber()
@@ -922,6 +948,7 @@ function updatePitchSetupWorkflow() {
     ? (recommendedSolved ? "Continuar análisis" : "Calibrar este frame")
     : "Reintentar";
   viewCameraResultButton.hidden = !cameraReady || cameraWorkflow?.status !== "complete";
+  viewCameraResultButton.textContent = "Revisar resultado";
 }
 
 function openPitchSetupMeasurement(frame) {

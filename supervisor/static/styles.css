@@ -96,6 +96,14 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 .guided-workflow-panel { position: absolute; z-index: 3; top: 42px; right: 42px; display: grid; width: min(300px, calc(100% - 84px)); gap: 9px; padding: 11px; border: 1px solid #3d4f59; border-radius: 5px; background: rgba(20, 26, 31, .95); box-shadow: 0 4px 16px rgba(0, 0, 0, .28); }
 .guided-workflow-panel[hidden] { display: none; }
 .guided-workflow-heading { color: #8fd4ce; font-size: 10px; font-weight: 750; letter-spacing: .09em; }
+.guided-workflow-progress { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
+.guided-workflow-progress-item { height: 4px; border-radius: 999px; background: #303940; }
+.guided-workflow-progress-item.is-active { background: #8fd4ce; }
+.guided-workflow-progress-item.is-complete { background: #5d9c96; }
+.guided-workflow-progress-item.is-error { background: #d8b56f; }
+.guided-workflow-step { color: #8c9aa4; font-size: 10px; }
+.guided-workflow-title { color: #dfe5e8; font-size: 14px; }
+.guided-workflow-description { margin: -4px 0 0; color: #b8c0c7; font-size: 11px; line-height: 1.35; }
 .guided-workflow-content { display: grid; gap: 4px; color: #b8c0c7; font-size: 11px; line-height: 1.4; }
 .guided-workflow-content strong { color: #dfe5e8; }
 .guided-camera-progress { height: 6px; overflow: hidden; border-radius: 999px; background: #303940; }
