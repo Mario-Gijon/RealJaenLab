@@ -84,6 +84,7 @@ const exportHomographyLabButton = document.querySelector("#export-homography-lab
 const importHomographyLabButton = document.querySelector("#import-homography-lab");
 const importHomographyLabFile = document.querySelector("#import-homography-lab-file");
 const labExportMessage = document.querySelector("#lab-export-message");
+const labReferenceRoleControl = document.querySelector("#lab-reference-role-control");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
 const calibrationHeading = document.querySelector("#calibration-heading");
@@ -197,6 +198,10 @@ modeTabs.forEach((tab) => {
     setCalibrationMode(isHomographyLabMode());
     calibrationPanel.hidden = !isHomographyLabMode();
     homographyLabPanel.hidden = activeMode !== "homography-lab";
+    if (!isHomographyLabMode()) {
+      labReferenceRoleControl.hidden = true;
+      labReferenceRoleControl.classList.remove("is-test");
+    }
     if (isHomographyLabMode()) updateCalibrationStatus();
     updatePitchSetupWorkflow();
     drawOverlay();
@@ -507,6 +512,20 @@ async function importHomographyLabExperiment(file) {
 
 function homographyLabConstraintKey(constraint) {
   return `${constraint.type}:${constraint.semantic || ""}`;
+}
+
+function homographyLabSelectedConstraint() {
+  if (!isHomographyLabMode()) return null;
+  const experiment = homographyLabCurrentExperiment();
+  return experiment?.constraints.find((constraint) => (
+    constraint.type === calibrationType && constraint.semantic === calibrationSemantic
+  )) || null;
+}
+
+function toggleHomographyLabConstraintRole(constraint) {
+  if (!constraint) return;
+  constraint.labTest = !constraint.labTest;
+  homographyLabSolveConstraints(homographyLabCurrentExperiment());
 }
 
 function syncHomographyLabSelector() {
@@ -2466,6 +2485,12 @@ function constraintCountsLabel(constraints) {
   return labels.join(" · ") || "0 referencias";
 }
 
+function homographyLabCountsLabel(constraints) {
+  const fit = constraintCountsLabel(constraints.filter((constraint) => !constraint.labTest));
+  const test = constraintCountsLabel(constraints.filter((constraint) => constraint.labTest));
+  return `FIT: ${fit} · TEST: ${test}`;
+}
+
 function updateCurrentReferenceLabel() {
   if (!currentReferenceLabel) return;
   const semantic = selectedSemanticDefinition();
@@ -2662,11 +2687,21 @@ function updateCalibrationStatus(message = null) {
     : calibrationForCurrentFrame();
   const pending = calibrationSolveIsPending(calibration);
   const solveError = calibrationSolveErrorFor(calibration);
+  const constraints = calibrationConstraints(calibration);
+  const countsLabel = isHomographyLabMode() ? homographyLabCountsLabel(constraints) : constraintCountsLabel(constraints);
   calibrationSolverLoading.hidden = !pending;
   exitCalibrationButton.disabled = Boolean(calibrationSolvePending);
   const refiningExistingProjection = hasInitialHomography(calibration) || (!calibration && Boolean(existingProjectionForCurrentFrame()));
   renderCalibrationPitch();
   updateCurrentReferenceLabel();
+  const selectedLabConstraint = homographyLabSelectedConstraint();
+  labReferenceRoleControl.hidden = !selectedLabConstraint;
+  if (selectedLabConstraint) {
+    labReferenceRoleControl.textContent = selectedLabConstraint.labTest
+      ? "TEST · solo validar"
+      : "FIT · usar para ajustar";
+    labReferenceRoleControl.classList.toggle("is-test", Boolean(selectedLabConstraint.labTest));
+  }
   const drawingHint = calibrationType === "point"
     ? "Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo."
     : calibrationType === "line"
@@ -2676,30 +2711,29 @@ function updateCalibrationStatus(message = null) {
     ? `${drawingHint} Corrigiendo la proyección existente de este fotograma.`
     : drawingHint;
   if (pending) {
-    calibrationStatus.textContent = constraintCountsLabel(calibrationConstraints(calibration));
+    calibrationStatus.textContent = countsLabel;
     return;
   }
   if (message) {
-    calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))}${refiningExistingProjection ? " · corrigiendo proyección existente" : ""} · ${message}`;
+    calibrationStatus.textContent = `${countsLabel}${refiningExistingProjection ? " · corrigiendo proyección existente" : ""} · ${message}`;
     return;
   }
   if (solveError) {
-    calibrationStatus.textContent = `${constraintCountsLabel(calibrationConstraints(calibration))} · Error: ${solveError}`;
+    calibrationStatus.textContent = `${countsLabel} · Error: ${solveError}`;
     return;
   }
-  const constraints = calibrationConstraints(calibration);
   const lineWarning = calibrationLineDiagnostics(calibration).find((diagnostic) => (
     diagnostic.quality === "bad" || (!diagnostic.quality && diagnostic.errorPx > LINE_WARNING_ERROR_PX)
   ));
   const strategyLabel = calibrationStrategyLabel(calibration);
   const hasMixedConstraints = constraints.some((item) => item.type !== "point");
   calibrationStatus.textContent = calibration?.homography
-    ? `${constraintCountsLabel(constraints)} · campo proyectado${strategyLabel ? ` · ${strategyLabel}` : ""}${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
+    ? `${countsLabel} · campo proyectado${strategyLabel ? ` · ${strategyLabel}` : ""}${lineWarning ? ` · ${lineWarning.label} no está siendo respetada (error: ${Math.round(lineWarning.errorPx)} px)` : ""}`
     : refiningExistingProjection
-      ? `${constraintCountsLabel(constraints)} · corrigiendo proyección existente`
+      ? `${countsLabel} · corrigiendo proyección existente`
       : hasMixedConstraints
-      ? `${constraintCountsLabel(constraints)} · solver mixto pendiente`
-      : `${constraintCountsLabel(constraints)} / mínimo 4`;
+      ? `${countsLabel} · solver mixto pendiente`
+      : `${countsLabel} / mínimo 4`;
   updatePitchSetupWorkflow();
 }
 
@@ -3100,11 +3134,11 @@ function drawCalibrationHandle({ x, y }, displayScale) {
   overlayContext.stroke();
 }
 
-function drawCalibrationArc(geometry, selected, displayScale) {
+function drawCalibrationArc(geometry, selected, displayScale, colorOverride = null) {
   const { center, radiusX, radiusY, rotation, arc } = geometry;
   const arcSpan = arc ? Math.abs(arc.endAngle - arc.startAngle) : Math.PI * 2;
   const isPartialArc = arcSpan < Math.PI * 1.85;
-  overlayContext.strokeStyle = selected ? "#d4a414" : "rgba(212, 164, 20, .72)";
+  overlayContext.strokeStyle = colorOverride || (selected ? "#d4a414" : "rgba(212, 164, 20, .72)");
   overlayContext.lineWidth = (selected ? 3 : 2) / displayScale;
   overlayContext.beginPath();
   overlayContext.ellipse(
@@ -3167,7 +3201,10 @@ function drawCalibrationOverlay() {
     const hasWarning = constraint.type === "line" && lineWarnings.has(constraint.semantic);
     if (!calibrationMode && !selected && !debugOverlayEnabled && !hasWarning) return;
     const radius = (selected ? 9 : 7) / displayScale;
-    const constraintColor = selected || hasWarning ? "#d4a414" : "rgba(212, 164, 20, .52)";
+    const isLabTest = isHomographyLabMode() && constraint.labTest;
+    const constraintColor = isLabTest
+      ? (selected ? "#f0a99b" : "rgba(231, 139, 119, .82)")
+      : (selected || hasWarning ? "#d4a414" : "rgba(212, 164, 20, .52)");
     if (constraint.type === "line") {
       overlayContext.strokeStyle = constraintColor;
       overlayContext.lineWidth = (selected || hasWarning ? 3 : 1.75) / displayScale;
@@ -3185,14 +3222,14 @@ function drawCalibrationOverlay() {
       return;
     }
     if (constraint.type === "arc") {
-      drawCalibrationArc(constraint.image.geometry, selected, displayScale);
+      drawCalibrationArc(constraint.image.geometry, selected, displayScale, isLabTest ? constraintColor : null);
       return;
     }
     overlayContext.beginPath();
     overlayContext.arc(constraint.image.x, constraint.image.y, radius, 0, Math.PI * 2);
     overlayContext.fillStyle = constraintColor;
     overlayContext.fill();
-    overlayContext.strokeStyle = selected ? "#fff0a8" : "#755c0c";
+    overlayContext.strokeStyle = isLabTest ? "#ffd0c7" : (selected ? "#fff0a8" : "#755c0c");
     overlayContext.lineWidth = 2 / displayScale;
     overlayContext.stroke();
     overlayContext.fillStyle = "#17191c";
@@ -4003,9 +4040,15 @@ labConstraints.addEventListener("click", (event) => {
   const experiment = homographyLabCurrentExperiment();
   const constraint = experiment?.constraints.find((item) => homographyLabConstraintKey(item) === roleButton.dataset.labReferenceKey);
   if (!constraint) return;
-  constraint.labTest = !constraint.labTest;
-  homographyLabSolveConstraints(experiment);
+  toggleHomographyLabConstraintRole(constraint);
   updateHomographyLab();
+  drawOverlay();
+});
+
+labReferenceRoleControl.addEventListener("click", () => {
+  if (!isHomographyLabMode()) return;
+  toggleHomographyLabConstraintRole(homographyLabSelectedConstraint());
+  updateCalibrationStatus();
   drawOverlay();
 });
 

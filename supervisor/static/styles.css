@@ -178,6 +178,9 @@ p { margin: 0; color: #929aa2; font-size: 14px; }
 @keyframes calibration-spin { to { transform: rotate(360deg); } }
 .calibration-panel label { color: #8fd4ce; font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 .calibration-panel select { max-width: 230px; color: #d6dade; border: 1px solid #3b6865; border-radius: 3px; padding: 6px 8px; background: #172a2a; font-size: 11px; }
+.lab-reference-role-control { color: #d8b56f; border: 1px solid #725d31; border-radius: 3px; padding: 6px 8px; background: #211d16; cursor: pointer; font-size: 10px; font-weight: 750; text-align: left; }
+.lab-reference-role-control.is-test { color: #f0a99b; border-color: #935c54; background: #2a1c1d; }
+.lab-reference-role-control:hover { filter: brightness(1.15); }
 
 .controls { gap: 22px; border-top: 1px solid #292e33; padding: 0 28px; }
 .transport-controls, .frame-controls { display: flex; align-items: center; gap: 8px; }
