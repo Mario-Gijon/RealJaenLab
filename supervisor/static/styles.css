@@ -31,10 +31,6 @@ button { font: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; color: #e5e8eb; font-size: 13px; font-weight: 700; letter-spacing: .1em; }
 .brand-mark { width: 11px; height: 11px; background: #d4a414; transform: rotate(45deg); }
 
-.video-selector { display: flex; align-items: center; gap: 8px; color: #8e969e; font-size: 10px; font-weight: 700; letter-spacing: .09em; }
-.video-selector select { width: 190px; overflow: hidden; color: #d6dade; border: 1px solid #363d45; border-radius: 4px; padding: 7px 28px 7px 9px; background: #20252a; font-size: 12px; text-overflow: ellipsis; }
-.video-selector select:disabled { color: #707880; }
-
 .mode-tabs { display: flex; align-self: stretch; gap: 4px; }
 .mode-tab { border: 0; border-bottom: 2px solid transparent; padding: 0 17px; color: #8e969e; background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .09em; }
 .mode-tab:hover { color: #e5e8eb; }

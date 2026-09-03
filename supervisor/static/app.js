@@ -11,7 +11,6 @@ const videoStage = document.querySelector("#video-stage");
 const overlay = document.querySelector("#video-overlay");
 const overlayContext = overlay.getContext("2d");
 const previewProvenance = document.querySelector("#preview-provenance");
-const videoSelect = document.querySelector("#video-select");
 const backToLibraryButton = document.querySelector("#back-to-library");
 const libraryScreen = document.querySelector("#library-screen");
 const workspaceMessage = document.querySelector("#workspace-message");
