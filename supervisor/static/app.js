@@ -3531,17 +3531,7 @@ video.addEventListener("error", () => {
   setControlsEnabled(false);
   workspaceMessage.hidden = false;
   workspaceTitle.textContent = "No se pudo cargar el vídeo";
-  workspaceDescription.textContent = "Elige otro MP4 en el selector.";
-});
-
-videoSelect.addEventListener("change", () => {
-  const videoInfo = videoSelect.videos.find((item) => item.name === videoSelect.value);
-  if (!videoInfo || videoInfo.name === selectedVideo?.name) return;
-  if (reviewIsDirty && !window.confirm("¿Descartar los cambios sin guardar de este vídeo?")) {
-    videoSelect.value = selectedVideo.name;
-    return;
-  }
-  loadVideo(videoInfo);
+  workspaceDescription.textContent = "Vuelve a la biblioteca para elegir otro vídeo.";
 });
 
 saveButton.addEventListener("click", saveCurrentReview);
@@ -3961,28 +3951,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-async function initialiseVideos() {
-  try {
-    const response = await fetch("/api/videos");
-    const { videos } = await response.json();
-    videoSelect.replaceChildren();
-    videoSelect.videos = videos;
-
-    if (!videos.length) {
-      videoSelect.add(new Option("No se encontraron vídeos MP4", ""));
-      workspaceTitle.textContent = "No hay vídeos disponibles";
-      workspaceDescription.textContent = "Añade un archivo MP4 al directorio input.";
-      return;
-    }
-
-    videos.forEach((videoInfo) => videoSelect.add(new Option(videoInfo.name, videoInfo.name)));
-    videoSelect.disabled = false;
-  } catch (error) {
-    workspaceTitle.textContent = "Lista de vídeos no disponible";
-    workspaceDescription.textContent = "No se pudo leer el directorio input.";
-  }
-}
-
 function openWorkspaceVideo(videoInfo) {
   if (!videoInfo?.name) return;
   document.body.classList.remove("is-library");
@@ -4000,4 +3968,3 @@ function returnToLibrary() {
 backToLibraryButton.addEventListener("click", returnToLibrary);
 window.SupervisorWorkspace = { openVideo: openWorkspaceVideo, returnToLibrary };
 document.body.classList.add("is-library");
-initialiseVideos();
