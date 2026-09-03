@@ -2280,6 +2280,9 @@ function setCalibrationSelection(type, semantic = selectedSemanticByType[type]) 
   calibrationConstraintType.value = type;
   calibrationSemantic = semantic;
   syncSemanticSelector();
+  // Keep the canonical diagram in lockstep with the semantic selector in
+  // both operational CALIBRACIÓN and the isolated Homography Lab.
+  renderCalibrationPitch();
 }
 
 function selectedSemanticDefinition() {
