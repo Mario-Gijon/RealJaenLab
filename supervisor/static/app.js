@@ -80,6 +80,10 @@ const labClearButton = document.querySelector("#lab-clear");
 const labDeleteButton = document.querySelector("#lab-delete");
 const labImportHumanButton = document.querySelector("#lab-import-human");
 const labSolveStatus = document.querySelector("#lab-solve-status");
+const exportHomographyLabButton = document.querySelector("#export-homography-lab");
+const importHomographyLabButton = document.querySelector("#import-homography-lab");
+const importHomographyLabFile = document.querySelector("#import-homography-lab-file");
+const labExportMessage = document.querySelector("#lab-export-message");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
 const calibrationHeading = document.querySelector("#calibration-heading");
@@ -185,6 +189,7 @@ modeTabs.forEach((tab) => {
     saveStatus.hidden = !guided;
     saveButton.hidden = !guided;
     const calibrationView = activeMode === "guided" || isHomographyLabMode();
+    workspace.classList.toggle("is-homography-lab", isHomographyLabMode());
     workArea.classList.toggle("field-editing", calibrationView && calibrationMode);
     selectedFieldItem = null;
     lineDraft = null;
@@ -410,6 +415,96 @@ function homographyLabCurrentExperiment(create = false) {
   return experiment || null;
 }
 
+function homographyLabSetMessage(message, isError = false) {
+  labExportMessage.textContent = message;
+  labExportMessage.classList.toggle("is-error", isError);
+}
+
+function homographyLabExportFilename() {
+  const identity = selectedVideo?.assetId || selectedVideo?.asset_id || selectedVideo?.id || selectedVideo?.name || "video";
+  const safeIdentity = String(identity).replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "") || "video";
+  return `homography_lab_${safeIdentity}_frame_${currentFrameNumber()}.json`;
+}
+
+function exportHomographyLabExperiment() {
+  if (!selectedVideo) return;
+  const experiment = homographyLabCurrentExperiment();
+  if (!experiment || !experiment.constraints.length) {
+    homographyLabSetMessage("Añade referencias antes de exportar.", true);
+    return;
+  }
+  const payload = {
+    format: "realjaen.homography-lab",
+    version: 1,
+    video: {
+      asset_id: selectedVideo.assetId || selectedVideo.asset_id || selectedVideo.id || null,
+      name: selectedVideo.name || null,
+      display_name: selectedVideo.displayName || selectedVideo.display_name || null,
+      path: selectedVideo.playbackUrl || selectedVideo.playback_url || null,
+    },
+    frame: experiment.frame,
+    timestamp_seconds: selectedVideo.fps ? experiment.frame / selectedVideo.fps : null,
+    pitch: { length_m: fieldPitchModel.length_m, width_m: fieldPitchModel.width_m },
+    constraints: experiment.constraints.map((constraint) => ({
+      ...JSON.parse(JSON.stringify(constraint)),
+      semantic_label: semanticDefinitionsForType(constraint.type).find((item) => item.id === constraint.semantic)?.label || null,
+    })),
+    solve: {
+      status: experiment.status,
+      homography: experiment.homography ? JSON.parse(JSON.stringify(experiment.homography)) : null,
+      reprojection_error: experiment.reprojectionError ?? null,
+      diagnostics: experiment.diagnostics ? JSON.parse(JSON.stringify(experiment.diagnostics)) : null,
+    },
+    exported_at: new Date().toISOString(),
+    note: "",
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = homographyLabExportFilename();
+  anchor.click();
+  URL.revokeObjectURL(url);
+  homographyLabSetMessage("Experimento exportado.");
+}
+
+function validLabHomography(value) {
+  return Array.isArray(value) && value.length === 3 && value.every((row) => (
+    Array.isArray(row) && row.length === 3 && row.every((item) => Number.isFinite(Number(item)))
+  ));
+}
+
+async function importHomographyLabExperiment(file) {
+  if (!selectedVideo || !file) return;
+  try {
+    const payload = JSON.parse(await file.text());
+    if (payload?.format !== "realjaen.homography-lab" || payload?.version !== 1) throw new Error("formato o versión no compatibles");
+    if (!Number.isInteger(payload.frame) || payload.frame < 0 || !Array.isArray(payload.constraints)) throw new Error("faltan frame o referencias válidas");
+    if (payload.video?.name && payload.video.name !== selectedVideo.name) throw new Error("el experimento pertenece a otro vídeo");
+    const constraints = payload.constraints.map((constraint) => {
+      if (!constraint || !["point", "line", "arc"].includes(constraint.type) || !constraint.semantic || !constraint.world || !constraint.image) throw new Error("referencia inválida");
+      return { ...JSON.parse(JSON.stringify(constraint)), source: "lab-import", labTest: Boolean(constraint.labTest) };
+    });
+    const solve = payload.solve || {};
+    if (solve.homography !== null && solve.homography !== undefined && !validLabHomography(solve.homography)) throw new Error("homografía inválida");
+    const allowedStatuses = ["empty", "insufficient", "solving", "solved", "solved_with_warnings", "error"];
+    if (solve.status && !allowedStatuses.includes(solve.status)) throw new Error("estado de solve inválido");
+    const experiment = { video: selectedVideo.name, frame: payload.frame, constraints, homography: solve.homography || null, reprojectionError: solve.reprojection_error ?? null, diagnostics: solve.diagnostics || null, status: solve.status || (solve.homography ? "solved" : "insufficient"), error: null };
+    homographyLabExperiments.set(homographyLabExperimentKey(selectedVideo.name, payload.frame), experiment);
+    homographyLabSelectedConstraintKey = null;
+    homographyLabSetMessage("Experimento importado.");
+    if (currentFrameNumber() !== payload.frame) {
+      video.addEventListener("seeked", () => { updateCalibrationStatus(); drawOverlay(); }, { once: true });
+      seekToFrame(payload.frame);
+    } else {
+      updateCalibrationStatus();
+      drawOverlay();
+    }
+  } catch (error) {
+    homographyLabSetMessage(`No se pudo importar: ${error instanceof Error ? error.message : "JSON inválido"}.`, true);
+  }
+}
+
 function homographyLabConstraintKey(constraint) {
   return `${constraint.type}:${constraint.semantic || ""}`;
 }
@@ -461,6 +556,7 @@ function homographyLabSolveConstraints(experiment) {
     if (experiment.solveToken !== solveToken || homographyLabCurrentExperiment() !== experiment) return;
     experiment.homography = result.homography;
     experiment.reprojectionError = result.reprojection_error;
+    experiment.diagnostics = result.diagnostics || null;
     experiment.status = result.status;
     experiment.error = null;
     updateCalibrationStatus();
@@ -2542,11 +2638,19 @@ function renderCalibrationPitch() {
 }
 
 function calibrationSolveIsPending(calibration = calibrationForCurrentFrame()) {
-  return Boolean(calibration && calibrationSolvePending?.calibrationId === calibration.id);
+  if (isHomographyLabMode()) return calibration?.status === "solving";
+  return Boolean(
+    calibration
+    && calibrationSolvePending
+    && calibrationSolvePending.calibrationId === calibration.id
+  );
 }
 
 function calibrationSolveErrorFor(calibration = calibrationForCurrentFrame()) {
-  return calibration && calibrationSolveError?.calibrationId === calibration.id
+  if (isHomographyLabMode()) return calibration?.status === "error" ? calibration.error : null;
+  return calibration
+    && calibrationSolveError
+    && calibrationSolveError.calibrationId === calibration.id
     ? calibrationSolveError.message
     : null;
 }
@@ -3920,6 +4024,17 @@ labLandmark.addEventListener("change", () => {
 labClearButton.addEventListener("click", clearHomographyLabExperiment);
 labDeleteButton.addEventListener("click", deleteSelectedHomographyLabConstraint);
 labImportHumanButton.addEventListener("click", importHumanIntoHomographyLab);
+exportHomographyLabButton.addEventListener("click", () => {
+  if (isHomographyLabMode()) exportHomographyLabExperiment();
+});
+importHomographyLabButton.addEventListener("click", () => {
+  if (isHomographyLabMode()) importHomographyLabFile.click();
+});
+importHomographyLabFile.addEventListener("change", () => {
+  const [file] = importHomographyLabFile.files || [];
+  void importHomographyLabExperiment(file);
+  importHomographyLabFile.value = "";
+});
 
 calibrationPanel.addEventListener("pointerdown", (event) => {
   event.stopPropagation();

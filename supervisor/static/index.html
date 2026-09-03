@@ -77,6 +77,12 @@
                 <select id="calibration-landmark"></select>
                 <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
                 <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
+                <div class="lab-export-controls" aria-label="Artefacto de investigación">
+                  <button class="field-tool" id="export-homography-lab" type="button">Exportar experimento</button>
+                  <button class="field-tool" id="import-homography-lab" type="button">Importar experimento</button>
+                  <input id="import-homography-lab-file" type="file" accept="application/json,.json" hidden />
+                  <span class="lab-export-message" id="lab-export-message" role="status"></span>
+                </div>
                 <span class="guided-frame-progress" id="guided-frame-progress" hidden></span>
                 <button class="field-tool calibration-action" id="guided-confirm-continue" type="button" hidden>Guardar medición y continuar</button>
                 <button class="field-tool" id="reject-pitch-setup-measurement" type="button" hidden>No hay más geometría visible</button>
