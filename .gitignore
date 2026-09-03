@@ -13,6 +13,9 @@ supervisor/data/library/uploads/
 supervisor/data/library/videos/
 supervisor/data/library/catalog_v1.json
 supervisor/data/reviews/asset_*.json
+supervisor/data/reviews/*_view_diversity/
+supervisor/data/reviews/*_view_diversity_v1/
+supervisor/data/reviews/*_view_diversity_v2/
 
 *.zip
 

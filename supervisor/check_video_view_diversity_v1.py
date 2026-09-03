@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """
-RealJaenLab - Uncalibrated Camera View Diversity · DOWNLOAD REVISION 3
+RealJaenLab - Uncalibrated Camera View Diversity
 
 OFFLINE research diagnostic for selecting a small number of stable, diverse
 camera views from an uncalibrated football video.
-
-DOWNLOAD REVISION 3.
 
 This file intentionally keeps the repository filename
 `check_video_view_diversity_v1.py` while the experiment is refined in place.
