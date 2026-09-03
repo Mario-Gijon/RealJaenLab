@@ -139,8 +139,8 @@ These components are retained because they contain useful research history:
 - The timestamped `before-*`/`backup-*` reviews and the saved
   `camera_*_v1.json` artifacts: historical evidence, not live inputs.
 
-The untracked `check_camera_*`, `field_camera_*`, and HUMAN-guard patch files
-present in the working tree were left in place. They are valuable current
-research work and have no import path into the FSO scripts; moving or deleting
-them during this cleanup would make local experiments harder to resume.
-
+The committed planner, sparse, hub, and HUMAN-guard experiment families remain
+under `supervisor/` because their scripts use module-qualified imports and are
+useful research records. They are not imported by the FSO scripts. They were
+left in their original location rather than moved behind compatibility
+wrappers, which would add churn without improving the operational path.

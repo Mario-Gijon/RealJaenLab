@@ -36,5 +36,3 @@ The project uses a local `.venv` when available:
 ```bash
 source .venv/bin/activate
 ```
-
-No commit or push is performed by the cleanup workflow.
