@@ -1,5 +1,10 @@
 # Inferencia sobre vídeo
 
+> **Historical note:** this page documents the original detector-inference
+> phase and refers to local scripts/checkpoints that may not exist in the
+> current checkout. For the current FIELD / CAMERA work, use the reproducible
+> [FIELD / OBSERVER baseline](field-observer-baseline.md).
+
 Los modelos se han probado sobre grabaciones reales del Real Jaén para comprobar su comportamiento fuera de los conjuntos utilizados durante el entrenamiento.
 
 Las pruebas se realizan sobre vídeos almacenados en:

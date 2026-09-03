@@ -912,6 +912,9 @@ function updatePitchSetupWorkflow() {
   const cameraReady = active && isConfirmed && matchState?.status === "complete" && !calibrationMode;
   completeCameraButton.hidden = !cameraReady || ["queued", "running", "complete", "needs_human"].includes(cameraWorkflow?.status);
   completeCameraButton.disabled = !cameraReady;
+  completeCameraButton.textContent = cameraWorkflow?.status === "ready" && cameraWorkflow?.phase === "stale"
+    ? "Recalcular cámara"
+    : "Completar cámara";
   cameraWorkflowActionButton.hidden = !cameraReady || !["needs_human", "needs_attention", "error", "interrupted"].includes(cameraWorkflow?.status);
   const recommendedSolved = cameraWorkflow?.status === "needs_human"
     && Number(cameraWorkflow.recommended_human_frame) === currentFrameNumber()
@@ -3206,6 +3209,9 @@ async function saveCurrentReview() {
     });
     if (!response.ok) throw new Error("No se pudo guardar la revisión");
     setReviewDirty(false);
+    if (fieldWorkflow?.source_reference === selectedVideo.name) {
+      void refreshFieldWorkflow();
+    }
     return true;
   } catch (error) {
     setReviewDirty(true);

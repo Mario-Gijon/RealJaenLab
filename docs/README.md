@@ -1,19 +1,13 @@
-# RealJaenLab
+# RealJaenLab documentation
 
-RealJaenLab se utiliza como entorno de experimentación para la detección de elementos de juego en grabaciones de fútbol.
+The repository now contains two generations of work:
 
-Durante esta primera fase se ha trabajado principalmente en la detección de jugadores, equipos, árbitros, porteros y balón a partir de grabaciones con una perspectiva similar a la utilizada por cámaras Veo.
+- the original detection experiments, documented in [Datasets](datasets.md),
+  [Experiments](experiments.md), and [video inference](inference.md);
+- the newer FIELD / CAMERA research workflow, whose reproducible baseline is
+  documented in [FIELD / OBSERVER baseline](field-observer-baseline.md).
 
-El trabajo realizado se ha centrado en tres partes:
-
-- preparación y revisión de datasets;
-- entrenamiento y comparación de distintas configuraciones de RF-DETR;
-- validación de los modelos sobre grabaciones reales del Real Jaén.
-
-Los experimentos se han realizado de forma local utilizando una NVIDIA GeForce RTX 4070 SUPER.
-
-La documentación de esta fase se divide en:
-
-- [Datasets](datasets.md)
-- [Experimentos](experiments.md)
-- [Inferencia sobre vídeo](inference.md)
+The current development direction is the canonical pitch -> HUMAN anchors ->
+FIELD visibility -> OBSERVER descriptors -> Camera Atlas path. Propagation,
+refinement, and automatic anchor-selection files remain available as
+experimental research history and are not the next implementation target.

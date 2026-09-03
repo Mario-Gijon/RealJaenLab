@@ -61,6 +61,24 @@ class CameraCalibrationConfig:
     line_sigma_px: float = 1.5
     arc_sigma_px: float = 4.0
 
+    # HUMAN clicks are primary geometric evidence. Lines/arcs may move the
+    # homography to improve extrapolation, but projected semantic landmarks must
+    # remain close to the ACTUAL clicks (not frozen to the point-only H).
+    manual_point_full_weight: bool = True
+
+    # Absolute click-fit envelope, plus a small allowance over the point-only
+    # baseline when the manual clicks are mutually imperfect.
+    human_point_error_mean_floor_px: float = 3.5
+    human_point_error_p90_floor_px: float = 5.0
+    human_point_error_max_floor_px: float = 7.0
+    human_point_error_mean_degradation_px: float = 1.0
+    human_point_error_p90_degradation_px: float = 1.5
+    human_point_error_max_degradation_px: float = 2.0
+
+    # If the unconstrained mixed optimum violates the HUMAN envelope, walk from
+    # the point baseline toward it and keep the furthest feasible solution.
+    human_guard_bisection_steps: int = 28
+
     point_huber_delta_sigma: float = 3.0
     arc_huber_delta_sigma: float = 3.0
 
@@ -740,7 +758,21 @@ def _residual_vector(
         ) / config.point_sigma_px
 
         residuals.extend(point_residual.reshape(-1).tolist())
-        kinds.extend(["point"] * point_residual.size)
+
+        # Keep two residual kinds per point (x/y). Explicit HUMAN points are
+        # not robustly down-weighted: if the user clicked a semantic landmark,
+        # the solver should honour it instead of treating it as expendable
+        # evidence when a line disagrees.
+        for item in points:
+            kind = (
+                "manual_point"
+                if (
+                    config.manual_point_full_weight
+                    and str(item.get("source", "manual")).lower() == "manual"
+                )
+                else "point"
+            )
+            kinds.extend([kind, kind])
 
     for item in lines:
         predicted = _transform_world_line_to_image(
@@ -843,7 +875,7 @@ def _robust_weights(
     for index, kind in enumerate(kinds):
         value = abs(float(residuals[index]))
 
-        if kind == "line":
+        if kind in {"line", "manual_point"}:
             weights[index] = 1.0
             continue
 
@@ -1079,6 +1111,183 @@ def _point_diagnostics(
         else None
     )
     return mean, details
+
+
+def _manual_point_fit_diagnostics(
+    h: np.ndarray,
+    points: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Pixel error from projected semantic landmarks to the HUMAN clicks."""
+
+    if not points:
+        return None
+
+    world = np.asarray(
+        [item["world"] for item in points],
+        dtype=np.float64,
+    )
+    observed = np.asarray(
+        [item["image"] for item in points],
+        dtype=np.float64,
+    )
+
+    projected, valid = _project_points(world, h)
+    if not np.all(valid):
+        return None
+
+    distances = np.linalg.norm(
+        projected - observed,
+        axis=1,
+    )
+    if not len(distances) or not np.isfinite(distances).all():
+        return None
+
+    return {
+        "count": int(len(distances)),
+        "mean_px": float(np.mean(distances)),
+        "p90_px": float(np.percentile(distances, 90)),
+        "max_px": float(np.max(distances)),
+        "per_point": [
+            {
+                "semantic": item.get("semantic"),
+                "error_px": float(distances[index]),
+            }
+            for index, item in enumerate(points)
+        ],
+    }
+
+
+def _human_point_error_limits(
+    point_baseline_h: np.ndarray | None,
+    points: list[dict[str, Any]],
+    config: CameraCalibrationConfig,
+) -> dict[str, float] | None:
+    """Feasible click-fit envelope derived from annotation noise + baseline."""
+
+    if point_baseline_h is None or not points:
+        return None
+
+    baseline = _manual_point_fit_diagnostics(
+        point_baseline_h,
+        points,
+    )
+    if baseline is None:
+        return None
+
+    return {
+        "mean_px": max(
+            config.human_point_error_mean_floor_px,
+            float(baseline["mean_px"])
+            + config.human_point_error_mean_degradation_px,
+        ),
+        "p90_px": max(
+            config.human_point_error_p90_floor_px,
+            float(baseline["p90_px"])
+            + config.human_point_error_p90_degradation_px,
+        ),
+        "max_px": max(
+            config.human_point_error_max_floor_px,
+            float(baseline["max_px"])
+            + config.human_point_error_max_degradation_px,
+        ),
+        "baseline_mean_px": float(baseline["mean_px"]),
+        "baseline_p90_px": float(baseline["p90_px"]),
+        "baseline_max_px": float(baseline["max_px"]),
+    }
+
+
+def _human_point_fit_ok(
+    fit: dict[str, Any] | None,
+    limits: dict[str, float] | None,
+) -> bool:
+    if fit is None or limits is None:
+        return True
+
+    return bool(
+        float(fit["mean_px"]) <= float(limits["mean_px"])
+        and float(fit["p90_px"]) <= float(limits["p90_px"])
+        and float(fit["max_px"]) <= float(limits["max_px"])
+    )
+
+
+def _blend_homographies(
+    reference_h: np.ndarray,
+    target_h: np.ndarray,
+    alpha: float,
+    max_condition: float,
+) -> np.ndarray | None:
+    """Interpolate in the eight normalised projective parameters."""
+
+    alpha = min(max(float(alpha), 0.0), 1.0)
+    p0 = _h_to_params(reference_h)
+    p1 = _h_to_params(target_h)
+    params = p0 + alpha * (p1 - p0)
+    return _finite_h(
+        _params_to_h(params),
+        max_condition,
+    )
+
+
+def _human_guard_boundary_candidate(
+    reference_h: np.ndarray,
+    target_h: np.ndarray,
+    points: list[dict[str, Any]],
+    limits: dict[str, float] | None,
+    config: CameraCalibrationConfig,
+) -> tuple[np.ndarray, float] | None:
+    """Furthest feasible point on baseline -> mixed-optimum trajectory.
+
+    V1 either accepted the complete mixed solution or snapped all the way back
+    to point-only. V2 keeps the maximum useful line/arc correction that still
+    respects the HUMAN click-fit envelope.
+    """
+
+    if limits is None:
+        return target_h, 1.0
+
+    target_fit = _manual_point_fit_diagnostics(
+        target_h,
+        points,
+    )
+    if _human_point_fit_ok(target_fit, limits):
+        return target_h, 1.0
+
+    reference_fit = _manual_point_fit_diagnostics(
+        reference_h,
+        points,
+    )
+    if not _human_point_fit_ok(reference_fit, limits):
+        return None
+
+    low = 0.0
+    high = 1.0
+    best_h = reference_h
+
+    for _ in range(max(8, int(config.human_guard_bisection_steps))):
+        mid = 0.5 * (low + high)
+        candidate = _blend_homographies(
+            reference_h,
+            target_h,
+            mid,
+            config.max_condition,
+        )
+
+        if candidate is None:
+            high = mid
+            continue
+
+        fit = _manual_point_fit_diagnostics(
+            candidate,
+            points,
+        )
+
+        if _human_point_fit_ok(fit, limits):
+            low = mid
+            best_h = candidate
+        else:
+            high = mid
+
+    return best_h, float(low)
 
 
 def _line_diagnostics(
@@ -1345,6 +1554,12 @@ def solve_field_camera_calibration(
             },
         }
 
+    human_point_error_limits = _human_point_error_limits(
+        point_only,
+        points,
+        cfg,
+    )
+
     candidates: list[dict[str, Any]] = []
 
     for name, initial_h in starts:
@@ -1373,11 +1588,22 @@ def solve_field_camera_calibration(
             if not np.isfinite(score):
                 continue
 
+            human_point_fit = _manual_point_fit_diagnostics(
+                candidate,
+                points,
+            )
+
             candidates.append(
                 {
                     "name": f"{name}:{suffix}",
                     "homography": candidate,
                     "score": float(score),
+                    "human_point_fit": human_point_fit,
+                    "human_point_guard_ok": _human_point_fit_ok(
+                        human_point_fit,
+                        human_point_error_limits,
+                    ),
+                    "human_guard_alpha": 1.0,
                 }
             )
 
@@ -1390,11 +1616,94 @@ def solve_field_camera_calibration(
             ),
         }
 
+    # Keep the raw optimum for diagnostics, then build a small constrained
+    # Pareto boundary instead of the V1 all-or-nothing fallback.
+    raw_candidates = list(candidates)
+    raw_best = min(
+        raw_candidates,
+        key=lambda item: item["score"],
+    )
+
+    boundary_candidates: list[dict[str, Any]] = []
+
+    if (
+        point_only is not None
+        and human_point_error_limits is not None
+    ):
+        for item in raw_candidates:
+            if item.get("human_point_guard_ok", True):
+                continue
+
+            boundary = _human_guard_boundary_candidate(
+                point_only,
+                item["homography"],
+                points,
+                human_point_error_limits,
+                cfg,
+            )
+            if boundary is None:
+                continue
+
+            boundary_h, alpha = boundary
+
+            # alpha ~= 0 is just the point baseline and is already present.
+            if alpha <= 1e-6:
+                continue
+
+            boundary_score = _candidate_score(
+                boundary_h,
+                points,
+                lines,
+                arcs,
+                cfg,
+            )
+            if not np.isfinite(boundary_score):
+                continue
+
+            boundary_fit = _manual_point_fit_diagnostics(
+                boundary_h,
+                points,
+            )
+            if not _human_point_fit_ok(
+                boundary_fit,
+                human_point_error_limits,
+            ):
+                continue
+
+            boundary_candidates.append(
+                {
+                    "name": (
+                        item["name"]
+                        + ":human_guard_boundary"
+                    ),
+                    "homography": boundary_h,
+                    "score": float(boundary_score),
+                    "human_point_fit": boundary_fit,
+                    "human_point_guard_ok": True,
+                    "human_guard_alpha": float(alpha),
+                    "guarded_from": item["name"],
+                }
+            )
+
+    candidates.extend(boundary_candidates)
+
+    guarded_candidates = [
+        item
+        for item in candidates
+        if item.get("human_point_guard_ok", True)
+    ]
+    chosen_pool = guarded_candidates or candidates
+
     chosen = min(
-        candidates,
+        chosen_pool,
         key=lambda item: item["score"],
     )
     h = chosen["homography"]
+
+    human_point_guard_intervened = bool(
+        point_only is not None
+        and raw_best["name"] != chosen["name"]
+    )
 
     point_error, point_details = _point_diagnostics(
         h,
@@ -1455,18 +1764,29 @@ def solve_field_camera_calibration(
     status = "solved"
     detail = None
 
+    warning_parts: list[str] = []
+
     if bad_lines:
-        status = "solved_with_warnings"
         names = [
             str(item.get("semantic") or "línea")
             for item in bad_lines
         ]
-        detail = (
-            "La calibración se resolvió, pero algunas líneas "
-            "manuales siguen en conflicto: "
+        warning_parts.append(
+            "algunas líneas manuales siguen en conflicto: "
             + ", ".join(names)
-            + "."
         )
+
+    if human_point_guard_intervened:
+        warning_parts.append(
+            "la refinación de línea/arco fue limitada para mantener "
+            "las proyecciones cerca de los puntos HUMAN marcados"
+        )
+
+    if warning_parts:
+        status = "solved_with_warnings"
+        detail = "La calibración se resolvió, pero " + "; ".join(
+            warning_parts
+        ) + "."
 
     return {
         "status": status,
@@ -1491,6 +1811,32 @@ def solve_field_camera_calibration(
             "mode": "geometric_projective_camera_v1",
             "selected_candidate": chosen["name"],
             "score": chosen["score"],
+            "raw_best_candidate": raw_best["name"],
+            "raw_best_score": raw_best["score"],
+            "human_point_guard_intervened": human_point_guard_intervened,
+            "human_point_error_limits": human_point_error_limits,
+            "human_point_fit": chosen.get("human_point_fit"),
+            "raw_best_human_point_fit": raw_best.get("human_point_fit"),
+            "human_guard_alpha": chosen.get("human_guard_alpha"),
+            "guarded_from": chosen.get("guarded_from"),
+            "human_point_guard_rejected_candidates": [
+                {
+                    "name": item["name"],
+                    "score": item["score"],
+                    "human_point_fit": item.get("human_point_fit"),
+                }
+                for item in raw_candidates
+                if not item.get("human_point_guard_ok", True)
+            ],
+            "human_guard_boundary_candidates": [
+                {
+                    "name": item["name"],
+                    "score": item["score"],
+                    "human_guard_alpha": item.get("human_guard_alpha"),
+                    "human_point_fit": item.get("human_point_fit"),
+                }
+                for item in boundary_candidates
+            ],
             "homography_condition": condition,
             "points": len(points),
             "lines": len(lines),

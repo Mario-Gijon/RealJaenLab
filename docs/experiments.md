@@ -1,5 +1,11 @@
 # Experimentos de detección
 
+> **Historical note:** this document describes the first detector-training
+> phase. Some dataset, checkpoint, and training-script paths are local or are
+> no longer part of the current checkout. The active development baseline is
+> the FIELD / OBSERVER workflow documented in
+> [field-observer-baseline.md](field-observer-baseline.md).
+
 Los experimentos de esta fase se han realizado con RF-DETR 1.8.3 y PyTorch con CUDA.
 
 Se han entrenado dos arquitecturas:

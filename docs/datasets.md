@@ -1,5 +1,10 @@
 # Datasets
 
+> **Historical note:** these dataset descriptions document the original
+> detector experiments. The large local dataset directories are intentionally
+> ignored by Git; they are not inputs to the current FIELD / OBSERVER
+> diagnostic.
+
 Durante los primeros experimentos se han utilizado dos datasets principales.
 
 ## Football Players Detection v20
