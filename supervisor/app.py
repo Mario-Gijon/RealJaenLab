@@ -61,6 +61,7 @@ from supervisor.field_propagation import propagate_field_homography
 from supervisor.field_segment_refinement import refine_field_segment
 from supervisor.field_spatial_gating import apply_field_spatial_gating
 from supervisor.field_workflow import FieldWorkflowError, FieldWorkflowManager
+from supervisor.field_view_diversity import ViewDiversityManager
 
 
 BASE_DIR = Path(__file__).parent
@@ -70,6 +71,7 @@ REVIEW_DIR = BASE_DIR / "data" / "reviews"
 LIBRARY_DIR = BASE_DIR / "data" / "library"
 _media_upload_manager: MediaUploadManager | None = None
 _field_workflow_manager: FieldWorkflowManager | None = None
+_view_diversity_manager: ViewDiversityManager | None = None
 
 app = FastAPI(title="RealJaen Supervisor")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -149,6 +151,13 @@ def field_workflows() -> FieldWorkflowManager:
     if _field_workflow_manager is None:
         _field_workflow_manager = FieldWorkflowManager(REVIEW_DIR, read_video_metadata)
     return _field_workflow_manager
+
+
+def view_diversity() -> ViewDiversityManager:
+    global _view_diversity_manager
+    if _view_diversity_manager is None:
+        _view_diversity_manager = ViewDiversityManager(REVIEW_DIR)
+    return _view_diversity_manager
 
 
 def media_upload_error(error: MediaUploadError | MediaLibraryError) -> HTTPException:
@@ -352,6 +361,16 @@ def load_review(filename: str) -> dict[str, dict | None]:
 def get_field_workflow(video_reference: str) -> dict:
     source = workspace_video_source(video_reference)
     return field_workflows().get(source)
+
+
+@app.get("/api/field-view-diversity/{video_reference}")
+def get_field_view_diversity(video_reference: str) -> dict:
+    return view_diversity().get(workspace_video_source(video_reference))
+
+
+@app.post("/api/field-view-diversity/{video_reference}/analyze")
+def analyze_field_view_diversity(video_reference: str) -> dict:
+    return view_diversity().start(workspace_video_source(video_reference))
 
 
 @app.post("/api/field-workflow/{video_reference}/camera/run")

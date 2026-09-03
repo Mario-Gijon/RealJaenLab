@@ -129,6 +129,8 @@ let anchorSelectionResult = null;
 let anchorSelectionInProgress = false;
 let anchorSelectionError = null;
 let viewScanWorkflow = null;
+let viewDiversity = null;
+let viewDiversityPoll = null;
 let fieldPitchSetup = null;
 let fieldMatchSetup = null;
 let fieldCameraState = null;
@@ -745,11 +747,14 @@ const GUIDED_WORKFLOW_PHASES = [
   { title: "Completar", description: "Este paso se completará cuando esté disponible el cierre de la calibración." },
 ];
 
-function guidedWorkflowPhase({ state, matchState, isConfirmed, cameraWorkflow }) {
+function guidedWorkflowPhase({ state, matchState, isConfirmed, cameraWorkflow, diversity }) {
   if (state?.status === "error" || state?.status === "insufficient") return { current: 1, error: true };
   if (matchState?.error) return { current: 3, error: true };
   if (state?.processing === "scan" || state?.processing === "estimate" || matchState?.processing === "scan") {
     return { current: 2 };
+  }
+  if (isConfirmed && !matchState && diversity?.status !== "complete") {
+    return { current: 2, error: diversity?.status === "error" || diversity?.status === "stale" };
   }
   if (!isConfirmed || state?.status === "measuring" || state?.status === "ready_to_confirm" || matchState?.status === "measuring" || !matchState) {
     return { current: isConfirmed && !matchState ? 3 : 1 };
@@ -814,7 +819,7 @@ function updatePitchSetupWorkflow() {
 
   if (!active || calibrationMode) return;
 
-  const workflowPhase = guidedWorkflowPhase({ state, matchState, isConfirmed, cameraWorkflow });
+  const workflowPhase = guidedWorkflowPhase({ state, matchState, isConfirmed, cameraWorkflow, diversity: viewDiversity });
   const { current: currentPhase, error: phaseHasError } = workflowPhase;
   const phaseDefinition = GUIDED_WORKFLOW_PHASES[currentPhase - 1];
   guidedWorkflowStep.textContent = `Paso ${currentPhase} de ${GUIDED_WORKFLOW_PHASES.length}`;
@@ -841,6 +846,9 @@ function updatePitchSetupWorkflow() {
     add("Selecciona un vídeo desde la biblioteca.");
   } else if (state?.processing === "scan" || state?.processing === "estimate" || matchState?.processing === "scan") {
     add(state?.processing === "estimate" ? "Estimando el terreno…" : "Analizando el vídeo…", true);
+  } else if (isConfirmed && !matchState && viewDiversity?.status !== "complete") {
+    add(viewDiversity?.status === "running" ? "Analizando el vídeo…" : "Analiza el vídeo para localizar vistas recomendadas.", true, viewDiversity?.status === "error" || viewDiversity?.status === "stale");
+    if (viewDiversity?.status === "error" || viewDiversity?.status === "stale") add(viewDiversity.error || "Puedes reintentar el análisis.", false, true);
   } else if (state?.error || state?.status === "insufficient") {
     add(state.error || (state.insufficient_reason === "observable_views"
       ? "No hay suficientes vistas observables para calibrar el terreno."
@@ -870,10 +878,16 @@ function updatePitchSetupWorkflow() {
   } else if (isConfirmed) {
     add(`${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`);
     add(pitchModelProvenanceLabel());
+    if (!matchState && viewDiversity?.status === "complete") {
+      add(`${viewDiversity.recommended_count} vistas recomendadas.`, true);
+    }
   }
   if (matchState?.status === "measuring") {
-    add(`${matchAttempted.length} de ${matchSetupAnchorFrames().length} vistas intentadas.`);
-    add(`Siguiente referencia: fotograma ${matchCurrentFrame}.`);
+    const recommendation = viewDiversity?.recommendations?.find((item) => Number(item.frame) === matchCurrentFrame);
+    const viewNumber = matchAttempted.length + 1;
+    add(`Vista ${viewNumber} de ${matchSetupAnchorFrames().length}`, true);
+    add(`Fotograma ${matchCurrentFrame}${recommendation ? ` · ${recommendation.pan_label} · Plano ${recommendation.zoom_label}` : ""}.`);
+    add(`${matchAttempted.length} vistas completadas.`);
   } else if (matchState?.error) {
     add(matchState.error, false, true);
   } else if (matchState?.status === "complete") {
@@ -898,12 +912,13 @@ function updatePitchSetupWorkflow() {
   if (currentPhase === 6) add("La finalización estará disponible en una fase posterior.");
   guidedWorkflowContent.replaceChildren(fragment);
 
-  scanVideoButton.hidden = (Boolean(state) && state.status !== "error") || isConfirmed;
-  scanVideoButton.disabled = !selectedVideo;
-  scanVideoButton.textContent = "Comenzar";
+  const canAnalyzeDiversity = isConfirmed && !matchState && viewDiversity?.status !== "complete";
+  scanVideoButton.hidden = isConfirmed ? !canAnalyzeDiversity : ((Boolean(state) && state.status !== "error") || isConfirmed);
+  scanVideoButton.disabled = !selectedVideo || Boolean(viewDiversity?.status === "running");
+  scanVideoButton.textContent = isConfirmed ? (viewDiversity?.status === "running" ? "Analizando vídeo…" : "Analizar vídeo") : "Comenzar";
   beginGuidedCalibrationButton.hidden = state?.status !== "ready_to_confirm";
   beginGuidedCalibrationButton.disabled = Boolean(state?.processing);
-  beginMatchSetupButton.hidden = !isConfirmed || Boolean(matchState);
+  beginMatchSetupButton.hidden = !isConfirmed || Boolean(matchState) || viewDiversity?.status !== "complete";
   beginMatchSetupButton.disabled = !isConfirmed || Boolean(matchState?.processing);
   beginMatchSetupButton.textContent = "Calibrar vistas";
   openManualCalibrationButton.hidden = activeMeasurementFrame === null;
@@ -1005,67 +1020,33 @@ function openActiveAnchorCalibration() {
 }
 
 async function startMatchSetup() {
-  if (!selectedVideo || fieldPitchModel.status !== "confirmed" || fieldMatchSetup?.processing) return;
+  if (!selectedVideo || fieldPitchModel.status !== "confirmed" || fieldMatchSetup?.processing || viewDiversity?.status !== "complete") return;
   invalidateFieldCameraState();
   const videoName = selectedVideo.name;
+  const recommendations = Array.isArray(viewDiversity.recommendations) ? viewDiversity.recommendations : [];
+  const anchorFrames = [...new Set(recommendations.map((recommendation) => Number(recommendation.frame)).filter(Number.isFinite))].slice(0, 6).sort((a, b) => a - b);
+  if (!anchorFrames.length) return;
+  const completedFrames = anchorFrames.filter((frame) => fieldCalibrations.some((calibration) => (
+    calibration.video === videoName
+    && Number(calibration.frame) === frame
+    && calibration.source === "manual"
+    && hasSolvedManualCalibration(calibration)
+  )));
   fieldMatchSetup = {
     video: videoName,
-    status: "scanning",
-    processing: "scan",
-    scan: null,
-    anchor_frames: [],
-    completed_frames: [],
+    status: "measuring",
+    processing: null,
+    scan: { recommendations },
+    anchor_frames: anchorFrames,
+    completed_frames: completedFrames,
     rejected_frames: [],
     current_index: 0,
     error: null,
   };
   updatePitchSetupWorkflow();
-  try {
-    const response = await fetch("/api/field-view-scan/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: videoName }),
-    });
-    const payload = await response.json();
-    if (!response.ok || !Array.isArray(payload?.scan?.recommendations)) {
-      throw new Error(payload.detail || "No se pudieron seleccionar vistas para el partido.");
-    }
-    if (selectedVideo?.name !== videoName) return;
-    const anchorFrames = [...new Set(payload.scan.recommendations
-      .map((recommendation) => Number(recommendation?.frame))
-      .filter((frame) => Number.isFinite(frame)))]
-      .slice(0, 6)
-      .sort((first, second) => first - second);
-    if (!anchorFrames.length) throw new Error("El escáner no encontró vistas representativas.");
-    fieldMatchSetup = {
-      video: videoName,
-      status: "measuring",
-      processing: null,
-      scan: payload.scan,
-      anchor_frames: anchorFrames,
-      completed_frames: [],
-      rejected_frames: [],
-      current_index: 0,
-      error: null,
-    };
-    setReviewDirty(true);
-    await saveCurrentReview();
-    openMatchSetupAnchor(anchorFrames[0]);
-  } catch (error) {
-    if (selectedVideo?.name === videoName) {
-      fieldMatchSetup = {
-        video: videoName,
-        status: "error",
-        processing: null,
-        scan: null,
-        anchor_frames: [],
-        completed_frames: [],
-        rejected_frames: [],
-        current_index: 0,
-        error: error instanceof Error ? error.message : "Error desconocido.",
-      };
-    }
-  }
+  setReviewDirty(true);
+  await saveCurrentReview();
+  openMatchSetupAnchor(anchorFrames[0]);
   updatePitchSetupWorkflow();
 }
 
@@ -1384,6 +1365,7 @@ async function confirmPitchSetup() {
   await saveCurrentReview();
   updatePitchSetupWorkflow();
   drawOverlay();
+  void refreshViewDiversity();
 }
 
 function currentViewScanRecommendation() {
@@ -3133,6 +3115,9 @@ async function loadVideo(videoInfo) {
   anchorSelectionError = null;
   anchorSelectionInProgress = false;
   viewScanWorkflow = null;
+  viewDiversity = null;
+  if (viewDiversityPoll) window.clearTimeout(viewDiversityPoll);
+  viewDiversityPoll = null;
   selectedVideo = videoInfo;
   video.muted = true;
   updateMuteControl();
@@ -3198,6 +3183,7 @@ async function loadVideo(videoInfo) {
     updatePitchSetupWorkflow();
     drawOverlay();
     void refreshFieldWorkflow();
+    void refreshViewDiversity();
     if (fieldMatchSetup?.status === "complete" && !fieldCameraState) recoverMatchSetupCameras();
   } catch (error) {
     if (loadSequence !== videoLoadSequence) return;
@@ -3272,6 +3258,50 @@ async function refreshFieldWorkflow() {
     }
     return state;
   } catch { return null; }
+}
+
+function stopViewDiversityPolling() {
+  if (viewDiversityPoll) window.clearTimeout(viewDiversityPoll);
+  viewDiversityPoll = null;
+}
+
+async function refreshViewDiversity() {
+  if (!selectedVideo) return null;
+  const videoName = selectedVideo.name;
+  try {
+    const response = await fetch(`/api/field-view-diversity/${encodeURIComponent(videoName)}`);
+    if (!response.ok) return null;
+    const state = await response.json();
+    if (selectedVideo?.name !== videoName) return null;
+    viewDiversity = state;
+    updatePitchSetupWorkflow();
+    if (state.status === "running") {
+      stopViewDiversityPolling();
+      viewDiversityPoll = window.setTimeout(refreshViewDiversity, 1000);
+    } else stopViewDiversityPolling();
+    return state;
+  } catch { return null; }
+}
+
+async function startViewDiversity() {
+  if (!selectedVideo || viewDiversity?.status === "running") return;
+  const videoName = selectedVideo.name;
+  viewDiversity = { status: "running", cache_hit: false };
+  updatePitchSetupWorkflow();
+  try {
+    const response = await fetch(`/api/field-view-diversity/${encodeURIComponent(videoName)}/analyze`, { method: "POST" });
+    const state = await response.json();
+    if (!response.ok) throw new Error(state.detail || "No se pudo iniciar el análisis del vídeo.");
+    if (selectedVideo?.name !== videoName) return;
+    viewDiversity = state;
+    updatePitchSetupWorkflow();
+    void refreshViewDiversity();
+  } catch (error) {
+    if (selectedVideo?.name === videoName) {
+      viewDiversity = { status: "error", error: error instanceof Error ? error.message : "No se pudo iniciar el análisis." };
+      updatePitchSetupWorkflow();
+    }
+  }
 }
 
 async function runCameraWorkflow() {
@@ -3908,7 +3938,10 @@ workArea.addEventListener("pointerup", (event) => {
 fieldToolButtons.forEach((button) => {
   button.addEventListener("click", () => setActiveFieldTool(button.dataset.fieldTool));
 });
-scanVideoButton.addEventListener("click", startPitchSetup);
+scanVideoButton.addEventListener("click", () => {
+  if (fieldPitchModel.status === "confirmed") startViewDiversity();
+  else startPitchSetup();
+});
 beginGuidedCalibrationButton.addEventListener("click", confirmPitchSetup);
 beginMatchSetupButton.addEventListener("click", startMatchSetup);
 completeCameraButton.addEventListener("click", runCameraWorkflow);
