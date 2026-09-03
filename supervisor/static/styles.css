@@ -64,6 +64,7 @@ h1 { margin: 12px 0 7px; color: #e9ecef; font-size: 24px; font-weight: 600; }
 p { margin: 0; color: #929aa2; font-size: 14px; }
 
 .homography-lab-panel { position: absolute; z-index: 4; top: 18px; right: 18px; display: grid; width: min(310px, calc(100% - 36px)); max-height: calc(100% - 36px); gap: 12px; overflow: auto; padding: 14px; border: 1px solid #594d70; border-radius: 5px; background: rgba(24, 21, 31, .96); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.homography-lab-panel { display: none !important; }
 .homography-lab-panel[hidden] { display: none; }
 .lab-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .lab-kicker, .lab-section-title, .lab-section > label { color: #bba7dc; font-size: 9px; font-weight: 800; letter-spacing: .1em; }

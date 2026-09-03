@@ -184,17 +184,15 @@ modeTabs.forEach((tab) => {
     undoButton.hidden = !guided;
     saveStatus.hidden = !guided;
     saveButton.hidden = !guided;
-    workArea.classList.toggle("field-editing", activeMode === "guided" && calibrationMode);
+    const calibrationView = activeMode === "guided" || isHomographyLabMode();
+    workArea.classList.toggle("field-editing", calibrationView && calibrationMode);
     selectedFieldItem = null;
     lineDraft = null;
     assistedDraft = null;
-    setCalibrationMode(false);
-    calibrationPanel.hidden = true;
+    setCalibrationMode(isHomographyLabMode());
+    calibrationPanel.hidden = !isHomographyLabMode();
     homographyLabPanel.hidden = activeMode !== "homography-lab";
-    if (activeMode !== "guided") {
-      setCalibrationMode(false);
-      calibrationPanel.hidden = true;
-    }
+    if (isHomographyLabMode()) updateCalibrationStatus();
     updatePitchSetupWorkflow();
     drawOverlay();
   });
@@ -209,7 +207,7 @@ function setReviewDirty(isDirty) {
 function setCalibrationMode(enabled) {
   calibrationMode = Boolean(enabled);
   workspace.classList.toggle("is-calibrating", calibrationMode);
-  workArea.classList.toggle("field-editing", activeMode === "guided" && calibrationMode);
+  workArea.classList.toggle("field-editing", (activeMode === "guided" || isHomographyLabMode()) && calibrationMode);
 }
 
 function normalisePitchModel(value) {
@@ -318,6 +316,10 @@ function currentFrameNumber() {
   return selectedVideo?.fps ? Math.floor(video.currentTime * selectedVideo.fps) : 0;
 }
 
+function isHomographyLabMode() {
+  return activeMode === "homography-lab";
+}
+
 function annotationsForCurrentFrame() {
   return fieldAnnotations.filter((annotation) => (
     annotation.video === selectedVideo?.name && annotation.frame === currentFrameNumber()
@@ -325,6 +327,7 @@ function annotationsForCurrentFrame() {
 }
 
 function calibrationForCurrentFrame() {
+  if (isHomographyLabMode()) return homographyLabCurrentExperiment();
   const calibrations = fieldCalibrations.filter((calibration) => (
     calibration.video === selectedVideo?.name && calibration.frame === currentFrameNumber()
   ));
@@ -436,6 +439,7 @@ function homographyLabSolveConstraints(experiment) {
     experiment.reprojectionError = null;
     experiment.status = fitConstraints.length ? "insufficient" : "empty";
     experiment.error = null;
+    updateCalibrationStatus();
     updateHomographyLab();
     drawOverlay();
     return;
@@ -456,6 +460,7 @@ function homographyLabSolveConstraints(experiment) {
     experiment.reprojectionError = result.reprojection_error;
     experiment.status = result.status;
     experiment.error = null;
+    updateCalibrationStatus();
     updateHomographyLab();
     drawOverlay();
   }).catch((error) => {
@@ -464,6 +469,7 @@ function homographyLabSolveConstraints(experiment) {
     experiment.reprojectionError = null;
     experiment.status = "error";
     experiment.error = error instanceof Error ? error.message : "No se pudo resolver la homografía experimental";
+    updateCalibrationStatus();
     updateHomographyLab();
     drawOverlay();
   });
@@ -599,8 +605,11 @@ function clearHomographyLabExperiment() {
 
 function deleteSelectedHomographyLabConstraint() {
   const experiment = homographyLabCurrentExperiment();
-  if (!experiment || !homographyLabSelectedConstraintKey) return;
-  experiment.constraints = experiment.constraints.filter((constraint) => homographyLabConstraintKey(constraint) !== homographyLabSelectedConstraintKey);
+  if (!experiment) return;
+  const selectedKey = experiment.constraints.some((constraint) => homographyLabConstraintKey(constraint) === homographyLabSelectedConstraintKey)
+    ? homographyLabSelectedConstraintKey
+    : `${calibrationType}:${calibrationSemantic || ""}`;
+  experiment.constraints = experiment.constraints.filter((constraint) => homographyLabConstraintKey(constraint) !== selectedKey);
   homographyLabSelectedConstraintKey = null;
   homographyLabSolveConstraints(experiment);
   updateHomographyLab();
@@ -2606,6 +2615,7 @@ function exitCalibrationMode() {
 }
 
 function ensureCurrentCalibration() {
+  if (isHomographyLabMode()) return homographyLabCurrentExperiment(true);
   const pitchSetupMeasurement = isPitchSetupMeasurementFrame();
   const matchSetupMeasurement = isMatchSetupMeasurementFrame();
   let calibration = pitchSetupMeasurement
@@ -2696,6 +2706,10 @@ function beginCalibrationConstraintDrag(hit, coordinates, pointerId) {
 }
 
 async function solveCalibration(calibration) {
+  if (isHomographyLabMode()) {
+    homographyLabSolveConstraints(calibration);
+    return;
+  }
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
   anchorSelectionResult = null;
@@ -2761,7 +2775,7 @@ async function solveCalibration(calibration) {
 function addCalibrationCorrespondence(image) {
   const landmark = PITCH_MODEL.landmarksById[calibrationSemantic];
   if (!landmark) return;
-  rememberFieldEdit();
+  if (!isHomographyLabMode()) rememberFieldEdit();
   const calibration = ensureCurrentCalibration();
   const existing = calibrationConstraints(calibration).find((item) => item.type === "point" && item.semantic === landmark.id);
   const constraint = { type: "point", semantic: landmark.id, world: { ...landmark.world }, image: clampToVideo(image), source: "manual" };
@@ -2776,6 +2790,10 @@ function removeSelectedCalibrationCorrespondence() {
   if (!calibration) return;
   const landmarkId = calibrationSemantic;
   if (!calibrationConstraints(calibration).some((item) => item.type === calibrationType && item.semantic === landmarkId)) return;
+  if (isHomographyLabMode()) {
+    deleteSelectedHomographyLabConstraint();
+    return;
+  }
   rememberFieldEdit();
   calibration.constraints = calibrationConstraints(calibration).filter((item) => !(item.type === calibrationType && item.semantic === landmarkId));
   syncLegacyPointCorrespondences(calibration);
@@ -2785,6 +2803,10 @@ function removeSelectedCalibrationCorrespondence() {
 function clearCurrentCalibration() {
   const calibration = calibrationForCurrentFrame();
   if (!calibration) return;
+  if (isHomographyLabMode()) {
+    clearHomographyLabExperiment();
+    return;
+  }
   cameraAtlasRequestSequence += 1;
   cameraAtlasResult = null;
   anchorSelectionResult = null;
@@ -3240,7 +3262,7 @@ function drawOverlay() {
   if (activeMode === "preview") {
     drawPreviewOverlay();
   } else if (activeMode === "homography-lab") {
-    drawHomographyLabOverlay();
+    drawCalibrationOverlay();
   } else if (activeMode === "guided" && calibrationMode) {
     drawFieldAnnotations();
     drawCalibrationOverlay();
@@ -3943,35 +3965,6 @@ calibrationPanelToggle.addEventListener("click", (event) => {
 workArea.addEventListener("pointermove", (event) => {
   pointerBrowserPosition = { clientX: event.clientX, clientY: event.clientY };
   pointerVideoCoordinates = browserToVideoCoordinates(pointerBrowserPosition);
-  if (activeMode === "homography-lab" && pointerVideoCoordinates) {
-    const coordinates = clampToVideo(pointerVideoCoordinates);
-    if (homographyLabDragState) {
-      const { constraint, origin, image } = homographyLabDragState;
-      const deltaX = coordinates.x - origin.x;
-      const deltaY = coordinates.y - origin.y;
-      if (constraint.type === "point") constraint.image = coordinates;
-      if (constraint.type === "line") {
-        constraint.image.start = clampToVideo({ x: image.start.x + deltaX, y: image.start.y + deltaY });
-        constraint.image.end = clampToVideo({ x: image.end.x + deltaX, y: image.end.y + deltaY });
-      }
-      if (constraint.type === "arc") constraint.image.geometry.center = clampToVideo({ x: image.geometry.center.x + deltaX, y: image.geometry.center.y + deltaY });
-      homographyLabDragState.didMove = true;
-      homographyLabSolveConstraints(homographyLabDragState.experiment);
-      drawOverlay();
-      return;
-    }
-    if (homographyLabDraft?.type === "line") {
-      homographyLabDraft.end = coordinates;
-      drawOverlay();
-      return;
-    }
-    if (homographyLabDraft?.type === "arc") {
-      const previous = homographyLabDraft.samples[homographyLabDraft.samples.length - 1];
-      if (distanceBetween(previous, coordinates) >= 3 / (displayedVideoRect.width / video.videoWidth)) homographyLabDraft.samples.push(coordinates);
-      drawOverlay();
-      return;
-    }
-  }
   if (calibrationDragState && pointerVideoCoordinates) {
     const coordinates = clampToVideo(pointerVideoCoordinates);
     const { constraint, handle, origin, image } = calibrationDragState;
@@ -4078,30 +4071,7 @@ workArea.addEventListener("pointerleave", () => {
 
 workArea.addEventListener("pointerdown", (event) => {
   const pointerCoordinates = browserToVideoCoordinates(event);
-  if (activeMode === "homography-lab" && pointerCoordinates && video.videoWidth) {
-    event.preventDefault();
-    video.pause();
-    const coordinates = clampToVideo(pointerCoordinates);
-    const hit = homographyLabHitTest(coordinates);
-    if (hit) {
-      homographyLabSelectedConstraintKey = homographyLabConstraintKey(hit.constraint);
-      homographyLabDragState = { ...hit, origin: coordinates, image: JSON.parse(JSON.stringify(hit.constraint.image)), didMove: false };
-      workArea.setPointerCapture(event.pointerId);
-      drawOverlay();
-    } else if (homographyLabType === "point") {
-      addHomographyLabConstraint(coordinates);
-    } else if (homographyLabType === "line") {
-      homographyLabDraft = { type: "line", semantic: homographyLabSemantic, start: coordinates, end: coordinates, pointerId: event.pointerId };
-      workArea.setPointerCapture(event.pointerId);
-      drawOverlay();
-    } else if (homographyLabType === "arc") {
-      homographyLabDraft = { type: "arc", semantic: homographyLabSemantic, samples: [coordinates], pointerId: event.pointerId };
-      workArea.setPointerCapture(event.pointerId);
-      drawOverlay();
-    }
-    return;
-  }
-  if (activeMode !== "guided" || !pointerCoordinates || !video.videoWidth) return;
+  if ((activeMode !== "guided" && !isHomographyLabMode()) || !pointerCoordinates || !video.videoWidth) return;
   event.preventDefault();
   video.pause();
   const coordinates = clampToVideo(pointerCoordinates);
@@ -4182,30 +4152,12 @@ workArea.addEventListener("pointerdown", (event) => {
 });
 
 workArea.addEventListener("pointerup", (event) => {
-  if (homographyLabDragState) {
-    const drag = homographyLabDragState;
-    homographyLabDragState = null;
-    homographyLabSolveConstraints(drag.experiment);
-    if (workArea.hasPointerCapture(event.pointerId)) workArea.releasePointerCapture(event.pointerId);
-    drawOverlay();
-    return;
-  }
-  if (homographyLabDraft?.pointerId === event.pointerId) {
-    const draft = homographyLabDraft;
-    homographyLabDraft = null;
-    const coordinates = browserToVideoCoordinates(event);
-    if (coordinates) {
-      if (draft.type === "line" && distanceBetween(draft.start, coordinates) > 2) addHomographyLabConstraint({ start: draft.start, end: clampToVideo(coordinates) });
-      if (draft.type === "arc" && draft.samples.length >= 6) addHomographyLabConstraint({ samples: draft.samples, geometry: fitEllipse(draft.samples) });
-    }
-    if (workArea.hasPointerCapture(event.pointerId)) workArea.releasePointerCapture(event.pointerId);
-    drawOverlay();
-    return;
-  }
   if (calibrationDragState) {
     if (calibrationDragState.didMove) {
-      fieldUndoStack.push(calibrationDragState.before);
-      setReviewDirty(true);
+      if (!isHomographyLabMode()) {
+        fieldUndoStack.push(calibrationDragState.before);
+        setReviewDirty(true);
+      }
     }
     calibrationDragState = null;
   }
@@ -4215,7 +4167,7 @@ workArea.addEventListener("pointerup", (event) => {
     if (coordinates) draft.end = clampToVideo(coordinates);
     calibrationLineDraft = null;
     if (distanceBetween(draft.start, draft.end) > 2) {
-      rememberFieldEdit();
+      if (!isHomographyLabMode()) rememberFieldEdit();
       const calibration = ensureCurrentCalibration();
       const semantic = PITCH_MODEL.calibrationLinesById[draft.semantic];
       const constraints = calibrationConstraints(calibration);
@@ -4232,7 +4184,7 @@ workArea.addEventListener("pointerup", (event) => {
     if (coordinates && distanceBetween(draft.samples[draft.samples.length - 1], coordinates) > 0) draft.samples.push(clampToVideo(coordinates));
     calibrationArcDraft = null;
     if (draft.samples.length >= 6) {
-      rememberFieldEdit();
+      if (!isHomographyLabMode()) rememberFieldEdit();
       const calibration = ensureCurrentCalibration();
       const semantic = PITCH_MODEL.calibrationArcsById[draft.semantic];
       const constraints = calibrationConstraints(calibration);
