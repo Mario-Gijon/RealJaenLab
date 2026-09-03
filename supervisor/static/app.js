@@ -448,6 +448,9 @@ function homographyLabSolveConstraints(experiment) {
   experiment.solveToken = solveToken;
   experiment.status = "solving";
   labSolveStatus.textContent = "Resolviendo homografía experimental…";
+  // Refresh the shared calibration panel before the asynchronous response so
+  // its count always reflects the current LAB experiment.
+  updateCalibrationStatus();
   fetch("/api/field-calibration/solve", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -599,6 +602,7 @@ function clearHomographyLabExperiment() {
   homographyLabDraft = null;
   homographyLabDragState = null;
   homographyLabSelectedConstraintKey = null;
+  updateCalibrationStatus();
   updateHomographyLab();
   drawOverlay();
 }
@@ -2549,7 +2553,9 @@ function calibrationSolveErrorFor(calibration = calibrationForCurrentFrame()) {
 
 function updateCalibrationStatus(message = null) {
   syncSemanticSelector();
-  const calibration = calibrationForCurrentFrame();
+  const calibration = isHomographyLabMode()
+    ? homographyLabCurrentExperiment()
+    : calibrationForCurrentFrame();
   const pending = calibrationSolveIsPending(calibration);
   const solveError = calibrationSolveErrorFor(calibration);
   calibrationSolverLoading.hidden = !pending;
@@ -3026,7 +3032,9 @@ function drawCalibrationOverlay() {
   const displayScale = displayedVideoRect.width / video.videoWidth;
   overlayContext.save();
 
-  const homography = hasSolvedManualCalibration(calibration)
+  const homography = isHomographyLabMode() && Array.isArray(calibration?.homography)
+    ? calibration.homography
+    : hasSolvedManualCalibration(calibration)
     ? calibration.homography
     : derivedCamera?.homography || refinedFrame?.homography || propagatedFrame?.homography;
   if (Array.isArray(homography)) drawProjectedPitch(homography, displayScale);
