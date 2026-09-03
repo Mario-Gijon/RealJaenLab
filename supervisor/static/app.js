@@ -64,6 +64,16 @@ const fieldAtlasSelection = document.querySelector("#field-atlas-selection");
 const guidedContextButton = document.querySelector("#guided-context");
 const guidedSkipButton = document.querySelector("#guided-skip");
 const calibrationPanel = document.querySelector("#calibration-panel");
+const homographyLabPanel = document.querySelector("#homography-lab-panel");
+const labFrame = document.querySelector("#lab-frame");
+const labFitCount = document.querySelector("#lab-fit-count");
+const labFitError = document.querySelector("#lab-fit-error");
+const labTestCount = document.querySelector("#lab-test-count");
+const labTestError = document.querySelector("#lab-test-error");
+const labPitchDimensions = document.querySelector("#lab-pitch-dimensions");
+const labConstraints = document.querySelector("#lab-constraints");
+const labEmptyState = document.querySelector("#lab-empty-state");
+const labOpenCalibrationButton = document.querySelector("#lab-open-calibration");
 const calibrationPanelHeader = document.querySelector("#calibration-panel-header");
 const calibrationPanelToggle = document.querySelector("#calibration-panel-toggle");
 const calibrationHeading = document.querySelector("#calibration-heading");
@@ -123,6 +133,8 @@ let calibrationArcDraft = null;
 let selectedCalibrationConstraint = null;
 let calibrationPanelPosition = { x: 14, y: 60 };
 let calibrationPanelDrag = null;
+// Deliberately transient: laboratory TEST/FIT roles never enter the review model.
+let homographyLabTestReferences = new Map();
 let cameraAtlasResult = null;
 let cameraAtlasRequestSequence = 0;
 let anchorSelectionResult = null;
@@ -155,7 +167,7 @@ modeTabs.forEach((tab) => {
     activeMode = tab.dataset.mode;
     modeLabel.textContent = activeMode === "guided"
       ? "CALIBRACIÓN"
-      : (activeMode === "preview" ? "PREVIEW" : "MODO VÍDEO");
+      : (activeMode === "preview" ? "PREVIEW" : (activeMode === "homography-lab" ? "PRUEBA HOMOGRAFÍA" : "MODO VÍDEO"));
     const guided = activeMode === "guided";
     debugToggle.hidden = !guided;
     undoButton.hidden = !guided;
@@ -167,6 +179,7 @@ modeTabs.forEach((tab) => {
     assistedDraft = null;
     setCalibrationMode(false);
     calibrationPanel.hidden = true;
+    homographyLabPanel.hidden = activeMode !== "homography-lab";
     if (activeMode !== "guided") {
       setCalibrationMode(false);
       calibrationPanel.hidden = true;
@@ -366,6 +379,81 @@ function hasSolvedManualCalibration(calibration = calibrationForCurrentFrame()) 
   return calibration?.source === "manual"
     && Array.isArray(calibration.homography)
     && calibration.homography.length === 3;
+}
+
+function homographyLabReferenceKey(calibration, constraint) {
+  return `${selectedVideo?.name || ""}:${calibration?.frame ?? ""}:${constraint.type}:${constraint.semantic || ""}`;
+}
+
+function homographyLabIsTest(calibration, constraint) {
+  return homographyLabTestReferences.has(homographyLabReferenceKey(calibration, constraint));
+}
+
+function updateHomographyLab() {
+  if (activeMode !== "homography-lab") return;
+  const calibration = calibrationForCurrentFrame();
+  const solved = hasSolvedManualCalibration(calibration);
+  const constraints = solved ? calibrationConstraints(calibration) : [];
+  const fitConstraints = constraints.filter((constraint) => !homographyLabIsTest(calibration, constraint));
+  const testConstraints = constraints.filter((constraint) => homographyLabIsTest(calibration, constraint));
+  labFrame.textContent = selectedVideo ? String(currentFrameNumber()) : "—";
+  labPitchDimensions.textContent = `${formatPitchDimension(fieldPitchModel.length_m)} × ${formatPitchDimension(fieldPitchModel.width_m)} m`;
+  labFitCount.textContent = solved ? String(fitConstraints.length) : "—";
+  labFitError.textContent = solved && Number.isFinite(Number(calibration.reprojectionError))
+    ? `${Number(calibration.reprojectionError).toFixed(2)} px`
+    : "—";
+  labTestCount.textContent = String(testConstraints.length);
+  labTestError.textContent = "Pendiente";
+  labEmptyState.hidden = solved;
+  labConstraints.replaceChildren();
+  if (!solved) return;
+  constraints.forEach((constraint, index) => {
+    const row = document.createElement("div");
+    row.className = `lab-constraint-row${homographyLabIsTest(calibration, constraint) ? " is-test" : ""}`;
+    const label = document.createElement("span");
+    label.textContent = `${index + 1}. ${constraint.semantic || constraint.type}`;
+    const role = document.createElement("button");
+    role.type = "button";
+    role.className = "lab-reference-role";
+    role.dataset.labReferenceKey = homographyLabReferenceKey(calibration, constraint);
+    role.textContent = homographyLabIsTest(calibration, constraint) ? "TEST" : "FIT";
+    role.title = "Cambiar el rol experimental de esta referencia";
+    row.append(label, role);
+    labConstraints.append(row);
+  });
+}
+
+function drawHomographyLabOverlay() {
+  if (!displayedVideoRect || !video.videoWidth) return;
+  const calibration = calibrationForCurrentFrame();
+  if (!hasSolvedManualCalibration(calibration)) return;
+  const displayScale = displayedVideoRect.width / video.videoWidth;
+  overlayContext.save();
+  drawProjectedPitch(calibration.homography, displayScale, { color: "#5aa9ff", lineWidth: 2 / displayScale });
+  calibrationConstraints(calibration).forEach((constraint) => {
+    const isTest = homographyLabIsTest(calibration, constraint);
+    const color = isTest ? "#e78b77" : "#d4a414";
+    overlayContext.strokeStyle = color;
+    overlayContext.fillStyle = color;
+    overlayContext.lineWidth = 2.5 / displayScale;
+    if (constraint.type === "line") {
+      overlayContext.beginPath();
+      overlayContext.moveTo(constraint.image.start.x, constraint.image.start.y);
+      overlayContext.lineTo(constraint.image.end.x, constraint.image.end.y);
+      overlayContext.stroke();
+    } else if (constraint.type === "arc") {
+      const geometry = constraint.image.geometry;
+      const arc = geometry.arc;
+      overlayContext.beginPath();
+      overlayContext.ellipse(geometry.center.x, geometry.center.y, geometry.radiusX, geometry.radiusY, geometry.rotation, arc?.startAngle ?? 0, arc?.endAngle ?? Math.PI * 2, arc?.counterclockwise || false);
+      overlayContext.stroke();
+    } else {
+      overlayContext.beginPath();
+      overlayContext.arc(constraint.image.x, constraint.image.y, 7 / displayScale, 0, Math.PI * 2);
+      overlayContext.fill();
+    }
+  });
+  overlayContext.restore();
 }
 
 function fieldHomographyForCurrentFrame() {
@@ -2987,6 +3075,8 @@ function drawOverlay() {
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   if (activeMode === "preview") {
     drawPreviewOverlay();
+  } else if (activeMode === "homography-lab") {
+    drawHomographyLabOverlay();
   } else if (activeMode === "guided" && calibrationMode) {
     drawFieldAnnotations();
     drawCalibrationOverlay();
@@ -2994,6 +3084,7 @@ function drawOverlay() {
     updateCurrentReferenceLabel();
   }
   updatePreviewProvenance();
+  updateHomographyLab();
   updatePitchSetupWorkflow();
 }
 
@@ -3081,6 +3172,7 @@ function resetPlaybackState() {
   overlayContext.clearRect(0, 0, overlay.width, overlay.height);
   overlay.classList.remove("is-loaded");
   videoStage.classList.remove("is-loaded");
+  updateHomographyLab();
 }
 
 async function loadDenseCameraAtlasPreview(videoName, loadSequence) {
@@ -3119,6 +3211,7 @@ async function loadVideo(videoInfo) {
   if (viewDiversityPoll) window.clearTimeout(viewDiversityPoll);
   viewDiversityPoll = null;
   selectedVideo = videoInfo;
+  homographyLabTestReferences = new Map();
   video.muted = true;
   updateMuteControl();
   fieldAnnotations = [];
@@ -3598,6 +3691,21 @@ debugToggle.addEventListener("click", () => {
   debugToggle.classList.toggle("is-active", debugOverlayEnabled);
   debugToggle.setAttribute("aria-pressed", String(debugOverlayEnabled));
   drawOverlay();
+});
+
+labConstraints.addEventListener("click", (event) => {
+  const roleButton = event.target.closest("[data-lab-reference-key]");
+  if (!roleButton) return;
+  const key = roleButton.dataset.labReferenceKey;
+  if (homographyLabTestReferences.has(key)) homographyLabTestReferences.delete(key);
+  else homographyLabTestReferences.set(key, true);
+  updateHomographyLab();
+  drawOverlay();
+});
+
+labOpenCalibrationButton.addEventListener("click", () => {
+  const guided = [...modeTabs].find((tab) => tab.dataset.mode === "guided");
+  guided?.click();
 });
 
 calibrationPanel.addEventListener("pointerdown", (event) => {

@@ -19,6 +19,7 @@
           <button class="mode-tab is-active" type="button" data-mode="video">VIDEO</button>
           <button class="mode-tab" type="button" data-mode="preview">PREVIEW</button>
           <button class="mode-tab" type="button" data-mode="guided">CALIBRACIÓN</button>
+          <button class="mode-tab mode-tab-lab" type="button" data-mode="homography-lab">PRUEBA HOMOGRAFÍA</button>
         </nav>
 
         <div class="actions">
@@ -83,6 +84,48 @@
               </div>
             </div>
           </div>
+          <aside class="homography-lab-panel" id="homography-lab-panel" hidden aria-label="Prueba de homografía">
+            <div class="lab-panel-header">
+              <div>
+                <span class="lab-kicker">HOMOGRAPHY LAB</span>
+                <h2>Prueba homografía</h2>
+              </div>
+              <span class="lab-badge">AISLADO</span>
+            </div>
+            <p class="lab-intro">Espacio de investigación. No modifica HUMAN, FIELD ni la revisión.</p>
+            <section class="lab-section">
+              <label for="lab-model-selector">MODELO</label>
+              <select id="lab-model-selector">
+                <option>Homografía actual</option>
+                <option disabled>Cámara física experimental</option>
+                <option disabled>Cámara física + dimensiones</option>
+                <option disabled>Cámara física multiframe</option>
+                <option disabled>Cámara + distorsión</option>
+              </select>
+            </section>
+            <section class="lab-section lab-diagnostics">
+              <span class="lab-section-title">BASELINE HOMOGRAFÍA</span>
+              <div class="lab-metric-row"><span>Fotograma</span><strong id="lab-frame">—</strong></div>
+              <div class="lab-metric-row"><span>Referencias FIT</span><strong id="lab-fit-count">—</strong></div>
+              <div class="lab-metric-row"><span>Reproyección FIT</span><strong id="lab-fit-error">—</strong></div>
+              <div class="lab-metric-row"><span>Referencias TEST</span><strong id="lab-test-count">0</strong></div>
+              <div class="lab-metric-row"><span>Error TEST</span><strong id="lab-test-error">Pendiente</strong></div>
+            </section>
+            <section class="lab-section">
+              <span class="lab-section-title">TERRENO ACTIVO</span>
+              <p class="lab-pitch-dimensions" id="lab-pitch-dimensions">—</p>
+              <p class="lab-readonly-note">Dimensiones experimentales: próximamente</p>
+            </section>
+            <section class="lab-section">
+              <span class="lab-section-title">REFERENCIAS DE ESTE FRAME</span>
+              <div class="lab-constraints" id="lab-constraints"></div>
+            </section>
+            <div class="lab-empty-state" id="lab-empty-state" hidden>
+              <strong>No hay una calibración HUMAN resuelta en este fotograma.</strong>
+              <span>Ve a CALIBRACIÓN para crear una HUMAN. El laboratorio no la crea automáticamente.</span>
+              <button class="button button-secondary" id="lab-open-calibration" type="button">Ir a CALIBRACIÓN</button>
+            </div>
+          </aside>
         </div>
         <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración del campo">
           <span class="guided-workflow-heading">CALIBRACIÓN DEL CAMPO</span>

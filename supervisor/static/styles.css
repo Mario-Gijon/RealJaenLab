@@ -33,6 +33,7 @@ button { font: inherit; }
 
 .mode-tabs { display: flex; align-self: stretch; gap: 4px; }
 .mode-tab { border: 0; border-bottom: 2px solid transparent; padding: 0 17px; color: #8e969e; background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; letter-spacing: .09em; }
+.mode-tab-lab { color: #b39bd8; }
 .mode-tab:hover { color: #e5e8eb; }
 .mode-tab.is-active { color: #f0f2f4; border-bottom-color: #d4a414; }
 
@@ -61,6 +62,28 @@ button { font: inherit; }
 .work-area-kicker { color: #d4a414; font-size: 11px; font-weight: 750; letter-spacing: .13em; }
 h1 { margin: 12px 0 7px; color: #e9ecef; font-size: 24px; font-weight: 600; }
 p { margin: 0; color: #929aa2; font-size: 14px; }
+
+.homography-lab-panel { position: absolute; z-index: 4; top: 18px; right: 18px; display: grid; width: min(310px, calc(100% - 36px)); max-height: calc(100% - 36px); gap: 12px; overflow: auto; padding: 14px; border: 1px solid #594d70; border-radius: 5px; background: rgba(24, 21, 31, .96); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); }
+.homography-lab-panel[hidden] { display: none; }
+.lab-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.lab-kicker, .lab-section-title, .lab-section > label { color: #bba7dc; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.lab-panel-header h2 { margin: 4px 0 0; font-size: 17px; font-weight: 650; }
+.lab-badge { color: #d8c8f1; border: 1px solid #705d8e; border-radius: 3px; padding: 4px 5px; font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.lab-intro, .lab-readonly-note { color: #a99fb4; font-size: 10px; line-height: 1.4; }
+.lab-section { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid #393142; }
+.lab-section select { color: #e1dbea; border: 1px solid #594d70; border-radius: 3px; padding: 7px 8px; background: #25202d; font-size: 11px; }
+.lab-diagnostics { gap: 5px; }
+.lab-metric-row { display: flex; justify-content: space-between; gap: 12px; color: #aaa3b1; font-size: 10px; }
+.lab-metric-row strong { color: #e2ddec; font-weight: 750; }
+.lab-pitch-dimensions { color: #e2ddec; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.lab-constraints { display: grid; gap: 4px; }
+.lab-constraint-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 6px; color: #d4cedd; border: 1px solid #3d3548; border-radius: 3px; font-size: 10px; }
+.lab-constraint-row.is-test { border-color: #754f4c; color: #f0c0b8; }
+.lab-reference-role { min-width: 39px; color: #d8b56f; border: 1px solid #725d31; border-radius: 3px; padding: 3px 4px; background: transparent; cursor: pointer; font-size: 8px; font-weight: 800; }
+.lab-constraint-row.is-test .lab-reference-role { color: #f0a99b; border-color: #935c54; }
+.lab-empty-state { display: grid; gap: 8px; padding: 10px; border: 1px dashed #665a72; border-radius: 4px; color: #c2b9cc; font-size: 10px; line-height: 1.4; }
+.lab-empty-state strong { color: #f0eaf7; }
+.lab-empty-state .button { justify-self: start; padding: 6px 8px; font-size: 10px; }
 
 .field-toolbar { position: absolute; z-index: 2; top: 42px; left: 42px; display: flex; gap: 5px; padding: 6px; border: 1px solid #363d45; border-radius: 5px; background: rgba(23, 26, 30, .92); box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
 .field-toolbar[hidden] { display: none; }
