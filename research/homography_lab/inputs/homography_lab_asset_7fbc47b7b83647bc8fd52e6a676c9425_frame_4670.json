@@ -1,0 +1,370 @@
+{
+  "format": "realjaen.homography-lab",
+  "version": 1,
+  "video": {
+    "asset_id": null,
+    "name": "asset_7fbc47b7b83647bc8fd52e6a676c9425",
+    "display_name": "Real Jaén - Córdoba",
+    "path": "/api/library/assets/asset_7fbc47b7b83647bc8fd52e6a676c9425/video"
+  },
+  "frame": 4670,
+  "timestamp_seconds": 155.82233333333335,
+  "pitch": {
+    "length_m": 105,
+    "width_m": 68
+  },
+  "constraints": [
+    {
+      "type": "point",
+      "semantic": "centre_circle_halfway_bottom",
+      "world": {
+        "x": 0,
+        "y": 9.15
+      },
+      "image": {
+        "x": 1345.0137085024048,
+        "y": 490.078125
+      },
+      "source": "manual",
+      "semantic_label": "Intersección círculo central / medio campo, inferior (diagrama)"
+    },
+    {
+      "type": "point",
+      "semantic": "centre_circle_halfway_top",
+      "world": {
+        "x": 0,
+        "y": -9.15
+      },
+      "image": {
+        "x": 1311.8087389744474,
+        "y": 424.7702205882353
+      },
+      "source": "manual",
+      "semantic_label": "Intersección círculo central / medio campo, superior (diagrama)"
+    },
+    {
+      "type": "point",
+      "semantic": "top_left_corner",
+      "world": {
+        "x": -52.5,
+        "y": -34
+      },
+      "image": {
+        "x": 537.6415109119679,
+        "y": 374.95362633689837
+      },
+      "source": "manual",
+      "semantic_label": "Esquina superior izquierda"
+    },
+    {
+      "type": "point",
+      "semantic": "left_penalty_top",
+      "world": {
+        "x": -36,
+        "y": -20.16
+      },
+      "image": {
+        "x": 658.5909226213789,
+        "y": 393.0318348930481
+      },
+      "source": "manual",
+      "semantic_label": "Esquina superior del área izquierda"
+    },
+    {
+      "type": "point",
+      "semantic": "halfway_top",
+      "world": {
+        "x": 0,
+        "y": -34
+      },
+      "image": {
+        "x": 1292.1512165316703,
+        "y": 383.2106450534759
+      },
+      "source": "manual",
+      "semantic_label": "Mitad de campo / banda superior"
+    },
+    {
+      "type": "point",
+      "semantic": "centre_mark",
+      "world": {
+        "x": 0,
+        "y": 0
+      },
+      "image": {
+        "x": 1327.9130175938838,
+        "y": 453.1546624331551
+      },
+      "source": "manual",
+      "semantic_label": "Punto central"
+    },
+    {
+      "type": "point",
+      "semantic": "left_penalty_spot",
+      "world": {
+        "x": -41.5,
+        "y": 0
+      },
+      "image": {
+        "x": 335.0426921932037,
+        "y": 432.18875334224595
+      },
+      "source": "manual",
+      "semantic_label": "Punto de penalti izquierdo"
+    },
+    {
+      "type": "point",
+      "semantic": "left_goal_bottom",
+      "world": {
+        "x": -47,
+        "y": 9.16
+      },
+      "image": {
+        "x": 37.168058406053675,
+        "y": 458.7947025401069
+      },
+      "source": "manual",
+      "semantic_label": "Esquina inferior del área pequeña izquierda"
+    },
+    {
+      "type": "line",
+      "semantic": "bottom_touchline",
+      "world": {
+        "start": {
+          "x": -52.5,
+          "y": 34
+        },
+        "end": {
+          "x": 52.5,
+          "y": 34
+        }
+      },
+      "image": {
+        "start": {
+          "x": 3.4930830813580034,
+          "y": 774.8926303475936
+        },
+        "end": {
+          "x": 1914.134327656708,
+          "y": 968.4212065508021
+        }
+      },
+      "source": "manual",
+      "labTest": true,
+      "semantic_label": "Banda inferior"
+    }
+  ],
+  "solve": {
+    "status": "solved",
+    "homography": [
+      [
+        22.160141712178756,
+        -26.815163709145253,
+        1326.0093091372894
+      ],
+      [
+        -1.7564658263756017,
+        -6.161124770520053,
+        451.5967064815753
+      ],
+      [
+        -0.005147351777372594,
+        -0.0215246088818284,
+        1
+      ]
+    ],
+    "reprojection_error": 1.6032304961750958,
+    "diagnostics": {
+      "mode": "geometric_projective_camera_v1",
+      "selected_candidate": "point_baseline:refined",
+      "score": 0.9895423240839176,
+      "raw_best_candidate": "point_baseline:refined",
+      "raw_best_score": 0.9895423240839176,
+      "human_point_guard_intervened": false,
+      "human_point_error_limits": {
+        "mean_px": 3.5,
+        "p90_px": 5,
+        "max_px": 7,
+        "baseline_mean_px": 1.6032312680983156,
+        "baseline_p90_px": 2.2814754230964676,
+        "baseline_max_px": 2.4599460022696555
+      },
+      "human_point_fit": {
+        "count": 8,
+        "mean_px": 1.6032304961750958,
+        "p90_px": 2.2814782270032787,
+        "max_px": 2.4599456568737033,
+        "per_point": [
+          {
+            "semantic": "centre_circle_halfway_bottom",
+            "error_px": 2.1790265463874987
+          },
+          {
+            "semantic": "centre_circle_halfway_top",
+            "error_px": 1.0717460061326207
+          },
+          {
+            "semantic": "top_left_corner",
+            "error_px": 1.6650196749763926
+          },
+          {
+            "semantic": "left_penalty_top",
+            "error_px": 2.20499218563024
+          },
+          {
+            "semantic": "halfway_top",
+            "error_px": 1.4922076306210907
+          },
+          {
+            "semantic": "centre_mark",
+            "error_px": 2.4599456568737033
+          },
+          {
+            "semantic": "left_penalty_spot",
+            "error_px": 0.2062467294045252
+          },
+          {
+            "semantic": "left_goal_bottom",
+            "error_px": 1.5466595393746951
+          }
+        ]
+      },
+      "raw_best_human_point_fit": {
+        "count": 8,
+        "mean_px": 1.6032304961750958,
+        "p90_px": 2.2814782270032787,
+        "max_px": 2.4599456568737033,
+        "per_point": [
+          {
+            "semantic": "centre_circle_halfway_bottom",
+            "error_px": 2.1790265463874987
+          },
+          {
+            "semantic": "centre_circle_halfway_top",
+            "error_px": 1.0717460061326207
+          },
+          {
+            "semantic": "top_left_corner",
+            "error_px": 1.6650196749763926
+          },
+          {
+            "semantic": "left_penalty_top",
+            "error_px": 2.20499218563024
+          },
+          {
+            "semantic": "halfway_top",
+            "error_px": 1.4922076306210907
+          },
+          {
+            "semantic": "centre_mark",
+            "error_px": 2.4599456568737033
+          },
+          {
+            "semantic": "left_penalty_spot",
+            "error_px": 0.2062467294045252
+          },
+          {
+            "semantic": "left_goal_bottom",
+            "error_px": 1.5466595393746951
+          }
+        ]
+      },
+      "human_guard_alpha": 1,
+      "guarded_from": null,
+      "human_point_guard_rejected_candidates": [],
+      "human_guard_boundary_candidates": [],
+      "homography_condition": 177596.0815909896,
+      "points": 8,
+      "lines": 0,
+      "arcs": 0,
+      "point_error_px": 1.6032304961750958,
+      "line_error_px": null,
+      "point_errors": [
+        {
+          "semantic": "centre_circle_halfway_bottom",
+          "error_px": 2.1790265463874987
+        },
+        {
+          "semantic": "centre_circle_halfway_top",
+          "error_px": 1.0717460061326207
+        },
+        {
+          "semantic": "top_left_corner",
+          "error_px": 1.6650196749763926
+        },
+        {
+          "semantic": "left_penalty_top",
+          "error_px": 2.20499218563024
+        },
+        {
+          "semantic": "halfway_top",
+          "error_px": 1.4922076306210907
+        },
+        {
+          "semantic": "centre_mark",
+          "error_px": 2.4599456568737033
+        },
+        {
+          "semantic": "left_penalty_spot",
+          "error_px": 0.2062467294045252
+        },
+        {
+          "semantic": "left_goal_bottom",
+          "error_px": 1.5466595393746951
+        }
+      ],
+      "line_errors": [],
+      "constraint_spread": {
+        "world_span_x_m": 52.5,
+        "world_span_y_m": 43.16,
+        "image_span_x_px": 1307.8456500963512,
+        "image_span_y_px": 115.12449866310163
+      },
+      "config": {
+        "point_sigma_px": 3.5,
+        "line_sigma_px": 1.5,
+        "arc_sigma_px": 4,
+        "manual_point_full_weight": true,
+        "human_point_error_mean_floor_px": 3.5,
+        "human_point_error_p90_floor_px": 5,
+        "human_point_error_max_floor_px": 7,
+        "human_point_error_mean_degradation_px": 1,
+        "human_point_error_p90_degradation_px": 1.5,
+        "human_point_error_max_degradation_px": 2,
+        "human_guard_bisection_steps": 28,
+        "point_huber_delta_sigma": 3,
+        "arc_huber_delta_sigma": 3,
+        "max_iterations": 45,
+        "initial_damping": 0.001,
+        "max_condition": 10000000000,
+        "good_line_error_px": 5,
+        "warning_line_error_px": 12
+      },
+      "calibration_strategy": {
+        "requested_mode": "auto",
+        "selected_mode": "full",
+        "fallback_from": null,
+        "evidence": {
+          "strong_for_full_solve": true,
+          "evidence_score": 0.581844084224599,
+          "reasons": [
+            "muchos_puntos_independientes"
+          ],
+          "points": 8,
+          "lines": 0,
+          "arcs": 0,
+          "line_families": [],
+          "point_geometry_independent": true,
+          "coverage": {
+            "world_span_x_ratio": 0.5,
+            "world_span_y_ratio": 0.6347058823529411,
+            "image_span_x_ratio": 0.6811696094251829,
+            "image_span_y_ratio": 0.1065967580213904
+          }
+        }
+      }
+    }
+  },
+  "exported_at": "2026-09-03T19:52:41.578Z",
+  "note": ""
+}

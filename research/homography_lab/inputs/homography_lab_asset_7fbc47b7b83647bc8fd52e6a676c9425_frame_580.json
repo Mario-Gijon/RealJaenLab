@@ -22,53 +22,12 @@
         "y": -34
       },
       "image": {
-        "x": 599.6897961741529,
-        "y": 401.130932486631
+        "x": 604.3973742342822,
+        "y": 401.7776570855615
       },
-      "source": "manual",
-      "semantic_label": "Esquina superior izquierda"
-    },
-    {
-      "type": "point",
-      "semantic": "left_penalty_top",
-      "world": {
-        "x": -36,
-        "y": -20.16
-      },
-      "image": {
-        "x": 773.1745758197684,
-        "y": 432.6662767379679
-      },
-      "source": "manual",
-      "semantic_label": "Esquina superior del área izquierda"
-    },
-    {
-      "type": "point",
-      "semantic": "left_penalty_goal_line_top",
-      "world": {
-        "x": -52.5,
-        "y": -20.16
-      },
-      "image": {
-        "x": 426.1147754155635,
-        "y": 420.63795120320856
-      },
-      "source": "manual",
-      "semantic_label": "Intersección área de penalti / línea de gol izquierda, superior (diagrama)"
-    },
-    {
-      "type": "point",
-      "semantic": "left_penalty_spot",
-      "world": {
-        "x": -41.5,
-        "y": 0
-      },
-      "image": {
-        "x": 319.6753826630528,
-        "y": 478.598763368984
-      },
-      "source": "manual",
-      "semantic_label": "Punto de penalti izquierdo"
+      "source": "lab-import",
+      "semantic_label": "Esquina superior izquierda",
+      "labTest": false
     },
     {
       "type": "point",
@@ -78,25 +37,12 @@
         "y": -34
       },
       "image": {
-        "x": 1762.8977424054897,
-        "y": 427.9286430481284
+        "x": 1762.87894217362,
+        "y": 427.52632018716577
       },
-      "source": "manual",
-      "semantic_label": "Mitad de campo / banda superior"
-    },
-    {
-      "type": "point",
-      "semantic": "centre_circle_halfway_bottom",
-      "world": {
-        "x": 0,
-        "y": 9.15
-      },
-      "image": {
-        "x": 1853.1990161211988,
-        "y": 602.9804478609626
-      },
-      "source": "manual",
-      "semantic_label": "Intersección círculo central / medio campo, inferior (diagrama)"
+      "source": "lab-import",
+      "semantic_label": "Mitad de campo / banda superior",
+      "labTest": false
     },
     {
       "type": "point",
@@ -106,53 +52,27 @@
         "y": 0
       },
       "image": {
-        "x": 1820.1519685409453,
-        "y": 533.8448362299465
+        "x": 1821.9417506149243,
+        "y": 534.3261196524064
       },
-      "source": "manual",
-      "semantic_label": "Punto central"
+      "source": "lab-import",
+      "semantic_label": "Punto central",
+      "labTest": false
     },
     {
       "type": "point",
-      "semantic": "left_goal_top",
+      "semantic": "left_penalty_top",
       "world": {
-        "x": -47,
-        "y": -9.16
+        "x": -36,
+        "y": -20.16
       },
       "image": {
-        "x": 357.6217706685049,
-        "y": 448.8682319518716
+        "x": 771.0351094330164,
+        "y": 432.4745153743316
       },
-      "source": "manual",
-      "semantic_label": "Esquina superior del área pequeña izquierda"
-    },
-    {
-      "type": "point",
-      "semantic": "left_goal_area_goal_line_top",
-      "world": {
-        "x": -52.5,
-        "y": -9.16
-      },
-      "image": {
-        "x": 242.6959532500901,
-        "y": 445.55188836898395
-      },
-      "source": "manual",
-      "semantic_label": "Intersección área pequeña / línea de gol izquierda, superior (diagrama)"
-    },
-    {
-      "type": "point",
-      "semantic": "left_goal_post_top",
-      "world": {
-        "x": -52.5,
-        "y": -3.66
-      },
-      "image": {
-        "x": 123.25056009024112,
-        "y": 459.3323863636364
-      },
-      "source": "manual",
-      "semantic_label": "Base del poste superior de la portería izquierda (arriba en el diagrama)"
+      "source": "lab-import",
+      "semantic_label": "Esquina superior del área izquierda",
+      "labTest": false
     },
     {
       "type": "point",
@@ -162,214 +82,377 @@
         "y": -9.15
       },
       "image": {
-        "x": 1798.0240956305129,
-        "y": 494.75183823529414
+        "x": 1797.6443309467484,
+        "y": 493.87951203208553
+      },
+      "source": "lab-import",
+      "semantic_label": "Intersección círculo central / medio campo, superior (diagrama)",
+      "labTest": false
+    },
+    {
+      "type": "point",
+      "semantic": "centre_circle_halfway_bottom",
+      "world": {
+        "x": 0,
+        "y": 9.15
+      },
+      "image": {
+        "x": 1852.3718059189396,
+        "y": 602.9541276737968
+      },
+      "source": "lab-import",
+      "semantic_label": "Intersección círculo central / medio campo, inferior (diagrama)",
+      "labTest": false
+    },
+    {
+      "type": "point",
+      "semantic": "left_penalty_spot",
+      "world": {
+        "x": -41.5,
+        "y": 0
+      },
+      "image": {
+        "x": 318.3217659684469,
+        "y": 480.14789438502675
+      },
+      "source": "lab-import",
+      "semantic_label": "Punto de penalti izquierdo",
+      "labTest": false
+    },
+    {
+      "type": "point",
+      "semantic": "left_goal_top",
+      "world": {
+        "x": -47,
+        "y": -9.16
+      },
+      "image": {
+        "x": 352.0832223597424,
+        "y": 451.0678475935829
+      },
+      "source": "lab-import",
+      "semantic_label": "Esquina superior del área pequeña izquierda",
+      "labTest": false
+    },
+    {
+      "type": "point",
+      "semantic": "left_penalty_goal_line_top",
+      "world": {
+        "x": -52.5,
+        "y": -20.16
+      },
+      "image": {
+        "x": 424.7235582572185,
+        "y": 422.59692513368987
+      },
+      "source": "lab-import",
+      "semantic_label": "Intersección área de penalti / línea de gol izquierda, superior (diagrama)",
+      "labTest": false
+    },
+    {
+      "type": "line",
+      "semantic": "bottom_touchline",
+      "world": {
+        "start": {
+          "x": -52.5,
+          "y": 34
+        },
+        "end": {
+          "x": 52.5,
+          "y": 34
+        }
+      },
+      "image": {
+        "start": {
+          "x": 2.97043663538517,
+          "y": 982.9161096256685
+        },
+        "end": {
+          "x": 554.1368343542904,
+          "y": 1076.578375668449
+        }
       },
       "source": "manual",
-      "semantic_label": "Intersección círculo central / medio campo, superior (diagrama)"
+      "labTest": true,
+      "semantic_label": "Banda inferior"
     }
   ],
   "solve": {
     "status": "solved",
     "homography": [
       [
-        33.572553966176415,
-        -36.7370290376303,
-        1819.9803900392324
+        33.614725377508435,
+        -37.20375249392209,
+        1819.9818031844418
       ],
       [
-        -2.6269551591897327,
-        -6.018594501026714,
-        537.0840365637595
+        -2.7646723426546607,
+        -6.112306287436987,
+        536.8397321210218
       ],
       [
-        -0.008433378144779308,
-        -0.021790951492843092,
+        -0.008665858086694742,
+        -0.02203744687013635,
         1
       ]
     ],
-    "reprojection_error": 2.715780590862248,
+    "reprojection_error": 3.5992309067326413,
     "diagnostics": {
       "mode": "geometric_projective_camera_v1",
-      "selected_candidate": "point_baseline:refined",
-      "score": 3.8524738563570518,
-      "raw_best_candidate": "point_baseline:refined",
-      "raw_best_score": 3.8524738563570518,
+      "selected_candidate": "mixed_normalised_dlt:refined",
+      "score": 7.3134001298510665,
+      "raw_best_candidate": "mixed_normalised_dlt:refined",
+      "raw_best_score": 7.3134001298510665,
       "human_point_guard_intervened": false,
       "human_point_error_limits": {
-        "mean_px": 3.7157780743951085,
-        "p90_px": 5.083510690092596,
-        "max_px": 7,
-        "baseline_mean_px": 2.7157780743951085,
-        "baseline_p90_px": 3.583510690092596,
-        "baseline_max_px": 4.9235339833191905
+        "mean_px": 4.599232434311531,
+        "p90_px": 7.985757481399023,
+        "max_px": 11.100520338008414,
+        "baseline_mean_px": 3.5992324343115314,
+        "baseline_p90_px": 6.485757481399023,
+        "baseline_max_px": 9.100520338008414
       },
       "human_point_fit": {
-        "count": 11,
-        "mean_px": 2.715780590862248,
-        "p90_px": 3.583471106501765,
-        "max_px": 4.923537650171877,
+        "count": 9,
+        "mean_px": 3.5992309067326413,
+        "p90_px": 6.485756754315817,
+        "max_px": 9.100515026429804,
         "per_point": [
           {
             "semantic": "top_left_corner",
-            "error_px": 2.191235892983721
-          },
-          {
-            "semantic": "left_penalty_top",
-            "error_px": 2.6118944913567135
-          },
-          {
-            "semantic": "left_penalty_goal_line_top",
-            "error_px": 3.2436416400207957
-          },
-          {
-            "semantic": "left_penalty_spot",
-            "error_px": 3.583471106501765
+            "error_px": 5.807504527794602
           },
           {
             "semantic": "halfway_top",
-            "error_px": 1.873488273067883
-          },
-          {
-            "semantic": "centre_circle_halfway_bottom",
-            "error_px": 0.9410486030740495
+            "error_px": 1.9455360010932652
           },
           {
             "semantic": "centre_mark",
-            "error_px": 3.2437413560307244
+            "error_px": 3.187419265273077
           },
           {
-            "semantic": "left_goal_top",
-            "error_px": 4.923537650171877
-          },
-          {
-            "semantic": "left_goal_area_goal_line_top",
-            "error_px": 3.005729076036507
-          },
-          {
-            "semantic": "left_goal_post_top",
-            "error_px": 3.1648892135266022
+            "semantic": "left_penalty_top",
+            "error_px": 3.2754353784134556
           },
           {
             "semantic": "centre_circle_halfway_top",
-            "error_px": 1.0909091967140951
+            "error_px": 0.6238775977550873
+          },
+          {
+            "semantic": "centre_circle_halfway_bottom",
+            "error_px": 1.063110842203607
+          },
+          {
+            "semantic": "left_penalty_spot",
+            "error_px": 5.832067186287319
+          },
+          {
+            "semantic": "left_goal_top",
+            "error_px": 9.100515026429804
+          },
+          {
+            "semantic": "left_penalty_goal_line_top",
+            "error_px": 1.5576123353435583
           }
         ]
       },
       "raw_best_human_point_fit": {
-        "count": 11,
-        "mean_px": 2.715780590862248,
-        "p90_px": 3.583471106501765,
-        "max_px": 4.923537650171877,
+        "count": 9,
+        "mean_px": 3.5992309067326413,
+        "p90_px": 6.485756754315817,
+        "max_px": 9.100515026429804,
         "per_point": [
           {
             "semantic": "top_left_corner",
-            "error_px": 2.191235892983721
-          },
-          {
-            "semantic": "left_penalty_top",
-            "error_px": 2.6118944913567135
-          },
-          {
-            "semantic": "left_penalty_goal_line_top",
-            "error_px": 3.2436416400207957
-          },
-          {
-            "semantic": "left_penalty_spot",
-            "error_px": 3.583471106501765
+            "error_px": 5.807504527794602
           },
           {
             "semantic": "halfway_top",
-            "error_px": 1.873488273067883
-          },
-          {
-            "semantic": "centre_circle_halfway_bottom",
-            "error_px": 0.9410486030740495
+            "error_px": 1.9455360010932652
           },
           {
             "semantic": "centre_mark",
-            "error_px": 3.2437413560307244
+            "error_px": 3.187419265273077
           },
           {
-            "semantic": "left_goal_top",
-            "error_px": 4.923537650171877
-          },
-          {
-            "semantic": "left_goal_area_goal_line_top",
-            "error_px": 3.005729076036507
-          },
-          {
-            "semantic": "left_goal_post_top",
-            "error_px": 3.1648892135266022
+            "semantic": "left_penalty_top",
+            "error_px": 3.2754353784134556
           },
           {
             "semantic": "centre_circle_halfway_top",
-            "error_px": 1.0909091967140951
+            "error_px": 0.6238775977550873
+          },
+          {
+            "semantic": "centre_circle_halfway_bottom",
+            "error_px": 1.063110842203607
+          },
+          {
+            "semantic": "left_penalty_spot",
+            "error_px": 5.832067186287319
+          },
+          {
+            "semantic": "left_goal_top",
+            "error_px": 9.100515026429804
+          },
+          {
+            "semantic": "left_penalty_goal_line_top",
+            "error_px": 1.5576123353435583
           }
         ]
       },
       "human_guard_alpha": 1,
       "guarded_from": null,
-      "human_point_guard_rejected_candidates": [],
-      "human_guard_boundary_candidates": [],
-      "homography_condition": 170241.03120706594,
-      "points": 11,
+      "human_point_guard_rejected_candidates": [
+        {
+          "name": "mixed_normalised_dlt:initial",
+          "score": 7.9612737619860585,
+          "human_point_fit": {
+            "count": 9,
+            "mean_px": 3.6334635550383476,
+            "p90_px": 8.470172114698313,
+            "max_px": 8.68544663528121,
+            "per_point": [
+              {
+                "semantic": "top_left_corner",
+                "error_px": 3.9190805852893273
+              },
+              {
+                "semantic": "halfway_top",
+                "error_px": 1.696479562398561
+              },
+              {
+                "semantic": "centre_mark",
+                "error_px": 3.9274557996631607
+              },
+              {
+                "semantic": "left_penalty_top",
+                "error_px": 3.496998438611753
+              },
+              {
+                "semantic": "centre_circle_halfway_top",
+                "error_px": 0.2185611213682066
+              },
+              {
+                "semantic": "centre_circle_halfway_bottom",
+                "error_px": 1.3947221433486516
+              },
+              {
+                "semantic": "left_penalty_spot",
+                "error_px": 8.41635348455259
+              },
+              {
+                "semantic": "left_goal_top",
+                "error_px": 8.68544663528121
+              },
+              {
+                "semantic": "left_penalty_goal_line_top",
+                "error_px": 0.946074224831672
+              }
+            ]
+          }
+        }
+      ],
+      "human_guard_boundary_candidates": [
+        {
+          "name": "mixed_normalised_dlt:initial:human_guard_boundary",
+          "score": 7.683948267282798,
+          "human_guard_alpha": 0.7557455822825432,
+          "human_point_fit": {
+            "count": 9,
+            "mean_px": 3.591648004395234,
+            "p90_px": 7.98575747639548,
+            "max_px": 8.782816013604172,
+            "per_point": [
+              {
+                "semantic": "top_left_corner",
+                "error_px": 4.375524191784722
+              },
+              {
+                "semantic": "halfway_top",
+                "error_px": 1.754492982291091
+              },
+              {
+                "semantic": "centre_mark",
+                "error_px": 3.74525718607542
+              },
+              {
+                "semantic": "left_penalty_top",
+                "error_px": 3.440877434177924
+              },
+              {
+                "semantic": "centre_circle_halfway_top",
+                "error_px": 0.2901778484972616
+              },
+              {
+                "semantic": "centre_circle_halfway_bottom",
+                "error_px": 1.1276935349282142
+              },
+              {
+                "semantic": "left_penalty_spot",
+                "error_px": 7.786492842093306
+              },
+              {
+                "semantic": "left_goal_top",
+                "error_px": 8.782816013604172
+              },
+              {
+                "semantic": "left_penalty_goal_line_top",
+                "error_px": 1.021500006105002
+              }
+            ]
+          }
+        }
+      ],
+      "homography_condition": 169422.45341438137,
+      "points": 9,
       "lines": 0,
       "arcs": 0,
-      "point_error_px": 2.715780590862248,
+      "point_error_px": 3.5992309067326413,
       "line_error_px": null,
       "point_errors": [
         {
           "semantic": "top_left_corner",
-          "error_px": 2.191235892983721
-        },
-        {
-          "semantic": "left_penalty_top",
-          "error_px": 2.6118944913567135
-        },
-        {
-          "semantic": "left_penalty_goal_line_top",
-          "error_px": 3.2436416400207957
-        },
-        {
-          "semantic": "left_penalty_spot",
-          "error_px": 3.583471106501765
+          "error_px": 5.807504527794602
         },
         {
           "semantic": "halfway_top",
-          "error_px": 1.873488273067883
-        },
-        {
-          "semantic": "centre_circle_halfway_bottom",
-          "error_px": 0.9410486030740495
+          "error_px": 1.9455360010932652
         },
         {
           "semantic": "centre_mark",
-          "error_px": 3.2437413560307244
+          "error_px": 3.187419265273077
         },
         {
-          "semantic": "left_goal_top",
-          "error_px": 4.923537650171877
-        },
-        {
-          "semantic": "left_goal_area_goal_line_top",
-          "error_px": 3.005729076036507
-        },
-        {
-          "semantic": "left_goal_post_top",
-          "error_px": 3.1648892135266022
+          "semantic": "left_penalty_top",
+          "error_px": 3.2754353784134556
         },
         {
           "semantic": "centre_circle_halfway_top",
-          "error_px": 1.0909091967140951
+          "error_px": 0.6238775977550873
+        },
+        {
+          "semantic": "centre_circle_halfway_bottom",
+          "error_px": 1.063110842203607
+        },
+        {
+          "semantic": "left_penalty_spot",
+          "error_px": 5.832067186287319
+        },
+        {
+          "semantic": "left_goal_top",
+          "error_px": 9.100515026429804
+        },
+        {
+          "semantic": "left_penalty_goal_line_top",
+          "error_px": 1.5576123353435583
         }
       ],
       "line_errors": [],
       "constraint_spread": {
         "world_span_x_m": 52.5,
         "world_span_y_m": 43.15,
-        "image_span_x_px": 1729.9484560309577,
-        "image_span_y_px": 201.8495153743316
+        "image_span_x_px": 1534.0500399504926,
+        "image_span_y_px": 201.17647058823536
       },
       "config": {
         "point_sigma_px": 3.5,
@@ -397,12 +480,12 @@
         "fallback_from": null,
         "evidence": {
           "strong_for_full_solve": true,
-          "evidence_score": 0.590766411046742,
+          "evidence_score": 0.5906971677559913,
           "reasons": [
             "muchos_puntos_independientes",
             "puntos_bien_repartidos"
           ],
-          "points": 11,
+          "points": 9,
           "lines": 0,
           "arcs": 0,
           "line_families": [],
@@ -410,13 +493,13 @@
           "coverage": {
             "world_span_x_ratio": 0.5,
             "world_span_y_ratio": 0.6345588235294117,
-            "image_span_x_ratio": 0.9010148208494572,
-            "image_span_y_ratio": 0.1868976994206774
+            "image_span_x_ratio": 0.7989843958075482,
+            "image_span_y_ratio": 0.18627450980392163
           }
         }
       }
     }
   },
-  "exported_at": "2026-09-03T17:59:30.989Z",
+  "exported_at": "2026-09-03T19:13:32.053Z",
   "note": ""
 }
