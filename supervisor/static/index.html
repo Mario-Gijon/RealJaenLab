@@ -11,10 +11,15 @@
     <main class="supervisor-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>REALJAÉN SUPERVISOR</span></div>
-        <div class="workspace-title"><span>VIDEO FOUNDATION</span><strong id="video-name">Sin vídeo seleccionado</strong></div>
+        <nav class="workspace-nav" aria-label="Espacios de trabajo">
+          <button class="workspace-tab is-active" data-workspace="video" type="button">VIDEO</button>
+          <button class="workspace-tab" data-workspace="preview" type="button">PREVIEW</button>
+          <button class="workspace-tab" data-workspace="calibration" type="button">CALIBRACIÓN</button>
+        </nav>
+        <div class="workspace-title"><span id="workspace-kicker">VIDEO</span><strong id="video-name">Sin vídeo seleccionado</strong></div>
         <button class="button button-secondary" id="back-to-library" type="button">← Biblioteca</button>
       </header>
-      <section class="workspace" aria-label="Reproductor de vídeo">
+      <section class="workspace" id="video-workspace" aria-label="Reproductor de vídeo">
         <div class="video-stage" id="video-stage">
           <video id="video" class="video" playsinline preload="metadata"></video>
           <div class="video-empty" id="video-empty"><span>VIDEO FOUNDATION</span><strong id="workspace-title">Selecciona un vídeo</strong><p id="workspace-description">Abre un partido desde la biblioteca para reproducirlo y navegar por fotogramas.</p></div>
@@ -25,7 +30,21 @@
           <small id="video-info-meta"></small>
         </aside>
       </section>
-      <footer class="controls" aria-label="Controles de vídeo">
+      <section class="development-workspace" id="preview-workspace" aria-labelledby="preview-title" hidden>
+        <div class="development-card">
+          <span class="development-kicker">PREVIEW</span>
+          <h1 id="preview-title">Espacio de visualización</h1>
+          <p>Área de desarrollo disponible para visualizar resultados experimentales.</p>
+        </div>
+      </section>
+      <section class="development-workspace" id="calibration-workspace" aria-labelledby="calibration-title" hidden>
+        <div class="development-card">
+          <span class="development-kicker">CALIBRACIÓN</span>
+          <h1 id="calibration-title">Espacio de desarrollo</h1>
+          <p>Área de desarrollo disponible para una futura aproximación de calibración.</p>
+        </div>
+      </section>
+      <footer class="controls" id="video-controls" aria-label="Controles de vídeo">
         <div class="transport-controls">
           <button class="icon-button" id="previous-frame" type="button" aria-label="Fotograma anterior" disabled>|&lt;</button>
           <button class="play-button" id="play-pause" type="button" aria-label="Reproducir" disabled>▶</button>

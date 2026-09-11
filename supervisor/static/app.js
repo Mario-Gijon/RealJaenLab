@@ -2,6 +2,12 @@ const video = document.querySelector("#video");
 const libraryScreen = document.querySelector("#library-screen");
 const backToLibraryButton = document.querySelector("#back-to-library");
 const videoName = document.querySelector("#video-name");
+const workspaceKicker = document.querySelector("#workspace-kicker");
+const workspaceTabs = document.querySelectorAll(".workspace-tab");
+const videoWorkspace = document.querySelector("#video-workspace");
+const previewWorkspace = document.querySelector("#preview-workspace");
+const calibrationWorkspace = document.querySelector("#calibration-workspace");
+const videoControls = document.querySelector("#video-controls");
 const videoEmpty = document.querySelector("#video-empty");
 const workspaceTitle = document.querySelector("#workspace-title");
 const workspaceDescription = document.querySelector("#workspace-description");
@@ -18,6 +24,22 @@ const totalTimeLabel = document.querySelector("#total-time");
 const frameReadout = document.querySelector("#frame-readout");
 
 let selectedVideo = null;
+let activeWorkspace = "video";
+
+function setWorkspace(workspace) {
+  activeWorkspace = workspace;
+  const isVideo = workspace === "video";
+  videoWorkspace.hidden = !isVideo;
+  previewWorkspace.hidden = workspace !== "preview";
+  calibrationWorkspace.hidden = workspace !== "calibration";
+  videoControls.hidden = !isVideo;
+  workspaceKicker.textContent = workspace === "calibration" ? "CALIBRACIÓN" : workspace.toUpperCase();
+  workspaceTabs.forEach((tab) => {
+    const selected = tab.dataset.workspace === workspace;
+    tab.classList.toggle("is-active", selected);
+    tab.setAttribute("aria-current", selected ? "page" : "false");
+  });
+}
 
 function formatTime(seconds) {
   const value = Math.max(0, Math.floor(seconds || 0));
@@ -114,6 +136,7 @@ previousFrameButtons.forEach((button) => button.addEventListener("click", () => 
 nextFrameButtons.forEach((button) => button.addEventListener("click", () => stepFrame(1)));
 timeline.addEventListener("input", () => { video.currentTime = Number(timeline.value); });
 backToLibraryButton.addEventListener("click", showLibrary);
+workspaceTabs.forEach((tab) => tab.addEventListener("click", () => setWorkspace(tab.dataset.workspace)));
 document.addEventListener("keydown", (event) => {
   if (event.target.matches("input, select, button")) return;
   if (event.code === "Space" && selectedVideo) { event.preventDefault(); playPauseButton.click(); }
@@ -122,3 +145,4 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.SupervisorWorkspace = { openVideo, showLibrary };
+setWorkspace("video");

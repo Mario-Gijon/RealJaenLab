@@ -12,7 +12,6 @@ input/*.mp4
 supervisor/data/library/catalog_v1.json
 supervisor/data/library/uploads/
 supervisor/data/library/videos/
-supervisor/data/reviews/
 
 # Research outputs and temporary artifacts
 research/

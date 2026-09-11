@@ -24,8 +24,7 @@
     return response.json();
   };
   const currentAsset = (asset) => ({
-    // Keep historical review frame/video keys intact for registered legacy
-    // input files. Managed originals use their stable asset id instead.
+    // Legacy input files use their filename; managed originals use their asset id.
     name: asset.storage_type === "legacy_input"
       ? String(asset.relative_path || "").split("/").pop()
       : asset.id,
