@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RealJaenLab - Homography support/generalization diagnostic V4.
+RealJaenLab - Homography world-support and sensitivity diagnostic V5.
 
 Purpose
 -------
@@ -21,24 +21,22 @@ The TEST bottom touchline is NEVER used to solve the baseline homography.
 For transfer experiments, the target frame's TEST line is also NEVER used to
 learn the correction scale. It is used only for evaluation.
 
-V4 keeps the V3 generalization tests and adds a support diagnostic:
-    * single-donor pairwise transfer matrix (frame A -> frame B)
-    * leave-one-frame-out pooled transfer
-    * own-frame optimum only as an upper-bound diagnostic
-    * scale-dispersion analysis
-    * relative-improvement metrics
-    * FIT-point and FIT-line guards
-    * horizontal FIT-support versus TEST coverage analysis
-    * V2 envelope clamping / extrapolation measurements
-    * inside-support versus outside-support TEST errors
-    * a screening-only support hypothesis verdict
-    * optional leave-one-out visualizations
+V5 keeps the V4 diagnostics and adds world-space calibration support:
+    * FIT support spans in field metres
+    * FIT support convex-hull area in canonical field coordinates
+    * TEST-line distance to the FIT support hull
+    * deterministic point-DLT Monte Carlo annotation-noise sensitivity
+    * leave-one-FIT-point-out extrapolation sensitivity
+    * relation between world support / sensitivity and required V2 correction
+    * screening-only mechanism verdicts
+
+This is still diagnostic research. It does not propose a production correction.
 
 This script is research-only. It does not modify reviews, HUMAN calibration,
 FIELD, OBSERVER, Camera Atlas, Camera State, or the web application.
 
 Recommended repository path:
-    supervisor/check_homography_multiframe_v4.py
+    supervisor/check_homography_multiframe_v5.py
 
 Dependencies:
     numpy
@@ -60,7 +58,7 @@ import numpy as np
 LAB_FORMAT = "realjaen.homography-lab"
 LAB_VERSION = 1
 REPORT_FORMAT = "realjaen.homography-multiframe-generalization"
-REPORT_VERSION = 4
+REPORT_VERSION = 5
 
 
 def parse_args() -> argparse.Namespace:
@@ -115,6 +113,18 @@ def parse_args() -> argparse.Namespace:
             "Maximum coefficient of variation of own-frame correction deltas "
             "(scale - 1) for the strongest automatic verdict."
         ),
+    )
+    p.add_argument(
+        "--sensitivity-trials",
+        type=int,
+        default=250,
+        help="Monte Carlo trials for point-annotation sensitivity.",
+    )
+    p.add_argument(
+        "--sensitivity-sigma-px",
+        type=float,
+        default=1.0,
+        help="Gaussian image-point noise sigma used by the sensitivity diagnostic.",
     )
     return p.parse_args()
 
@@ -1394,6 +1404,751 @@ def write_support_csv(
                 }
             )
 
+
+def fit_world_support_points(record: dict[str, Any]) -> np.ndarray:
+    """World-space support vertices from FIT points and FIT-line endpoints."""
+    pts: list[tuple[float, float]] = []
+
+    for constraint in fit_constraints(record["payload"]):
+        ctype = constraint.get("type")
+        world = constraint.get("world") or {}
+
+        if ctype == "point":
+            if "x" in world and "y" in world:
+                pts.append((float(world["x"]), float(world["y"])))
+        elif ctype == "line":
+            start = world.get("start") or {}
+            end = world.get("end") or {}
+            if "x" in start and "y" in start:
+                pts.append((float(start["x"]), float(start["y"])))
+            if "x" in end and "y" in end:
+                pts.append((float(end["x"]), float(end["y"])))
+
+    if not pts:
+        raise ValueError(
+            f"Frame {record['frame']}: no FIT world support vertices."
+        )
+
+    # Unique while preserving deterministic numeric content.
+    unique = sorted(set((float(x), float(y)) for x, y in pts))
+    return np.asarray(unique, dtype=np.float64)
+
+
+def point_fit_correspondences(
+    record: dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray]:
+    world_pts: list[tuple[float, float]] = []
+    image_pts: list[tuple[float, float]] = []
+
+    for constraint in fit_points(record["payload"]):
+        world = constraint["world"]
+        image = constraint["image"]
+        world_pts.append((float(world["x"]), float(world["y"])))
+        image_pts.append((float(image["x"]), float(image["y"])))
+
+    return (
+        np.asarray(world_pts, dtype=np.float64),
+        np.asarray(image_pts, dtype=np.float64),
+    )
+
+
+def convex_hull_2d(points: np.ndarray) -> np.ndarray:
+    pts = sorted(set((float(x), float(y)) for x, y in np.asarray(points)))
+    if len(pts) <= 1:
+        return np.asarray(pts, dtype=np.float64)
+
+    def cross(o, a, b):
+        return (
+            (a[0] - o[0]) * (b[1] - o[1])
+            - (a[1] - o[1]) * (b[0] - o[0])
+        )
+
+    lower = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+
+    upper = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+
+    hull = lower[:-1] + upper[:-1]
+    return np.asarray(hull, dtype=np.float64)
+
+
+def polygon_area(points: np.ndarray) -> float:
+    pts = np.asarray(points, dtype=np.float64)
+    if len(pts) < 3:
+        return 0.0
+    x = pts[:, 0]
+    y = pts[:, 1]
+    return float(
+        0.5
+        * abs(
+            np.dot(x, np.roll(y, -1))
+            - np.dot(y, np.roll(x, -1))
+        )
+    )
+
+
+def point_segment_distance(
+    point: np.ndarray,
+    a: np.ndarray,
+    b: np.ndarray,
+) -> float:
+    p = np.asarray(point, dtype=np.float64)
+    a = np.asarray(a, dtype=np.float64)
+    b = np.asarray(b, dtype=np.float64)
+
+    ab = b - a
+    denom = float(np.dot(ab, ab))
+    if denom < 1e-12:
+        return float(np.linalg.norm(p - a))
+
+    t = float(np.dot(p - a, ab) / denom)
+    t = min(1.0, max(0.0, t))
+    q = a + t * ab
+    return float(np.linalg.norm(p - q))
+
+
+def point_in_convex_polygon(
+    point: np.ndarray,
+    polygon: np.ndarray,
+    tolerance: float = 1e-9,
+) -> bool:
+    poly = np.asarray(polygon, dtype=np.float64)
+    p = np.asarray(point, dtype=np.float64)
+
+    if len(poly) < 3:
+        return False
+
+    signs = []
+    for i in range(len(poly)):
+        a = poly[i]
+        b = poly[(i + 1) % len(poly)]
+        cross = (
+            (b[0] - a[0]) * (p[1] - a[1])
+            - (b[1] - a[1]) * (p[0] - a[0])
+        )
+        if abs(cross) > tolerance:
+            signs.append(np.sign(cross))
+
+    return bool(signs) and (
+        all(s >= 0 for s in signs)
+        or all(s <= 0 for s in signs)
+    )
+
+
+def distance_to_support_hull(
+    point: np.ndarray,
+    hull: np.ndarray,
+) -> float:
+    hull = np.asarray(hull, dtype=np.float64)
+
+    if len(hull) == 0:
+        return float("nan")
+    if len(hull) == 1:
+        return float(np.linalg.norm(point - hull[0]))
+    if len(hull) == 2:
+        return point_segment_distance(point, hull[0], hull[1])
+    if point_in_convex_polygon(point, hull):
+        return 0.0
+
+    return float(
+        min(
+            point_segment_distance(
+                point,
+                hull[i],
+                hull[(i + 1) % len(hull)],
+            )
+            for i in range(len(hull))
+        )
+    )
+
+
+def normalized_dlt_homography(
+    world_points: np.ndarray,
+    image_points: np.ndarray,
+) -> np.ndarray:
+    src = np.asarray(world_points, dtype=np.float64)
+    dst = np.asarray(image_points, dtype=np.float64)
+
+    if src.shape != dst.shape or src.ndim != 2 or src.shape[1] != 2:
+        raise ValueError("DLT points must be Nx2 paired arrays.")
+    if len(src) < 4:
+        raise ValueError("Need at least four points for DLT.")
+
+    def normalize_points(points: np.ndarray):
+        centroid = points.mean(axis=0)
+        centered = points - centroid
+        mean_distance = float(
+            np.mean(np.linalg.norm(centered, axis=1))
+        )
+        if mean_distance < 1e-12:
+            raise ValueError("Degenerate point configuration.")
+        scale = math.sqrt(2.0) / mean_distance
+        T = np.asarray(
+            [
+                [scale, 0.0, -scale * centroid[0]],
+                [0.0, scale, -scale * centroid[1]],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+        ph = np.column_stack(
+            [points, np.ones(len(points), dtype=np.float64)]
+        )
+        normalized_h = (T @ ph.T).T
+        return normalized_h[:, :2], T
+
+    src_n, T_src = normalize_points(src)
+    dst_n, T_dst = normalize_points(dst)
+
+    A = []
+    for (x, y), (u, v) in zip(src_n, dst_n):
+        A.append(
+            [-x, -y, -1.0, 0.0, 0.0, 0.0, u*x, u*y, u]
+        )
+        A.append(
+            [0.0, 0.0, 0.0, -x, -y, -1.0, v*x, v*y, v]
+        )
+
+    A = np.asarray(A, dtype=np.float64)
+    _, _, vt = np.linalg.svd(A)
+    Hn = vt[-1].reshape(3, 3)
+    H = np.linalg.inv(T_dst) @ Hn @ T_src
+
+    if abs(float(H[2, 2])) > 1e-12:
+        H = H / H[2, 2]
+    else:
+        H = H / np.linalg.norm(H)
+
+    if not np.isfinite(H).all():
+        raise ValueError("Non-finite DLT homography.")
+
+    return H
+
+
+def test_world_samples(
+    record: dict[str, Any],
+    count: int = 81,
+) -> np.ndarray:
+    constraint = test_line(
+        record["payload"],
+        "bottom_touchline",
+    )
+    if constraint is None:
+        raise ValueError(
+            f"Frame {record['frame']}: missing TEST bottom_touchline."
+        )
+
+    seg = world_segment(constraint)
+    ts = np.linspace(0.0, 1.0, max(3, int(count)))
+    return (
+        seg[0][None, :] * (1.0 - ts[:, None])
+        + seg[1][None, :] * ts[:, None]
+    )
+
+
+def point_dlt_sensitivity(
+    record: dict[str, Any],
+    trials: int,
+    sigma_px: float,
+) -> dict[str, Any]:
+    world_pts, image_pts = point_fit_correspondences(record)
+
+    if len(world_pts) < 5:
+        return {
+            "status": "insufficient_points",
+            "point_count": int(len(world_pts)),
+        }
+
+    test_world = test_world_samples(record, 81)
+    base_H = normalized_dlt_homography(world_pts, image_pts)
+    base_projection = project(base_H, test_world)
+
+    exported_H = np.asarray(
+        record["payload"]["solve"]["homography"],
+        dtype=np.float64,
+    )
+    exported_projection = project(exported_H, test_world)
+    exported_vs_point_dlt = np.linalg.norm(
+        exported_projection - base_projection,
+        axis=1,
+    )
+
+    rng = np.random.default_rng(20260911 + int(record["frame"]))
+    trial_mean_shift = []
+    trial_max_shift = []
+    trial_y_mean_shift = []
+
+    valid_trials = 0
+    for _ in range(max(1, int(trials))):
+        noisy = image_pts + rng.normal(
+            0.0,
+            float(sigma_px),
+            size=image_pts.shape,
+        )
+        try:
+            H = normalized_dlt_homography(world_pts, noisy)
+            projected = project(H, test_world)
+        except (ValueError, np.linalg.LinAlgError):
+            continue
+
+        if not np.isfinite(projected).all():
+            continue
+
+        movement = np.linalg.norm(
+            projected - base_projection,
+            axis=1,
+        )
+        y_movement = np.abs(
+            projected[:, 1] - base_projection[:, 1]
+        )
+
+        trial_mean_shift.append(float(movement.mean()))
+        trial_max_shift.append(float(movement.max()))
+        trial_y_mean_shift.append(float(y_movement.mean()))
+        valid_trials += 1
+
+    leave_one_out_rows = []
+    if len(world_pts) >= 5:
+        for idx in range(len(world_pts)):
+            keep = np.ones(len(world_pts), dtype=bool)
+            keep[idx] = False
+            try:
+                H = normalized_dlt_homography(
+                    world_pts[keep],
+                    image_pts[keep],
+                )
+                projected = project(H, test_world)
+            except (ValueError, np.linalg.LinAlgError):
+                continue
+
+            if not np.isfinite(projected).all():
+                continue
+
+            movement = np.linalg.norm(
+                projected - base_projection,
+                axis=1,
+            )
+            leave_one_out_rows.append(
+                {
+                    "omitted_index": int(idx),
+                    "mean_test_shift_px": float(movement.mean()),
+                    "max_test_shift_px": float(movement.max()),
+                }
+            )
+
+    def stats(values: list[float]) -> dict[str, Any]:
+        if not values:
+            return {
+                "count": 0,
+                "mean": None,
+                "median": None,
+                "p90": None,
+                "max": None,
+            }
+        arr = np.asarray(values, dtype=np.float64)
+        return {
+            "count": int(len(arr)),
+            "mean": float(arr.mean()),
+            "median": float(np.median(arr)),
+            "p90": float(np.percentile(arr, 90)),
+            "max": float(arr.max()),
+        }
+
+    loo_means = [
+        row["mean_test_shift_px"]
+        for row in leave_one_out_rows
+    ]
+    loo_maxes = [
+        row["max_test_shift_px"]
+        for row in leave_one_out_rows
+    ]
+
+    return {
+        "status": "ok",
+        "point_count": int(len(world_pts)),
+        "noise_sigma_px": float(sigma_px),
+        "requested_trials": int(trials),
+        "valid_trials": int(valid_trials),
+        "test_sample_count": int(len(test_world)),
+        "exported_vs_point_dlt_test_shift": {
+            "mean_px": float(exported_vs_point_dlt.mean()),
+            "p90_px": float(
+                np.percentile(exported_vs_point_dlt, 90)
+            ),
+            "max_px": float(exported_vs_point_dlt.max()),
+        },
+        "monte_carlo_test_shift_px": stats(trial_mean_shift),
+        "monte_carlo_test_max_shift_px": stats(trial_max_shift),
+        "monte_carlo_mean_vertical_shift_px": stats(
+            trial_y_mean_shift
+        ),
+        "annotation_noise_amplification_mean": (
+            None
+            if sigma_px <= 0 or not trial_mean_shift
+            else float(np.mean(trial_mean_shift) / sigma_px)
+        ),
+        "leave_one_fit_point_out": {
+            "rows": leave_one_out_rows,
+            "mean_test_shift_px": stats(loo_means),
+            "max_test_shift_px": stats(loo_maxes),
+        },
+    }
+
+
+def world_support_diagnostic(
+    record: dict[str, Any],
+    trials: int,
+    sigma_px: float,
+) -> dict[str, Any]:
+    support = fit_world_support_points(record)
+    hull = convex_hull_2d(support)
+
+    xs = support[:, 0]
+    ys = support[:, 1]
+
+    pitch = record["payload"].get("pitch") or {}
+    pitch_length = float(pitch.get("length_m", 105.0))
+    pitch_width = float(pitch.get("width_m", 68.0))
+    pitch_area = pitch_length * pitch_width
+    pitch_diagonal = math.hypot(pitch_length, pitch_width)
+
+    hull_area = polygon_area(hull)
+
+    test_world = test_world_samples(record, 101)
+    distances = np.asarray(
+        [
+            distance_to_support_hull(point, hull)
+            for point in test_world
+        ],
+        dtype=np.float64,
+    )
+    inside_fraction = float(
+        np.mean(
+            [
+                point_in_convex_polygon(point, hull)
+                if len(hull) >= 3
+                else False
+                for point in test_world
+            ]
+        )
+    )
+
+    diagnostics = (
+        record["payload"]
+        .get("solve", {})
+        .get("diagnostics", {})
+    )
+
+    sensitivity = point_dlt_sensitivity(
+        record,
+        trials=trials,
+        sigma_px=sigma_px,
+    )
+
+    return {
+        "frame": int(record["frame"]),
+        "fit_support_vertex_count": int(len(support)),
+        "fit_support_hull_vertex_count": int(len(hull)),
+        "fit_world_x_min_m": float(xs.min()),
+        "fit_world_x_max_m": float(xs.max()),
+        "fit_world_x_span_m": float(xs.max() - xs.min()),
+        "fit_world_x_span_ratio": float(
+            (xs.max() - xs.min()) / pitch_length
+        ),
+        "fit_world_y_min_m": float(ys.min()),
+        "fit_world_y_max_m": float(ys.max()),
+        "fit_world_y_span_m": float(ys.max() - ys.min()),
+        "fit_world_y_span_ratio": float(
+            (ys.max() - ys.min()) / pitch_width
+        ),
+        "fit_world_hull_area_m2": float(hull_area),
+        "fit_world_hull_area_ratio": float(
+            hull_area / pitch_area
+        ),
+        "test_world_inside_fit_hull_fraction": inside_fraction,
+        "test_world_distance_to_fit_hull_mean_m": float(
+            distances.mean()
+        ),
+        "test_world_distance_to_fit_hull_median_m": float(
+            np.median(distances)
+        ),
+        "test_world_distance_to_fit_hull_p90_m": float(
+            np.percentile(distances, 90)
+        ),
+        "test_world_distance_to_fit_hull_max_m": float(
+            distances.max()
+        ),
+        "test_world_distance_to_fit_hull_mean_normalized": float(
+            distances.mean() / pitch_diagonal
+        ),
+        "homography_condition": diagnostics.get(
+            "homography_condition"
+        ),
+        "baseline_reprojection_error_px": record[
+            "payload"
+        ]["solve"].get("reprojection_error"),
+        "v2_own_scale": float(
+            optimal_scale(record, "geometry_envelope")
+        ),
+        "v2_own_delta_from_identity": float(
+            optimal_scale(record, "geometry_envelope") - 1.0
+        ),
+        "point_dlt_sensitivity": sensitivity,
+    }
+
+
+def world_support_hypothesis(
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    deltas = [
+        float(row["v2_own_delta_from_identity"])
+        for row in rows
+    ]
+    x_spans = [
+        float(row["fit_world_x_span_ratio"])
+        for row in rows
+    ]
+    hull_ratios = [
+        float(row["fit_world_hull_area_ratio"])
+        for row in rows
+    ]
+    test_distances = [
+        float(row["test_world_distance_to_fit_hull_mean_m"])
+        for row in rows
+    ]
+
+    sensitivity_values = []
+    sensitivity_frames = []
+    for row in rows:
+        sensitivity = row["point_dlt_sensitivity"]
+        amp = sensitivity.get(
+            "annotation_noise_amplification_mean"
+        )
+        if amp is not None:
+            sensitivity_values.append(float(amp))
+            sensitivity_frames.append(int(row["frame"]))
+
+    rho_x_span = spearman_small_sample(x_spans, deltas)
+    rho_hull = spearman_small_sample(hull_ratios, deltas)
+    rho_test_distance = spearman_small_sample(
+        test_distances,
+        deltas,
+    )
+
+    rho_sensitivity = None
+    if len(sensitivity_values) == len(rows):
+        rho_sensitivity = spearman_small_sample(
+            sensitivity_values,
+            deltas,
+        )
+
+    largest_delta = max(
+        rows,
+        key=lambda row: row["v2_own_delta_from_identity"],
+    )
+    smallest_x_support = min(
+        rows,
+        key=lambda row: row["fit_world_x_span_ratio"],
+    )
+    smallest_hull = min(
+        rows,
+        key=lambda row: row["fit_world_hull_area_ratio"],
+    )
+    largest_test_distance = max(
+        rows,
+        key=lambda row: row[
+            "test_world_distance_to_fit_hull_mean_m"
+        ],
+    )
+
+    max_sensitivity_frame = None
+    if sensitivity_values:
+        max_idx = int(np.argmax(sensitivity_values))
+        max_sensitivity_frame = sensitivity_frames[max_idx]
+
+    matches = {
+        "smallest_x_support": (
+            int(smallest_x_support["frame"])
+            == int(largest_delta["frame"])
+        ),
+        "smallest_hull_area": (
+            int(smallest_hull["frame"])
+            == int(largest_delta["frame"])
+        ),
+        "largest_test_distance": (
+            int(largest_test_distance["frame"])
+            == int(largest_delta["frame"])
+        ),
+        "largest_annotation_sensitivity": (
+            max_sensitivity_frame is not None
+            and int(max_sensitivity_frame)
+            == int(largest_delta["frame"])
+        ),
+    }
+
+    support_match_count = sum(bool(v) for v in matches.values())
+
+    if support_match_count >= 3:
+        label = "consistent_with_local_support_instability"
+        reason = (
+            "The frame requiring the largest V2 correction is also extreme "
+            "on most world-support or sensitivity diagnostics. This is "
+            "consistent with unstable extrapolation from locally concentrated "
+            "calibration evidence."
+        )
+    elif support_match_count >= 2:
+        label = "suggestive"
+        reason = (
+            "Several world-support diagnostics point to the V2 outlier, but "
+            "the small sample does not isolate a single mechanism."
+        )
+    else:
+        label = "inconclusive"
+        reason = (
+            "The current world-support and sensitivity diagnostics do not "
+            "consistently identify the frame requiring the largest correction."
+        )
+
+    return {
+        "label": label,
+        "reason": reason,
+        "screening_only": True,
+        "frame_count": len(rows),
+        "largest_v2_delta_frame": int(largest_delta["frame"]),
+        "smallest_x_support_frame": int(
+            smallest_x_support["frame"]
+        ),
+        "smallest_hull_area_frame": int(
+            smallest_hull["frame"]
+        ),
+        "largest_test_distance_frame": int(
+            largest_test_distance["frame"]
+        ),
+        "largest_annotation_sensitivity_frame": (
+            max_sensitivity_frame
+        ),
+        "matches_largest_delta": matches,
+        "support_match_count": int(support_match_count),
+        "spearman_x_support_ratio_vs_v2_delta": rho_x_span,
+        "spearman_hull_area_ratio_vs_v2_delta": rho_hull,
+        "spearman_test_distance_vs_v2_delta": rho_test_distance,
+        "spearman_annotation_sensitivity_vs_v2_delta": (
+            rho_sensitivity
+        ),
+        "warning": (
+            "Four frames are mechanism-screening evidence only. "
+            "Do not turn these diagnostics into production thresholds yet."
+        ),
+    }
+
+
+def write_world_support_csv(
+    path: Path,
+    rows: list[dict[str, Any]],
+) -> None:
+    fields = [
+        "frame",
+        "fit_world_x_span_m",
+        "fit_world_x_span_ratio",
+        "fit_world_y_span_m",
+        "fit_world_y_span_ratio",
+        "fit_world_hull_area_m2",
+        "fit_world_hull_area_ratio",
+        "test_world_inside_fit_hull_fraction",
+        "test_world_distance_to_fit_hull_mean_m",
+        "test_world_distance_to_fit_hull_p90_m",
+        "test_world_distance_to_fit_hull_max_m",
+        "homography_condition",
+        "baseline_reprojection_error_px",
+        "v2_own_scale",
+        "v2_own_delta_from_identity",
+        "annotation_noise_amplification_mean",
+        "mc_mean_test_shift_px",
+        "mc_p90_mean_test_shift_px",
+        "loo_point_mean_test_shift_px",
+        "loo_point_max_test_shift_px",
+    ]
+
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+
+        for row in rows:
+            sensitivity = row["point_dlt_sensitivity"]
+            mc = sensitivity.get(
+                "monte_carlo_test_shift_px",
+                {},
+            )
+            loo = sensitivity.get(
+                "leave_one_fit_point_out",
+                {},
+            ).get(
+                "mean_test_shift_px",
+                {},
+            )
+
+            writer.writerow(
+                {
+                    "frame": row["frame"],
+                    "fit_world_x_span_m": row[
+                        "fit_world_x_span_m"
+                    ],
+                    "fit_world_x_span_ratio": row[
+                        "fit_world_x_span_ratio"
+                    ],
+                    "fit_world_y_span_m": row[
+                        "fit_world_y_span_m"
+                    ],
+                    "fit_world_y_span_ratio": row[
+                        "fit_world_y_span_ratio"
+                    ],
+                    "fit_world_hull_area_m2": row[
+                        "fit_world_hull_area_m2"
+                    ],
+                    "fit_world_hull_area_ratio": row[
+                        "fit_world_hull_area_ratio"
+                    ],
+                    "test_world_inside_fit_hull_fraction": row[
+                        "test_world_inside_fit_hull_fraction"
+                    ],
+                    "test_world_distance_to_fit_hull_mean_m": row[
+                        "test_world_distance_to_fit_hull_mean_m"
+                    ],
+                    "test_world_distance_to_fit_hull_p90_m": row[
+                        "test_world_distance_to_fit_hull_p90_m"
+                    ],
+                    "test_world_distance_to_fit_hull_max_m": row[
+                        "test_world_distance_to_fit_hull_max_m"
+                    ],
+                    "homography_condition": row[
+                        "homography_condition"
+                    ],
+                    "baseline_reprojection_error_px": row[
+                        "baseline_reprojection_error_px"
+                    ],
+                    "v2_own_scale": row["v2_own_scale"],
+                    "v2_own_delta_from_identity": row[
+                        "v2_own_delta_from_identity"
+                    ],
+                    "annotation_noise_amplification_mean": (
+                        sensitivity.get(
+                            "annotation_noise_amplification_mean"
+                        )
+                    ),
+                    "mc_mean_test_shift_px": mc.get("mean"),
+                    "mc_p90_mean_test_shift_px": mc.get("p90"),
+                    "loo_point_mean_test_shift_px": loo.get("mean"),
+                    "loo_point_max_test_shift_px": loo.get("max"),
+                }
+            )
+
 def write_pairwise_csv(
     path: Path,
     v1_rows: list[dict[str, Any]],
@@ -1573,7 +2328,7 @@ def main() -> None:
 
     if len(records) < 3:
         raise ValueError(
-            "V4 support/generalization diagnostic needs at least three experiments "
+            "V5 world-support diagnostic needs at least three experiments "
             "with the requested TEST line."
         )
 
@@ -1643,13 +2398,25 @@ def main() -> None:
         support_rows
     )
 
+    world_support_rows = [
+        world_support_diagnostic(
+            record,
+            trials=args.sensitivity_trials,
+            sigma_px=args.sensitivity_sigma_px,
+        )
+        for record in records
+    ]
+    world_support_screen = world_support_hypothesis(
+        world_support_rows
+    )
+
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     report = {
         "format": REPORT_FORMAT,
         "version": REPORT_VERSION,
-        "experiment_version": "multiframe_v4",
+        "experiment_version": "multiframe_v5",
         "evaluated_frames": [record["frame"] for record in records],
         "test_semantic": args.test_semantic,
         "models": {
@@ -1684,6 +2451,14 @@ def main() -> None:
             "frames": support_rows,
             "hypothesis": support_hypothesis,
         },
+        "world_support_diagnostic": {
+            "frames": world_support_rows,
+            "hypothesis": world_support_screen,
+            "sensitivity": {
+                "trials": args.sensitivity_trials,
+                "sigma_px": args.sensitivity_sigma_px,
+            },
+        },
         "skipped": skipped,
         "interpretation_notes": [
             (
@@ -1709,14 +2484,14 @@ def main() -> None:
         ],
     }
 
-    report_path = output_dir / "report_v4.json"
+    report_path = output_dir / "report_v5.json"
     report_path.write_text(
         json.dumps(report, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    pairwise_csv = output_dir / "pairwise_transfer_v4.csv"
-    loo_csv = output_dir / "leave_one_out_v4.csv"
+    pairwise_csv = output_dir / "pairwise_transfer_v5.csv"
+    loo_csv = output_dir / "leave_one_out_v5.csv"
 
     write_pairwise_csv(
         pairwise_csv,
@@ -1729,10 +2504,16 @@ def main() -> None:
         loo["v2"],
     )
 
-    support_csv = output_dir / "horizontal_support_v4.csv"
+    support_csv = output_dir / "horizontal_support_v5.csv"
     write_support_csv(
         support_csv,
         support_rows,
+    )
+
+    world_support_csv = output_dir / "world_support_v5.csv"
+    write_world_support_csv(
+        world_support_csv,
+        world_support_rows,
     )
 
     if args.video:
@@ -1748,7 +2529,7 @@ def main() -> None:
                 output_dir,
             )
 
-    print("[homography-multiframe-v4]")
+    print("[homography-multiframe-v5]")
     print(f"  evaluated frames: {[record['frame'] for record in records]}")
     if skipped:
         print(f"  skipped inputs: {len(skipped)}")
@@ -1838,6 +2619,73 @@ def main() -> None:
     )
 
     print()
+    print("  world-space FIT support + sensitivity (V5)")
+    for row in world_support_rows:
+        sensitivity = row["point_dlt_sensitivity"]
+        amp = sensitivity.get(
+            "annotation_noise_amplification_mean"
+        )
+        amp_text = "n/a" if amp is None else f"{amp:.2f}x"
+        mc = sensitivity.get(
+            "monte_carlo_test_shift_px",
+            {},
+        )
+        mc_mean = mc.get("mean")
+        mc_text = (
+            "n/a"
+            if mc_mean is None
+            else f"{mc_mean:.2f}px"
+        )
+        loo = sensitivity.get(
+            "leave_one_fit_point_out",
+            {},
+        ).get(
+            "mean_test_shift_px",
+            {},
+        )
+        loo_mean = loo.get("mean")
+        loo_text = (
+            "n/a"
+            if loo_mean is None
+            else f"{loo_mean:.2f}px"
+        )
+        print(
+            f"    frame {row['frame']}: "
+            f"world X={row['fit_world_x_span_m']:.1f}m "
+            f"({100.0 * row['fit_world_x_span_ratio']:.1f}%) | "
+            f"Y={row['fit_world_y_span_m']:.1f}m "
+            f"({100.0 * row['fit_world_y_span_ratio']:.1f}%) | "
+            f"hull={row['fit_world_hull_area_m2']:.1f}m² "
+            f"({100.0 * row['fit_world_hull_area_ratio']:.1f}%) | "
+            f"TEST dist mean/max="
+            f"{row['test_world_distance_to_fit_hull_mean_m']:.1f}/"
+            f"{row['test_world_distance_to_fit_hull_max_m']:.1f}m | "
+            f"noise amp={amp_text} | "
+            f"MC shift={mc_text} | "
+            f"LOO-point shift={loo_text} | "
+            f"V2 scale={row['v2_own_scale']:.5f}"
+        )
+
+    print()
+    print("  world-support hypothesis")
+    print(f"    {world_support_screen['label']}")
+    print(f"      {world_support_screen['reason']}")
+    print(
+        "      largest V2 delta="
+        f"{world_support_screen['largest_v2_delta_frame']} | "
+        "smallest X support="
+        f"{world_support_screen['smallest_x_support_frame']} | "
+        "smallest hull="
+        f"{world_support_screen['smallest_hull_area_frame']} | "
+        "largest TEST distance="
+        f"{world_support_screen['largest_test_distance_frame']} | "
+        "largest sensitivity="
+        f"{world_support_screen['largest_annotation_sensitivity_frame']} | "
+        "matches="
+        f"{world_support_screen['support_match_count']}/4"
+    )
+
+    print()
     print("  screening verdict")
     for model_name in ("v1", "v2"):
         verdict = verdicts[model_name]
@@ -1849,14 +2697,16 @@ def main() -> None:
     print(f"  pairwise csv: {pairwise_csv}")
     print(f"  leave-one-out csv: {loo_csv}")
     print(f"  horizontal support csv: {support_csv}")
+    print(f"  world support csv: {world_support_csv}")
     if args.video:
         print(f"  visuals: {output_dir}/frame_*_loo_v2.jpg")
 
     print()
     print(
-        "  Main question: is the large correction required by outlier frames "
-        "associated with TEST geometry lying horizontally outside FIT support? "
-        "Do not integrate any correction into FIELD from this diagnostic alone."
+        "  Main question: does the large correction required by outlier frames "
+        "coincide with weak world-space FIT support and unstable extrapolation "
+        "under small annotation perturbations? Do not integrate any correction "
+        "into FIELD from this diagnostic alone."
     )
 
 
