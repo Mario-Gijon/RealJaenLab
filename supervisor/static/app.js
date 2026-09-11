@@ -106,7 +106,7 @@ function openVideo(videoInfo) {
   videoEmpty.hidden = false;
   workspaceTitle.textContent = "Cargando vídeo";
   workspaceDescription.textContent = videoInfo.displayName || videoInfo.name;
-  video.src = videoInfo.playbackUrl || `/videos/${encodeURIComponent(videoInfo.name)}`;
+  video.src = videoInfo.playbackUrl;
   video.load();
 }
 

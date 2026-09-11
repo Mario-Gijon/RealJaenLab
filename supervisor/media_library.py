@@ -1,4 +1,4 @@
-"""Small persistent media catalog for the local Supervisor V2 library."""
+"""Persistent media catalog for the local Supervisor video foundation."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from uuid import uuid4
 
 CATALOG_VERSION = 1
 ASSET_KINDS = {"full_match", "first_half", "second_half", "clip", "prematch", "other"}
-STORAGE_TYPES = {"legacy_input", "managed_original", "segment_derived"}
+STORAGE_TYPES = {"local_input", "managed_original"}
 
 
 class MediaLibraryError(ValueError):
@@ -91,7 +91,23 @@ class MediaLibrary:
         for key in ("venues", "matches", "assets"):
             if not isinstance(catalog.get(key), list):
                 raise MediaLibraryError("Media catalog structure is invalid")
+        self._normalize_catalog(catalog)
         return catalog
+
+    def _normalize_catalog(self, catalog: dict[str, Any]) -> None:
+        """Migrate obsolete local-input names without changing user data."""
+
+        changed = False
+        for asset in catalog["assets"]:
+            if not isinstance(asset, dict):
+                raise MediaLibraryError("Media catalog asset is invalid")
+            if asset.get("storage_type") == "legacy_input":
+                asset["storage_type"] = "local_input"
+                changed = True
+            if asset.get("storage_type") not in STORAGE_TYPES:
+                raise MediaLibraryError("Media catalog asset storage type is invalid")
+        if changed:
+            self._write(catalog)
 
     def _write(self, catalog: dict[str, Any]) -> None:
         self.catalog_path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,9 +189,9 @@ class MediaLibrary:
         registered_paths = {
             asset.get("relative_path")
             for asset in catalog["assets"]
-            if asset.get("storage_type") in {"legacy_input", "managed_original"}
+            if asset.get("storage_type") in STORAGE_TYPES
         }
-        legacy_unregistered = []
+        local_unregistered = []
         if self.input_dir.exists():
             for path in sorted(self.input_dir.iterdir()):
                 if not path.is_file() or path.suffix.lower() != ".mp4":
@@ -183,10 +199,10 @@ class MediaLibrary:
                 relative_path = path.resolve().relative_to(self.project_root).as_posix()
                 if relative_path in registered_paths:
                     continue
-                legacy_unregistered.append({
+                local_unregistered.append({
                     "filename": path.name,
                     "display_name": path.stem,
-                    "storage_type": "legacy_input",
+                    "storage_type": "local_input",
                     "relative_path": relative_path,
                     "technical": self.metadata_reader(path),
                 })
@@ -195,7 +211,7 @@ class MediaLibrary:
             "venues": deepcopy(catalog["venues"]),
             "matches": deepcopy(catalog["matches"]),
             "assets": deepcopy(catalog["assets"]),
-            "legacy_unregistered": legacy_unregistered,
+            "local_unregistered": local_unregistered,
         }
 
     def create_venue(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -256,11 +272,11 @@ class MediaLibrary:
         self._save(catalog)
         return deepcopy(match)
 
-    def register_legacy_input(self, data: dict[str, Any]) -> dict[str, Any]:
+    def register_local_input(self, data: dict[str, Any]) -> dict[str, Any]:
         catalog = self.load()
         path, relative_path = self._relative_input_path(data.get("input_filename"))
         if any(
-            asset.get("storage_type") in {"legacy_input", "managed_original"}
+            asset.get("storage_type") in STORAGE_TYPES
             and asset.get("relative_path") == relative_path
             for asset in catalog["assets"]
         ):
@@ -275,11 +291,8 @@ class MediaLibrary:
             "kind": self._validate_kind(data.get("kind")),
             "match_id": match_id,
             "venue_id": venue_id,
-            "storage_type": "legacy_input",
+            "storage_type": "local_input",
             "relative_path": relative_path,
-            "source_asset_id": None,
-            "segment_start_seconds": None,
-            "segment_end_seconds": None,
             "technical": {**self.metadata_reader(path), "file_size_bytes": path.stat().st_size},
             "created_at": now,
             "updated_at": now,
@@ -294,7 +307,7 @@ class MediaLibrary:
         catalog = self.load()
         path, relative_path = self._managed_video_path(data.get("server_filename"))
         if any(
-            asset.get("storage_type") in {"legacy_input", "managed_original"}
+            asset.get("storage_type") in STORAGE_TYPES
             and asset.get("relative_path") == relative_path
             for asset in catalog["assets"]
         ):
@@ -314,9 +327,6 @@ class MediaLibrary:
             "venue_id": venue_id,
             "storage_type": "managed_original",
             "relative_path": relative_path,
-            "source_asset_id": None,
-            "segment_start_seconds": None,
-            "segment_end_seconds": None,
             "technical": deepcopy(technical),
             "original_filename": _optional_text(data.get("original_filename"), "original_filename"),
             "created_at": now,
@@ -339,37 +349,16 @@ class MediaLibrary:
         catalog = self.load()
         return deepcopy(self._find(catalog["assets"], asset_id, "Video asset"))
 
-    def resolve_original_asset_path(self, asset_id: str) -> Path:
-        """Resolve a direct legacy/managed original, never a derived segment."""
-
-        asset = self.get_asset(asset_id)
-        storage_type = asset.get("storage_type")
-        if storage_type == "segment_derived":
-            raise MediaLibraryError("Derived segments do not have an independent video timeline")
-        if storage_type not in {"legacy_input", "managed_original"}:
-            raise MediaLibraryError("Asset storage type is invalid")
-        relative_path = asset.get("relative_path")
-        if not isinstance(relative_path, str):
-            raise MediaLibraryError("Asset path is invalid")
-        root = self.input_dir if storage_type == "legacy_input" else self.managed_videos_dir
-        path = (self.project_root / relative_path).resolve()
-        if path.parent != root or not path.is_file():
-            raise MediaLibraryNotFoundError("Asset video not found")
-        return path
-
     def resolve_asset_path(self, asset_id: str) -> Path:
         catalog = self.load()
         asset = self._find(catalog["assets"], asset_id, "Video asset")
-        visited: set[str] = set()
-        while asset.get("storage_type") == "segment_derived":
-            if asset["id"] in visited:
-                raise MediaLibraryError("Segment source chain is invalid")
-            visited.add(asset["id"])
-            asset = self._find(catalog["assets"], asset.get("source_asset_id"), "Segment source")
         relative_path = asset.get("relative_path")
         if not isinstance(relative_path, str):
             raise MediaLibraryError("Asset path is invalid")
-        root = self.input_dir if asset.get("storage_type") == "legacy_input" else self.managed_videos_dir
+        storage_type = asset.get("storage_type")
+        if storage_type not in STORAGE_TYPES:
+            raise MediaLibraryError("Asset storage type is invalid")
+        root = self.input_dir if storage_type == "local_input" else self.managed_videos_dir
         path = (self.project_root / relative_path).resolve()
         if path.parent != root or not path.is_file():
             raise MediaLibraryNotFoundError("Asset video not found")
@@ -392,36 +381,3 @@ class MediaLibrary:
         asset["updated_at"] = _timestamp()
         self._save(catalog)
         return deepcopy(asset)
-
-    def create_segment(self, asset_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        catalog = self.load()
-        source = self._find(catalog["assets"], asset_id, "Video asset")
-        try:
-            start = float(data.get("segment_start_seconds"))
-            end = float(data.get("segment_end_seconds"))
-        except (TypeError, ValueError) as error:
-            raise MediaLibraryError("segment start and end seconds are required") from error
-        if start < 0 or end <= start:
-            raise MediaLibraryError("segment range must satisfy 0 <= start < end")
-        duration = source.get("technical", {}).get("duration")
-        if duration is not None and end > float(duration):
-            raise MediaLibraryError("segment end exceeds source duration")
-        now = _timestamp()
-        segment = {
-            "id": _identifier("asset"),
-            "display_name": _required_text(data.get("display_name"), "display_name"),
-            "kind": self._validate_kind(data.get("kind", "clip")),
-            "match_id": source.get("match_id"),
-            "venue_id": source.get("venue_id") if source.get("match_id") is None else None,
-            "storage_type": "segment_derived",
-            "relative_path": source.get("relative_path"),
-            "source_asset_id": source["id"],
-            "segment_start_seconds": start,
-            "segment_end_seconds": end,
-            "technical": {},
-            "created_at": now,
-            "updated_at": now,
-        }
-        catalog["assets"].append(segment)
-        self._save(catalog)
-        return deepcopy(segment)

@@ -67,12 +67,6 @@ def read_video_metadata(video_path: Path) -> dict[str, float | int | None]:
         return {"fps": None, "duration": None, "frame_count": None, "width": None, "height": None}
 
 
-def available_videos() -> dict[str, Path]:
-    if not INPUT_DIR.exists():
-        return {}
-    return {path.name: path for path in INPUT_DIR.iterdir() if path.is_file() and path.suffix.lower() == ".mp4"}
-
-
 def media_library() -> MediaLibrary:
     return MediaLibrary(
         catalog_path=LIBRARY_DIR / "catalog_v1.json",
@@ -102,11 +96,6 @@ def media_upload_error(error: MediaUploadError | MediaLibraryError) -> HTTPExcep
     else:
         status = 400
     return HTTPException(status_code=status, detail=str(error))
-
-
-@app.get("/api/videos")
-def list_videos() -> dict[str, list[dict[str, str | float | int | None]]]:
-    return {"videos": [{"name": name, **read_video_metadata(path)} for name, path in sorted(available_videos().items())]}
 
 
 @app.get("/api/library")
@@ -152,7 +141,7 @@ def update_library_match(match_id: str, payload: dict = Body()) -> dict:
 @app.post("/api/library/assets/register")
 def register_library_asset(payload: dict = Body()) -> dict:
     try:
-        return {"asset": media_library().register_legacy_input(payload)}
+        return {"asset": media_library().register_local_input(payload)}
     except MediaLibraryError as error:
         raise media_library_error(error) from error
 
@@ -218,11 +207,3 @@ def serve_library_asset_video(asset_id: str) -> FileResponse:
         return FileResponse(media_library().resolve_asset_path(asset_id), media_type="video/mp4")
     except MediaLibraryError as error:
         raise media_library_error(error) from error
-
-
-@app.api_route("/videos/{filename}", methods=["GET", "HEAD"])
-def serve_legacy_video(filename: str) -> FileResponse:
-    video_path = available_videos().get(filename)
-    if video_path is None:
-        raise HTTPException(status_code=404, detail="Video not found")
-    return FileResponse(video_path, media_type="video/mp4")

@@ -1,4 +1,4 @@
-/* Supervisor V2 library and resumable managed-original importer. */
+/* Supervisor library and resumable managed-original importer. */
 (() => {
   const root = document.querySelector("#library-screen");
   const CHUNK_BYTES = 16 * 1024 * 1024;
@@ -6,7 +6,7 @@
     full_match: "Partido completo", first_half: "1ª Parte", second_half: "2ª Parte",
     clip: "Clip", prematch: "Prepartido", other: "Vídeo",
   };
-  const state = { catalog: null, file: null, upload: null, legacyFilename: null, uploadStartedAt: 0, uploadStartOffset: 0 };
+  const state = { catalog: null, file: null, upload: null, localFilename: null, uploadStartedAt: 0, uploadStartOffset: 0 };
 
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[character]));
   const formatBytes = (bytes) => {
@@ -24,8 +24,8 @@
     return response.json();
   };
   const currentAsset = (asset) => ({
-    // Legacy input files use their filename; managed originals use their asset id.
-    name: asset.storage_type === "legacy_input"
+    // Local input files use their filename; managed originals use their asset id.
+    name: asset.storage_type === "local_input"
       ? String(asset.relative_path || "").split("/").pop()
       : asset.id,
     displayName: asset.display_name,
@@ -33,11 +33,11 @@
     ...(asset.technical || {}),
   });
 
-  function assetsForMatch(matchId) { return state.catalog.assets.filter((asset) => asset.match_id === matchId && asset.storage_type !== "segment_derived"); }
+  function assetsForMatch(matchId) { return state.catalog.assets.filter((asset) => asset.match_id === matchId); }
   function venueForMatch(match) { return state.catalog.venues.find((venue) => venue.id === match.venue_id); }
-  function assetRow(asset, { legacy = false } = {}) {
-    const name = legacy ? asset.display_name : asset.display_name;
-    const action = legacy
+  function assetRow(asset, { local = false } = {}) {
+    const name = asset.display_name;
+    const action = local
       ? `<button class="button button-secondary" data-organize="${escapeHtml(asset.filename)}" type="button">Organizar</button>`
       : `<div class="asset-actions"><button class="button button-secondary" data-open="${escapeHtml(asset.id)}" type="button">Abrir</button><button class="button button-secondary" data-edit="${escapeHtml(asset.id)}" type="button">Editar</button></div>`;
     return `<div class="asset-row"><div><strong>${escapeHtml(name)}</strong><div class="asset-meta">${escapeHtml(KIND_LABELS[asset.kind] || "Vídeo")}</div></div>${action}</div>`;
@@ -51,14 +51,14 @@
       const assets = assetsForMatch(match.id);
       return `<article class="match-card"><h3>${escapeHtml(match.title)}</h3><div class="match-meta">${escapeHtml(venue?.name || match.date || "Sin estadio ni fecha")}</div><div class="match-meta">${assets.length} vídeo${assets.length === 1 ? "" : "s"}</div><div class="match-assets">${assets.map((asset) => assetRow(asset)).join("") || "<span class=\"library-note\">Todavía no hay vídeos.</span>"}</div></article>`;
     }).join("");
-    const unorganized = (catalog.assets || []).filter((asset) => !asset.match_id && asset.storage_type !== "segment_derived");
+    const unorganized = (catalog.assets || []).filter((asset) => !asset.match_id);
     const pending = (state.pendingUploads || []).filter((upload) => upload.status === "uploading");
     root.innerHTML = `<div class="library-shell">
       <header class="library-header"><div><span class="library-kicker">REALJAÉN SUPERVISOR</span><h1 class="library-title">Tus partidos</h1></div><button class="button button-primary" id="import-video" type="button">+ Importar vídeo</button></header>
       ${pending.length ? `<section class="library-section"><div class="library-empty">Hay una subida pendiente: ${escapeHtml(pending[0].original_filename)} · ${Math.round((pending[0].next_offset / pending[0].total_size_bytes) * 100)}% <button class="button button-secondary" data-resume="${escapeHtml(pending[0].upload_id)}" type="button">Seleccionar archivo para continuar</button> <button class="button button-secondary" data-cancel-upload="${escapeHtml(pending[0].upload_id)}" type="button">Cancelar subida</button></div></section>` : ""}
       <section class="library-section">${matches.length ? `<div class="match-grid">${organized}</div>` : `<div class="library-empty">Todavía no hay partidos.<br><br><button class="button button-primary" id="import-empty" type="button">Importar vídeo</button></div>`}</section>
       ${unorganized.length ? `<section class="library-section"><h2>Sin organizar</h2><div class="asset-list">${unorganized.map((asset) => assetRow(asset)).join("")}</div></section>` : ""}
-      ${(catalog.legacy_unregistered || []).length ? `<section class="library-section"><h2>Vídeos antiguos sin organizar</h2><div class="asset-list">${catalog.legacy_unregistered.map((asset) => assetRow(asset, { legacy: true })).join("")}</div></section>` : ""}
+      ${(catalog.local_unregistered || []).length ? `<section class="library-section"><h2>Vídeos locales sin organizar</h2><div class="asset-list">${catalog.local_unregistered.map((asset) => assetRow(asset, { local: true })).join("")}</div></section>` : ""}
     </div>`;
     root.querySelector("#import-video")?.addEventListener("click", () => openImport());
     root.querySelector("#import-empty")?.addEventListener("click", () => openImport());
@@ -84,18 +84,18 @@
   function options(items, label) { return `<option value="">${label}</option>${items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.title || item.name)}</option>`).join("")}`; }
   function dialogHtml() {
     const catalog = state.catalog;
-    const legacy = Boolean(state.legacyFilename);
+    const local = Boolean(state.localFilename);
     return `<div class="library-modal" role="dialog" aria-modal="true" aria-labelledby="import-title"><div class="import-dialog">
-      <div class="import-dialog-header"><h2 id="import-title">${legacy ? "Organizar vídeo antiguo" : "Importar vídeo"}</h2><button class="import-close" id="import-close" type="button" aria-label="Cerrar">×</button></div>
-      ${legacy ? `<div class="library-note">${escapeHtml(state.legacyFilename)} · el archivo original no se moverá.</div>` : `<div class="drop-zone" id="drop-zone"><div><strong>Arrastra aquí tu vídeo</strong><p>o</p><button class="button button-secondary" id="choose-file" type="button">Seleccionar archivo</button><input id="file-input" type="file" accept="video/mp4" /></div></div><div class="library-note" id="file-info">Solo MP4 · Original · sin pérdida de calidad</div>`}
-      <form class="import-form" id="import-form"><label>Nombre<input id="asset-name" required value="${escapeHtml(legacy ? state.legacyFilename.replace(/\.mp4$/i, "") : "")}" /></label><label>Tipo<select id="asset-kind">${Object.entries(KIND_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label>
+      <div class="import-dialog-header"><h2 id="import-title">${local ? "Organizar vídeo local" : "Importar vídeo"}</h2><button class="import-close" id="import-close" type="button" aria-label="Cerrar">×</button></div>
+      ${local ? `<div class="library-note">${escapeHtml(state.localFilename)} · el archivo original no se moverá.</div>` : `<div class="drop-zone" id="drop-zone"><div><strong>Arrastra aquí tu vídeo</strong><p>o</p><button class="button button-secondary" id="choose-file" type="button">Seleccionar archivo</button><input id="file-input" type="file" accept="video/mp4" /></div></div><div class="library-note" id="file-info">Solo MP4 · Original · sin pérdida de calidad</div>`}
+      <form class="import-form" id="import-form"><label>Nombre<input id="asset-name" required value="${escapeHtml(local ? state.localFilename.replace(/\.mp4$/i, "") : "")}" /></label><label>Tipo<select id="asset-kind">${Object.entries(KIND_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join("")}</select></label>
       <label>Partido<select id="match-select">${options(catalog.matches, "Sin organizar")}</select></label><button class="button button-secondary" id="new-match-toggle" type="button">+ Crear nuevo partido</button>
       <div class="import-inline" id="new-match" hidden><label>Partido<input id="match-title" /></label><label>Fecha <input id="match-date" type="date" /></label><label>Estadio<select id="venue-select">${options(catalog.venues, "Sin estadio")}</select></label><button class="button button-secondary" id="new-venue-toggle" type="button">+ Crear estadio</button><div id="new-venue" hidden><label>Nombre del estadio<input id="venue-name" /></label></div></div>
-      <div class="import-error" id="import-error" hidden></div><div class="upload-progress" id="upload-progress" hidden></div><div class="import-actions"><button class="button button-secondary" id="cancel-import" type="button">Cancelar</button><button class="button button-primary" id="submit-import" type="submit">${legacy ? "Organizar vídeo" : "Subir vídeo"}</button></div></form>
+      <div class="import-error" id="import-error" hidden></div><div class="upload-progress" id="upload-progress" hidden></div><div class="import-actions"><button class="button button-secondary" id="cancel-import" type="button">Cancelar</button><button class="button button-primary" id="submit-import" type="submit">${local ? "Organizar vídeo" : "Subir vídeo"}</button></div></form>
     </div></div>`;
   }
-  function openImport(legacyFilename = null) {
-    state.file = null; state.upload = null; state.resumeExisting = false; state.legacyFilename = legacyFilename;
+  function openImport(localFilename = null) {
+    state.file = null; state.upload = null; state.resumeExisting = false; state.localFilename = localFilename;
     document.body.insertAdjacentHTML("beforeend", dialogHtml());
     const modal = document.body.lastElementChild; const close = () => modal.remove();
     const input = modal.querySelector("#file-input"); const info = modal.querySelector("#file-info"); const zone = modal.querySelector("#drop-zone");
@@ -176,8 +176,8 @@
       }
       const relationships = await relationshipPayload(modal); const name = modal.querySelector("#asset-name").value.trim(); const kind = modal.querySelector("#asset-kind").value;
       if (!name) throw new Error("Indica un nombre para el vídeo.");
-      if (state.legacyFilename) {
-        await api("/api/library/assets/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input_filename: state.legacyFilename, display_name: name, kind, ...relationships }) });
+      if (state.localFilename) {
+        await api("/api/library/assets/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input_filename: state.localFilename, display_name: name, kind, ...relationships }) });
         close(); await refresh(); return;
       }
       if (!state.file) throw new Error("Selecciona un archivo MP4.");
@@ -199,7 +199,7 @@
     } catch (error) { try { state.upload = await api(`/api/library/uploads/${encodeURIComponent(state.upload.upload_id)}`); } catch { /* server session may be unavailable */ } progress(modal, state.upload); setError(modal, "Se ha interrumpido la conexión."); const resume = document.createElement("button"); resume.className = "button button-primary"; resume.type = "button"; resume.textContent = "Reanudar"; resume.addEventListener("click", () => uploadSequential(modal, close)); modal.querySelector("#upload-progress").append(resume); }
   }
   async function openPending(uploadId) {
-    state.legacyFilename = null; openImport(); const modal = document.body.lastElementChild; const session = await api(`/api/library/uploads/${encodeURIComponent(uploadId)}`); state.upload = session;
+    state.localFilename = null; openImport(); const modal = document.body.lastElementChild; const session = await api(`/api/library/uploads/${encodeURIComponent(uploadId)}`); state.upload = session;
     state.resumeExisting = true;
     modal.querySelector("#asset-name").value = session.display_name || "";
     modal.querySelector("#asset-kind").value = session.kind || "other";
