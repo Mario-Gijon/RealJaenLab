@@ -1,26 +1,34 @@
+# Python and local environments
 .venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-datasets/
-experiments/
-weights/
-outputs/
-logs/
-
+# Local media and runtime catalog/upload data
 input/*.mp4
+supervisor/data/library/catalog_v1.json
 supervisor/data/library/uploads/
 supervisor/data/library/videos/
-supervisor/data/library/catalog_v1.json
-supervisor/data/reviews/asset_*.json
-supervisor/data/reviews/*_view_diversity/
-supervisor/data/reviews/*_view_diversity_v1/
-supervisor/data/reviews/*_view_diversity_v2/
+supervisor/data/reviews/
 
+# Research outputs and temporary artifacts
+research/
+outputs/
+experiments/
+datasets/
+weights/
+logs/
 *.zip
+*.tmp
+*.part
 
+# Local configuration and editor files
 .env
 .env.*
-yolo26x.pt
-/yolo26x.pt
-/external/sn-gamestate/
+.DS_Store
+.idea/
+.vscode/
+*~

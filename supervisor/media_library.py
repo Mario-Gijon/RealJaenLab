@@ -37,18 +37,6 @@ def _identifier(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex}"
 
 
-def _optional_positive(value: Any, field: str) -> float | None:
-    if value is None:
-        return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError) as error:
-        raise MediaLibraryError(f"{field} must be a positive number") from error
-    if number <= 0:
-        raise MediaLibraryError(f"{field} must be a positive number")
-    return number
-
-
 def _required_text(value: Any, field: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise MediaLibraryError(f"{field} is required")
@@ -216,8 +204,6 @@ class MediaLibrary:
         venue = {
             "id": _identifier("venue"),
             "name": _required_text(data.get("name"), "name"),
-            "pitch_length_m": _optional_positive(data.get("pitch_length_m"), "pitch_length_m"),
-            "pitch_width_m": _optional_positive(data.get("pitch_width_m"), "pitch_width_m"),
             "created_at": now,
             "updated_at": now,
         }
@@ -230,9 +216,6 @@ class MediaLibrary:
         venue = self._find(catalog["venues"], venue_id, "Venue")
         if "name" in data:
             venue["name"] = _required_text(data["name"], "name")
-        for field in ("pitch_length_m", "pitch_width_m"):
-            if field in data:
-                venue[field] = _optional_positive(data[field], field)
         venue["updated_at"] = _timestamp()
         self._save(catalog)
         return deepcopy(venue)

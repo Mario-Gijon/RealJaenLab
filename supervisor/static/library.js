@@ -9,7 +9,7 @@
   const state = { catalog: null, file: null, upload: null, legacyFilename: null, uploadStartedAt: 0, uploadStartOffset: 0 };
 
   const escapeHtml = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[character]));
-  const humanBytes = (bytes) => {
+  const formatBytes = (bytes) => {
     const units = ["B", "KB", "MB", "GB", "TB"]; let value = Number(bytes) || 0; let unit = 0;
     while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
     return `${value >= 10 || unit === 0 ? value.toFixed(0) : value.toFixed(2)} ${units[unit]}`;
@@ -105,7 +105,7 @@
     modal.querySelector("#import-close").addEventListener("click", close); modal.querySelector("#cancel-import").addEventListener("click", close);
     modal.querySelector("#new-match-toggle").addEventListener("click", () => { modal.querySelector("#new-match").hidden = !modal.querySelector("#new-match").hidden; });
     modal.querySelector("#new-venue-toggle").addEventListener("click", () => { modal.querySelector("#new-venue").hidden = !modal.querySelector("#new-venue").hidden; });
-    const selectFile = (file) => { if (!file) return; if (!file.name.toLowerCase().endsWith(".mp4")) return setError(modal, "Selecciona un archivo MP4."); state.file = file; info.textContent = `${file.name} · ${humanBytes(file.size)} · Original · sin pérdida de calidad`; modal.querySelector("#asset-name").value ||= file.name.replace(/\.mp4$/i, ""); };
+    const selectFile = (file) => { if (!file) return; if (!file.name.toLowerCase().endsWith(".mp4")) return setError(modal, "Selecciona un archivo MP4."); state.file = file; info.textContent = `${file.name} · ${formatBytes(file.size)} · Original · sin pérdida de calidad`; modal.querySelector("#asset-name").value ||= file.name.replace(/\.mp4$/i, ""); };
     input?.addEventListener("change", () => selectFile(input.files[0]));
     ["dragenter", "dragover"].forEach((name) => zone?.addEventListener(name, (event) => { event.preventDefault(); zone.classList.add("is-dragging"); }));
     ["dragleave", "drop"].forEach((name) => zone?.addEventListener(name, (event) => { event.preventDefault(); zone.classList.remove("is-dragging"); }));
@@ -163,7 +163,7 @@
   }
   function progress(modal, session) {
     const transferred = Number(session.next_offset || 0); const total = Number(session.total_size_bytes || 1); const elapsed = Math.max((Date.now() - state.uploadStartedAt) / 1000, .1); const rate = Math.max(0, (transferred - state.uploadStartOffset) / elapsed); const remaining = rate ? Math.ceil((total - transferred) / rate) : null;
-    const node = modal.querySelector("#upload-progress"); node.hidden = false; node.innerHTML = `<strong>Subiendo vídeo…</strong><span>${humanBytes(transferred)} / ${humanBytes(total)} · ${Math.round((transferred / total) * 100)}%</span><div class="upload-meter"><span style="width:${(transferred / total) * 100}%"></span></div><span class="upload-copy">${rate ? `${humanBytes(rate)}/s${remaining ? ` · unos ${remaining}s restantes` : ""}` : "Preparando subida…"}</span><span class="upload-copy">Original · sin pérdida de calidad</span><button class="button button-secondary" id="cancel-upload-now" type="button">Cancelar</button>`;
+    const node = modal.querySelector("#upload-progress"); node.hidden = false; node.innerHTML = `<strong>Subiendo vídeo…</strong><span>${formatBytes(transferred)} / ${formatBytes(total)} · ${Math.round((transferred / total) * 100)}%</span><div class="upload-meter"><span style="width:${(transferred / total) * 100}%"></span></div><span class="upload-copy">${rate ? `${formatBytes(rate)}/s${remaining ? ` · unos ${remaining}s restantes` : ""}` : "Preparando subida…"}</span><span class="upload-copy">Original · sin pérdida de calidad</span><button class="button button-secondary" id="cancel-upload-now" type="button">Cancelar</button>`;
     node.querySelector("#cancel-upload-now").addEventListener("click", () => cancelUpload(state.upload.upload_id, modal));
   }
   async function submitImport(modal, close) {

@@ -1,38 +1,27 @@
 # RealJaenLab
 
-RealJaenLab is a football-computer-vision research repository. It contains
-early detector/dataset experiments and a newer FIELD / CAMERA workflow for
-describing football-camera views with a canonical pitch.
+RealJaenLab is a clean internal development application for football-video research.
 
-The current development direction is:
+All previous football-analysis research has been removed from the active tree. Development is restarting from zero; Git history remains the archive for earlier work.
 
-```text
-canonical field -> HUMAN anchors -> FIELD visibility
-                -> OBSERVER descriptors -> Camera Atlas
-```
+Only **VIDEO FOUNDATION** exists today:
 
-The reproducible FIELD SPACE / OBSERVER V1 diagnostic is documented in
-[docs/field-observer-baseline.md](docs/field-observer-baseline.md). It names
-the exact benchmark clips, HUMAN calibration provenance, intermediate JSON
-artifacts, and commands for regenerating the pitch-space figures.
+- local media library and match/video management;
+- lossless MP4 uploads and registration of local input videos;
+- video playback, seeking, and frame-by-frame navigation.
 
-## Repository areas
+The intended future order is:
 
-- `supervisor/`: FIELD geometry, calibration, Camera Atlas, Observer code, and
-  the web supervisor.
-- `supervisor/data/reviews/`: saved benchmark reviews and diagnostic artifacts.
-- `input/`: local benchmark videos; these are ignored by Git.
-- `scripts/`: earlier dataset, detector, and camera-state experiments.
-- `docs/`: repository and experiment documentation.
+`VIDEO FOUNDATION → FIELD → PEOPLE → POSITION → ROLE → ANALYTICS`
 
-Propagation, refinement, previous camera-state approaches, and active-anchor
-selectors are retained as experimental/legacy research. They are not the next
-feature to implement. The planned next step is to use FIELD / OBSERVER
-descriptors to identify camera-view regions insufficiently represented by
-HUMAN anchors, then design representative-frame recommendations.
+No FIELD, PEOPLE, POSITION, ROLE, or ANALYTICS implementation currently exists.
 
-The project uses a local `.venv` when available:
+## Run locally
+
+Install the dependencies from `supervisor/requirements.txt`, then run:
 
 ```bash
-source .venv/bin/activate
+uvicorn supervisor.app:app --reload
 ```
+
+Open the local URL printed by Uvicorn and import or organize an MP4 from the media library.

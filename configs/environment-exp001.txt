@@ -1,8 +1,0 @@
-Python: 3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]
-Platform: Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
-RF-DETR: 1.8.3
-PyTorch: 2.13.0+cu130
-CUDA runtime: 13.0
-CUDA available: True
-GPU: NVIDIA GeForce RTX 4070 SUPER
-VRAM GB: 11.994

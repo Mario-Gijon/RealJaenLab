@@ -6,174 +6,25 @@
     <title>RealJaen Supervisor</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
+  <body class="is-library">
     <section class="library-screen" id="library-screen" aria-label="Biblioteca de vídeos"></section>
     <main class="supervisor-shell">
       <header class="topbar">
-        <div class="brand">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span>REALJAEN SUPERVISOR</span>
-        </div>
-
-        <nav class="mode-tabs" aria-label="Modo de trabajo">
-          <button class="mode-tab is-active" type="button" data-mode="video">VIDEO</button>
-          <button class="mode-tab" type="button" data-mode="preview">PREVIEW</button>
-          <button class="mode-tab" type="button" data-mode="guided">CALIBRACIÓN</button>
-          <button class="mode-tab mode-tab-lab" type="button" data-mode="homography-lab">PRUEBA HOMOGRAFÍA</button>
-        </nav>
-
-        <div class="actions">
-          <button class="button button-secondary" id="back-to-library" type="button">← Biblioteca</button>
-          <button class="button button-secondary debug-toggle" id="debug-toggle" type="button" aria-pressed="false">Depuración</button>
-          <span class="save-status" id="save-status" role="status">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span id="save-status-label">SIN GUARDAR</span>
-          </span>
-          <button class="button button-secondary" id="undo-button" type="button">Deshacer</button>
-          <button class="button button-primary" type="button" id="save-button">Guardar</button>
-        </div>
+        <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>REALJAÉN SUPERVISOR</span></div>
+        <div class="workspace-title"><span>VIDEO FOUNDATION</span><strong id="video-name">Sin vídeo seleccionado</strong></div>
+        <button class="button button-secondary" id="back-to-library" type="button">← Biblioteca</button>
       </header>
-
-      <section class="workspace" aria-label="Área de vídeo">
-        <div class="work-area">
-          <div class="video-stage" id="video-stage">
-            <video id="video" class="video" playsinline preload="metadata"></video>
-            <canvas id="video-overlay" class="video-overlay" aria-hidden="true"></canvas>
-            <span class="preview-provenance" id="preview-provenance" hidden></span>
-          </div>
-          <div class="work-area-message" id="workspace-message">
-            <span class="work-area-kicker" id="mode-label">MODO VÍDEO</span>
-            <h1 id="workspace-title">Área de vídeo</h1>
-            <p id="workspace-description">Selecciona un vídeo para empezar.</p>
-          </div>
-          <div class="calibration-panel" id="calibration-panel" hidden>
-            <div class="calibration-panel-header" id="calibration-panel-header">
-              <span class="calibration-heading" id="calibration-heading">REFERENCIA 105 × 68 M</span>
-              <button class="calibration-panel-toggle" id="calibration-panel-toggle" type="button" title="Mover el panel a la otra esquina" aria-label="Mover el panel a la otra esquina">⇆</button>
-            </div>
-            <div class="calibration-panel-content">
-              <div class="calibration-reference">
-                <span class="calibration-hint" id="calibration-hint">Elige un punto en este diagrama y después haz clic en el mismo punto del vídeo.</span>
-                <svg id="calibration-pitch" role="img" aria-label="Diagrama canónico del campo para seleccionar referencias">
-                  <g id="calibration-pitch-geometry"></g>
-                  <g id="calibration-pitch-lines"></g>
-                  <g id="calibration-pitch-arcs"></g>
-                  <g id="calibration-pitch-markers"></g>
-                  <text id="pitch-diagram-top-label" text-anchor="middle" class="pitch-diagram-direction">ARRIBA (DIAGRAMA)</text>
-                  <text id="pitch-diagram-left-label" text-anchor="start" class="pitch-diagram-direction">IZQUIERDA</text>
-                  <text id="pitch-diagram-right-label" text-anchor="end" class="pitch-diagram-direction">DERECHA</text>
-                </svg>
-              </div>
-              <div class="calibration-actions">
-                <span id="calibration-status">0 puntos / mínimo 4</span>
-                <span class="calibration-solver-loading" id="calibration-solver-loading" hidden><span class="calibration-spinner" aria-hidden="true"></span>Resolviendo calibración…</span>
-                <label for="calibration-constraint-type">Tipo de referencia</label>
-                <select id="calibration-constraint-type">
-                  <option value="point">Punto</option>
-                  <option value="line">Línea</option>
-                  <option value="arc">Arco</option>
-                </select>
-                <label for="calibration-landmark">Selector alternativo</label>
-                <select id="calibration-landmark"></select>
-                <button class="lab-reference-role-control" id="lab-reference-role-control" type="button" hidden></button>
-                <button class="field-tool" id="remove-calibration-point" type="button">Eliminar punto</button>
-                <button class="field-tool" id="clear-calibration" type="button">Limpiar calibración</button>
-                <div class="lab-export-controls" aria-label="Artefacto de investigación">
-                  <button class="field-tool" id="export-homography-lab" type="button">Exportar experimento</button>
-                  <button class="field-tool" id="import-homography-lab" type="button">Importar experimento</button>
-                  <input id="import-homography-lab-file" type="file" accept="application/json,.json" hidden />
-                  <span class="lab-export-message" id="lab-export-message" role="status"></span>
-                </div>
-                <span class="guided-frame-progress" id="guided-frame-progress" hidden></span>
-                <button class="field-tool calibration-action" id="guided-confirm-continue" type="button" hidden>Guardar medición y continuar</button>
-                <button class="field-tool" id="reject-pitch-setup-measurement" type="button" hidden>No hay más geometría visible</button>
-                <button class="field-tool" id="exit-calibration" type="button">Listo</button>
-              </div>
-            </div>
-          </div>
-          <aside class="homography-lab-panel" id="homography-lab-panel" hidden aria-label="Prueba de homografía">
-            <div class="lab-panel-header">
-              <div>
-                <span class="lab-kicker">HOMOGRAPHY LAB</span>
-                <h2>Prueba homografía</h2>
-              </div>
-              <span class="lab-badge">AISLADO</span>
-            </div>
-            <p class="lab-intro">Espacio de investigación. No modifica HUMAN, FIELD ni la revisión.</p>
-            <section class="lab-section">
-              <label for="lab-model-selector">MODELO</label>
-              <select id="lab-model-selector">
-                <option>Homografía actual</option>
-                <option disabled>Cámara física experimental</option>
-                <option disabled>Cámara física + dimensiones</option>
-                <option disabled>Cámara física multiframe</option>
-                <option disabled>Cámara + distorsión</option>
-              </select>
-            </section>
-            <section class="lab-section lab-tools">
-              <span class="lab-section-title">EDITOR EXPERIMENTAL</span>
-              <label for="lab-constraint-type">Tipo de referencia</label>
-              <select id="lab-constraint-type">
-                <option value="point">Punto</option>
-                <option value="line">Línea</option>
-                <option value="arc">Arco</option>
-              </select>
-              <label for="lab-landmark">Referencia semántica</label>
-              <select id="lab-landmark"></select>
-              <div class="lab-tool-actions">
-                <button class="button button-secondary" id="lab-clear" type="button">Limpiar experimento</button>
-                <button class="button button-secondary" id="lab-delete" type="button" disabled>Eliminar seleccionada</button>
-                <button class="button button-secondary" id="lab-import-human" type="button" hidden>Importar HUMAN de este frame</button>
-              </div>
-              <span class="lab-tool-hint">Selecciona una referencia y marca el mismo punto o tramo en el vídeo.</span>
-              <strong class="lab-solve-status" id="lab-solve-status">Sin referencias experimentales</strong>
-            </section>
-            <section class="lab-section lab-diagnostics">
-              <span class="lab-section-title">BASELINE HOMOGRAFÍA</span>
-              <div class="lab-metric-row"><span>Fotograma</span><strong id="lab-frame">—</strong></div>
-              <div class="lab-metric-row"><span>Referencias FIT</span><strong id="lab-fit-count">—</strong></div>
-              <div class="lab-metric-row"><span>Reproyección FIT</span><strong id="lab-fit-error">—</strong></div>
-              <div class="lab-metric-row"><span>Referencias TEST</span><strong id="lab-test-count">0</strong></div>
-              <div class="lab-metric-row"><span>Error TEST</span><strong id="lab-test-error">Pendiente</strong></div>
-            </section>
-            <section class="lab-section">
-              <span class="lab-section-title">TERRENO ACTIVO</span>
-              <p class="lab-pitch-dimensions" id="lab-pitch-dimensions">—</p>
-              <p class="lab-readonly-note">Dimensiones experimentales: próximamente</p>
-            </section>
-            <section class="lab-section">
-              <span class="lab-section-title">REFERENCIAS DE ESTE FRAME</span>
-              <div class="lab-constraints" id="lab-constraints"></div>
-            </section>
-            <div class="lab-empty-state" id="lab-empty-state" hidden>
-              <strong>No hay una calibración HUMAN resuelta en este fotograma.</strong>
-              <span>Ve a CALIBRACIÓN para crear una HUMAN. El laboratorio no la crea automáticamente.</span>
-              <button class="button button-secondary" id="lab-open-calibration" type="button">Ir a CALIBRACIÓN</button>
-            </div>
-          </aside>
+      <section class="workspace" aria-label="Reproductor de vídeo">
+        <div class="video-stage" id="video-stage">
+          <video id="video" class="video" playsinline preload="metadata"></video>
+          <div class="video-empty" id="video-empty"><span>VIDEO FOUNDATION</span><strong id="workspace-title">Selecciona un vídeo</strong><p id="workspace-description">Abre un partido desde la biblioteca para reproducirlo y navegar por fotogramas.</p></div>
         </div>
-        <aside class="guided-workflow-panel" id="guided-workflow-panel" hidden aria-label="Calibración del campo">
-          <span class="guided-workflow-heading">CALIBRACIÓN DEL CAMPO</span>
-          <div class="guided-workflow-progress" id="guided-workflow-progress" aria-label="Progreso de calibración"></div>
-          <span class="guided-workflow-step" id="guided-workflow-step">Paso 1 de 6</span>
-          <strong class="guided-workflow-title" id="guided-workflow-title">Preparar terreno</strong>
-          <p class="guided-workflow-description" id="guided-workflow-description">Antes de analizar la cámara necesitamos definir y confirmar el terreno de juego.</p>
-          <div class="guided-workflow-content" id="guided-workflow-content"></div>
-          <div class="guided-workflow-actions">
-            <button class="button button-primary" id="scan-video" type="button">Comenzar</button>
-            <button class="button button-primary" id="begin-guided-calibration" type="button" hidden>Confirmar terreno</button>
-            <button class="button button-primary" id="begin-match-setup" type="button" hidden>Calibrar vistas</button>
-            <button class="button button-primary" id="complete-camera" type="button" hidden>Construir calibración</button>
-            <button class="button button-primary" id="camera-workflow-action" type="button" hidden></button>
-            <button class="button button-secondary" id="view-camera-result" type="button" hidden>Revisar resultado</button>
-            <button class="button button-secondary" id="open-manual-calibration" type="button" hidden>Continuar medición</button>
-            <button class="button button-secondary" id="create-active-anchor" type="button" hidden>Crear HUMAN aquí</button>
-            <button class="button button-secondary" id="guided-context" type="button" hidden></button>
-            <button class="button button-secondary" id="guided-skip" type="button" hidden></button>
-          </div>
+        <aside class="video-info" id="video-info" hidden>
+          <span>VÍDEO ACTIVO</span>
+          <strong id="video-info-name"></strong>
+          <small id="video-info-meta"></small>
         </aside>
       </section>
-
       <footer class="controls" aria-label="Controles de vídeo">
         <div class="transport-controls">
           <button class="icon-button" id="previous-frame" type="button" aria-label="Fotograma anterior" disabled>|&lt;</button>
@@ -190,8 +41,6 @@
         </div>
       </footer>
     </main>
-
-    <script src="/static/pitch.js"></script>
     <script src="/static/app.js"></script>
     <script src="/static/library.js"></script>
   </body>
