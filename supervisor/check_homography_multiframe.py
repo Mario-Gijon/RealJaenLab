@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-RealJaenLab - Homography multi-frame generalization diagnostic V3.
+RealJaenLab - Homography support/generalization diagnostic V4.
 
 Purpose
 -------
@@ -21,21 +21,24 @@ The TEST bottom touchline is NEVER used to solve the baseline homography.
 For transfer experiments, the target frame's TEST line is also NEVER used to
 learn the correction scale. It is used only for evaluation.
 
-V3 adds to the previous multi-frame diagnostic:
+V4 keeps the V3 generalization tests and adds a support diagnostic:
     * single-donor pairwise transfer matrix (frame A -> frame B)
     * leave-one-frame-out pooled transfer
     * own-frame optimum only as an upper-bound diagnostic
     * scale-dispersion analysis
     * relative-improvement metrics
     * FIT-point and FIT-line guards
-    * automatic screening verdict: promising / mixed / not_generalizing
+    * horizontal FIT-support versus TEST coverage analysis
+    * V2 envelope clamping / extrapolation measurements
+    * inside-support versus outside-support TEST errors
+    * a screening-only support hypothesis verdict
     * optional leave-one-out visualizations
 
 This script is research-only. It does not modify reviews, HUMAN calibration,
 FIELD, OBSERVER, Camera Atlas, Camera State, or the web application.
 
 Recommended repository path:
-    supervisor/check_homography_multiframe_v3.py
+    supervisor/check_homography_multiframe_v4.py
 
 Dependencies:
     numpy
@@ -57,7 +60,7 @@ import numpy as np
 LAB_FORMAT = "realjaen.homography-lab"
 LAB_VERSION = 1
 REPORT_FORMAT = "realjaen.homography-multiframe-generalization"
-REPORT_VERSION = 3
+REPORT_VERSION = 4
 
 
 def parse_args() -> argparse.Namespace:
@@ -991,6 +994,406 @@ def compact_frame_record(
     }
 
 
+
+def raw_fit_support_x(record: dict[str, Any]) -> tuple[float, float]:
+    """Horizontal image support directly observed by FIT points/line endpoints."""
+    xs: list[float] = []
+
+    for constraint in fit_constraints(record["payload"]):
+        ctype = constraint.get("type")
+        image = constraint.get("image") or {}
+
+        if ctype == "point" and "x" in image:
+            xs.append(float(image["x"]))
+        elif ctype == "line":
+            start = image.get("start") or {}
+            end = image.get("end") or {}
+            if "x" in start:
+                xs.append(float(start["x"]))
+            if "x" in end:
+                xs.append(float(end["x"]))
+
+    if not xs:
+        raise ValueError(
+            f"Frame {record['frame']}: no horizontal FIT support could be measured."
+        )
+
+    return float(min(xs)), float(max(xs))
+
+
+def error_stats(values: np.ndarray) -> dict[str, Any]:
+    values = np.asarray(values, dtype=np.float64)
+    if values.size == 0:
+        return {
+            "count": 0,
+            "mean_abs_px": None,
+            "median_abs_px": None,
+            "p90_abs_px": None,
+            "max_abs_px": None,
+        }
+
+    absolute = np.abs(values)
+    return {
+        "count": int(values.size),
+        "mean_abs_px": float(absolute.mean()),
+        "median_abs_px": float(np.median(absolute)),
+        "p90_abs_px": float(np.percentile(absolute, 90)),
+        "max_abs_px": float(absolute.max()),
+    }
+
+
+def split_test_error_by_horizontal_support(
+    record: dict[str, Any],
+    scale: float,
+) -> dict[str, Any]:
+    sample = record["test_samples"]
+    xs = sample["x"]
+    fit_x_min, fit_x_max = raw_fit_support_x(record)
+
+    inside = (xs >= fit_x_min) & (xs <= fit_x_max)
+    corrected_y = warp_y(
+        sample["predicted_y"],
+        xs,
+        record["geometry_envelope"],
+        scale,
+    )
+    error = corrected_y - sample["observed_y"]
+
+    return {
+        "inside_fit_x_support": error_stats(error[inside]),
+        "outside_fit_x_support": error_stats(error[~inside]),
+    }
+
+
+def support_diagnostic(
+    record: dict[str, Any],
+    loo_v2_row: dict[str, Any],
+) -> dict[str, Any]:
+    sample = record["test_samples"]
+    xs = sample["x"]
+
+    fit_x_min, fit_x_max = raw_fit_support_x(record)
+    test_x_min = float(np.min(xs))
+    test_x_max = float(np.max(xs))
+
+    fit_span = max(0.0, fit_x_max - fit_x_min)
+    test_span = max(0.0, test_x_max - test_x_min)
+
+    overlap_start = max(fit_x_min, test_x_min)
+    overlap_end = min(fit_x_max, test_x_max)
+    overlap = max(0.0, overlap_end - overlap_start)
+    coverage_ratio = overlap / test_span if test_span > 1e-12 else 0.0
+
+    inside_mask = (xs >= fit_x_min) & (xs <= fit_x_max)
+    inside_fraction = float(np.mean(inside_mask)) if len(xs) else 0.0
+
+    left_extrapolation = max(0.0, fit_x_min - test_x_min)
+    right_extrapolation = max(0.0, test_x_max - fit_x_max)
+
+    envelope = record["geometry_envelope"]
+    env_x_min = float(envelope.support_x[0])
+    env_x_max = float(envelope.support_x[-1])
+    clamped_mask = (xs < env_x_min) | (xs > env_x_max)
+    clamped_fraction = float(np.mean(clamped_mask)) if len(xs) else 0.0
+
+    predicted_y = sample["predicted_y"]
+    envelope_y = envelope(xs)
+    positive_depth = np.maximum(predicted_y - envelope_y, 0.0)
+
+    own_scale = float(optimal_scale(record, "geometry_envelope"))
+
+    baseline_split = split_test_error_by_horizontal_support(record, 1.0)
+    loo_split = split_test_error_by_horizontal_support(
+        record,
+        float(loo_v2_row["learned_scale"]),
+    )
+
+    return {
+        "frame": int(record["frame"]),
+        "fit_x_min_px": fit_x_min,
+        "fit_x_max_px": fit_x_max,
+        "fit_x_span_px": fit_span,
+        "test_x_min_px": test_x_min,
+        "test_x_max_px": test_x_max,
+        "test_x_span_px": test_span,
+        "test_fit_x_overlap_px": overlap,
+        "test_fit_x_coverage_ratio": float(coverage_ratio),
+        "test_sample_inside_fit_x_fraction": inside_fraction,
+        "test_sample_outside_fit_x_fraction": float(1.0 - inside_fraction),
+        "left_horizontal_extrapolation_px": float(left_extrapolation),
+        "right_horizontal_extrapolation_px": float(right_extrapolation),
+        "max_horizontal_extrapolation_px": float(
+            max(left_extrapolation, right_extrapolation)
+        ),
+        "v2_envelope_x_min_px": env_x_min,
+        "v2_envelope_x_max_px": env_x_max,
+        "v2_test_clamped_fraction": clamped_fraction,
+        "v2_predicted_depth_below_envelope_mean_px": float(
+            positive_depth.mean()
+        ),
+        "v2_predicted_depth_below_envelope_max_px": float(
+            positive_depth.max()
+        ),
+        "baseline_test_mean_px": float(
+            record["baseline_test"]["mean_abs_vertical_px"]
+        ),
+        "v2_own_scale": own_scale,
+        "v2_own_delta_from_identity": float(own_scale - 1.0),
+        "v2_loo_scale": float(loo_v2_row["learned_scale"]),
+        "v2_loo_corrected_test_mean_px": float(
+            loo_v2_row["corrected_test_mean_px"]
+        ),
+        "v2_loo_relative_improvement": float(
+            loo_v2_row["relative_improvement"]
+        ),
+        "baseline_error_split": baseline_split,
+        "v2_loo_error_split": loo_split,
+    }
+
+
+def average_ranks(values: list[float]) -> np.ndarray:
+    """Small scipy-free rankdata implementation with average ranks for ties."""
+    arr = np.asarray(values, dtype=np.float64)
+    order = np.argsort(arr, kind="mergesort")
+    ranks = np.empty(len(arr), dtype=np.float64)
+
+    i = 0
+    while i < len(arr):
+        j = i + 1
+        while j < len(arr) and arr[order[j]] == arr[order[i]]:
+            j += 1
+        average_rank = (i + 1 + j) / 2.0
+        ranks[order[i:j]] = average_rank
+        i = j
+
+    return ranks
+
+
+def spearman_small_sample(
+    x: list[float],
+    y: list[float],
+) -> float | None:
+    if len(x) < 3 or len(x) != len(y):
+        return None
+
+    rx = average_ranks(x)
+    ry = average_ranks(y)
+
+    rx = rx - rx.mean()
+    ry = ry - ry.mean()
+    denom = float(
+        np.sqrt(np.dot(rx, rx) * np.dot(ry, ry))
+    )
+    if denom < 1e-12:
+        return None
+
+    return float(np.dot(rx, ry) / denom)
+
+
+def summarise_support_hypothesis(
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    outside = [
+        float(row["test_sample_outside_fit_x_fraction"])
+        for row in rows
+    ]
+    deltas = [
+        float(row["v2_own_delta_from_identity"])
+        for row in rows
+    ]
+    max_extrapolation = [
+        float(row["max_horizontal_extrapolation_px"])
+        for row in rows
+    ]
+
+    rho_outside = spearman_small_sample(outside, deltas)
+    rho_distance = spearman_small_sample(max_extrapolation, deltas)
+
+    most_outside = max(
+        rows,
+        key=lambda row: (
+            row["test_sample_outside_fit_x_fraction"],
+            row["max_horizontal_extrapolation_px"],
+        ),
+    )
+    largest_delta = max(
+        rows,
+        key=lambda row: row["v2_own_delta_from_identity"],
+    )
+
+    supported_rows = [
+        row for row in rows
+        if row["test_sample_outside_fit_x_fraction"] <= 0.20
+    ]
+    supported_deltas = [
+        float(row["v2_own_delta_from_identity"])
+        for row in supported_rows
+    ]
+    supported_median = (
+        float(np.median(supported_deltas))
+        if supported_deltas
+        else None
+    )
+
+    outlier_ratio = None
+    if supported_median is not None and abs(supported_median) > 1e-12:
+        outlier_ratio = float(
+            most_outside["v2_own_delta_from_identity"]
+            / supported_median
+        )
+
+    same_frame = most_outside["frame"] == largest_delta["frame"]
+    strongly_outside = (
+        most_outside["test_sample_outside_fit_x_fraction"] >= 0.50
+    )
+    clearly_larger_delta = (
+        outlier_ratio is not None and outlier_ratio >= 1.50
+    )
+
+    if strongly_outside and same_frame and clearly_larger_delta:
+        label = "consistent_with_support_limited_extrapolation"
+        reason = (
+            "The frame with the weakest horizontal FIT support is also the frame "
+            "requiring the largest V2 correction, and its correction delta is "
+            "substantially larger than the median of well-supported frames."
+        )
+    elif (
+        same_frame
+        and (
+            (rho_outside is not None and rho_outside >= 0.5)
+            or (rho_distance is not None and rho_distance >= 0.5)
+        )
+    ):
+        label = "suggestive"
+        reason = (
+            "Horizontal extrapolation and required V2 correction move in the "
+            "expected direction, but the evidence is not strong enough for a "
+            "clear screening result."
+        )
+    else:
+        label = "inconclusive"
+        reason = (
+            "The current frames do not show a clear relationship between "
+            "horizontal FIT support and the V2 correction magnitude."
+        )
+
+    return {
+        "label": label,
+        "reason": reason,
+        "screening_only": True,
+        "frame_count": len(rows),
+        "most_horizontally_extrapolated_frame": int(
+            most_outside["frame"]
+        ),
+        "largest_v2_delta_frame": int(largest_delta["frame"]),
+        "same_frame": bool(same_frame),
+        "well_supported_frame_count": len(supported_rows),
+        "well_supported_v2_delta_median": supported_median,
+        "most_outside_delta_ratio_to_supported_median": outlier_ratio,
+        "spearman_outside_fraction_vs_v2_delta": rho_outside,
+        "spearman_max_horizontal_extrapolation_vs_v2_delta": rho_distance,
+        "warning": (
+            "With only a few manually annotated frames this is a mechanism "
+            "diagnostic, not statistical proof or a production rule."
+        ),
+    }
+
+
+def write_support_csv(
+    path: Path,
+    rows: list[dict[str, Any]],
+) -> None:
+    fields = [
+        "frame",
+        "fit_x_min_px",
+        "fit_x_max_px",
+        "fit_x_span_px",
+        "test_x_min_px",
+        "test_x_max_px",
+        "test_x_span_px",
+        "test_fit_x_coverage_ratio",
+        "test_sample_inside_fit_x_fraction",
+        "test_sample_outside_fit_x_fraction",
+        "left_horizontal_extrapolation_px",
+        "right_horizontal_extrapolation_px",
+        "max_horizontal_extrapolation_px",
+        "v2_test_clamped_fraction",
+        "baseline_test_mean_px",
+        "v2_own_scale",
+        "v2_own_delta_from_identity",
+        "v2_loo_scale",
+        "v2_loo_corrected_test_mean_px",
+        "v2_loo_relative_improvement",
+        "baseline_inside_mean_px",
+        "baseline_outside_mean_px",
+        "v2_loo_inside_mean_px",
+        "v2_loo_outside_mean_px",
+    ]
+
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+
+        for row in rows:
+            writer.writerow(
+                {
+                    "frame": row["frame"],
+                    "fit_x_min_px": row["fit_x_min_px"],
+                    "fit_x_max_px": row["fit_x_max_px"],
+                    "fit_x_span_px": row["fit_x_span_px"],
+                    "test_x_min_px": row["test_x_min_px"],
+                    "test_x_max_px": row["test_x_max_px"],
+                    "test_x_span_px": row["test_x_span_px"],
+                    "test_fit_x_coverage_ratio": row[
+                        "test_fit_x_coverage_ratio"
+                    ],
+                    "test_sample_inside_fit_x_fraction": row[
+                        "test_sample_inside_fit_x_fraction"
+                    ],
+                    "test_sample_outside_fit_x_fraction": row[
+                        "test_sample_outside_fit_x_fraction"
+                    ],
+                    "left_horizontal_extrapolation_px": row[
+                        "left_horizontal_extrapolation_px"
+                    ],
+                    "right_horizontal_extrapolation_px": row[
+                        "right_horizontal_extrapolation_px"
+                    ],
+                    "max_horizontal_extrapolation_px": row[
+                        "max_horizontal_extrapolation_px"
+                    ],
+                    "v2_test_clamped_fraction": row[
+                        "v2_test_clamped_fraction"
+                    ],
+                    "baseline_test_mean_px": row[
+                        "baseline_test_mean_px"
+                    ],
+                    "v2_own_scale": row["v2_own_scale"],
+                    "v2_own_delta_from_identity": row[
+                        "v2_own_delta_from_identity"
+                    ],
+                    "v2_loo_scale": row["v2_loo_scale"],
+                    "v2_loo_corrected_test_mean_px": row[
+                        "v2_loo_corrected_test_mean_px"
+                    ],
+                    "v2_loo_relative_improvement": row[
+                        "v2_loo_relative_improvement"
+                    ],
+                    "baseline_inside_mean_px": row[
+                        "baseline_error_split"
+                    ]["inside_fit_x_support"]["mean_abs_px"],
+                    "baseline_outside_mean_px": row[
+                        "baseline_error_split"
+                    ]["outside_fit_x_support"]["mean_abs_px"],
+                    "v2_loo_inside_mean_px": row[
+                        "v2_loo_error_split"
+                    ]["inside_fit_x_support"]["mean_abs_px"],
+                    "v2_loo_outside_mean_px": row[
+                        "v2_loo_error_split"
+                    ]["outside_fit_x_support"]["mean_abs_px"],
+                }
+            )
+
 def write_pairwise_csv(
     path: Path,
     v1_rows: list[dict[str, Any]],
@@ -1170,7 +1573,7 @@ def main() -> None:
 
     if len(records) < 3:
         raise ValueError(
-            "V3 generalization diagnostic needs at least three experiments "
+            "V4 support/generalization diagnostic needs at least three experiments "
             "with the requested TEST line."
         )
 
@@ -1225,13 +1628,28 @@ def main() -> None:
         for record in records
     ]
 
+    loo_v2_by_frame = {
+        int(row["held_out_frame"]): row
+        for row in loo["v2"]
+    }
+    support_rows = [
+        support_diagnostic(
+            record,
+            loo_v2_by_frame[int(record["frame"])],
+        )
+        for record in records
+    ]
+    support_hypothesis = summarise_support_hypothesis(
+        support_rows
+    )
+
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     report = {
         "format": REPORT_FORMAT,
         "version": REPORT_VERSION,
-        "experiment_version": "multiframe_v3",
+        "experiment_version": "multiframe_v4",
         "evaluated_frames": [record["frame"] for record in records],
         "test_semantic": args.test_semantic,
         "models": {
@@ -1262,6 +1680,10 @@ def main() -> None:
         "leave_one_frame_out": loo,
         "summaries": summaries,
         "verdicts": verdicts,
+        "horizontal_support_diagnostic": {
+            "frames": support_rows,
+            "hypothesis": support_hypothesis,
+        },
         "skipped": skipped,
         "interpretation_notes": [
             (
@@ -1287,14 +1709,14 @@ def main() -> None:
         ],
     }
 
-    report_path = output_dir / "report_v3.json"
+    report_path = output_dir / "report_v4.json"
     report_path.write_text(
         json.dumps(report, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    pairwise_csv = output_dir / "pairwise_transfer_v3.csv"
-    loo_csv = output_dir / "leave_one_out_v3.csv"
+    pairwise_csv = output_dir / "pairwise_transfer_v4.csv"
+    loo_csv = output_dir / "leave_one_out_v4.csv"
 
     write_pairwise_csv(
         pairwise_csv,
@@ -1305,6 +1727,12 @@ def main() -> None:
         loo_csv,
         loo["v1"],
         loo["v2"],
+    )
+
+    support_csv = output_dir / "horizontal_support_v4.csv"
+    write_support_csv(
+        support_csv,
+        support_rows,
     )
 
     if args.video:
@@ -1320,7 +1748,7 @@ def main() -> None:
                 output_dir,
             )
 
-    print("[homography-multiframe-v3]")
+    print("[homography-multiframe-v4]")
     print(f"  evaluated frames: {[record['frame'] for record in records]}")
     if skipped:
         print(f"  skipped inputs: {len(skipped)}")
@@ -1375,6 +1803,41 @@ def main() -> None:
         )
 
     print()
+    print("  horizontal FIT-support diagnostic (V2)")
+    for row in support_rows:
+        print(
+            f"    frame {row['frame']}: "
+            f"FIT-x=[{row['fit_x_min_px']:.1f},{row['fit_x_max_px']:.1f}] "
+            f"TEST-x=[{row['test_x_min_px']:.1f},{row['test_x_max_px']:.1f}] | "
+            f"coverage={100.0 * row['test_fit_x_coverage_ratio']:.1f}% | "
+            f"outside samples={100.0 * row['test_sample_outside_fit_x_fraction']:.1f}% | "
+            f"max X extrap={row['max_horizontal_extrapolation_px']:.1f}px | "
+            f"clamped={100.0 * row['v2_test_clamped_fraction']:.1f}% | "
+            f"own V2 scale={row['v2_own_scale']:.5f}"
+        )
+
+    print()
+    print("  support hypothesis")
+    print(f"    {support_hypothesis['label']}")
+    print(f"      {support_hypothesis['reason']}")
+    rho = support_hypothesis[
+        "spearman_outside_fraction_vs_v2_delta"
+    ]
+    rho_text = "n/a" if rho is None else f"{rho:+.3f}"
+    ratio = support_hypothesis[
+        "most_outside_delta_ratio_to_supported_median"
+    ]
+    ratio_text = "n/a" if ratio is None else f"{ratio:.2f}x"
+    print(
+        "      most outside frame="
+        f"{support_hypothesis['most_horizontally_extrapolated_frame']} | "
+        "largest V2 delta frame="
+        f"{support_hypothesis['largest_v2_delta_frame']} | "
+        f"rho(outside, delta)={rho_text} | "
+        f"delta ratio={ratio_text}"
+    )
+
+    print()
     print("  screening verdict")
     for model_name in ("v1", "v2"):
         verdict = verdicts[model_name]
@@ -1385,14 +1848,15 @@ def main() -> None:
     print(f"  report: {report_path}")
     print(f"  pairwise csv: {pairwise_csv}")
     print(f"  leave-one-out csv: {loo_csv}")
+    print(f"  horizontal support csv: {support_csv}")
     if args.video:
         print(f"  visuals: {output_dir}/frame_*_loo_v2.jpg")
 
     print()
     print(
-        "  Main question: does V2 improve held-out TEST geometry consistently "
-        "without damaging FIT geometry? If not, do not integrate the correction "
-        "into FIELD."
+        "  Main question: is the large correction required by outlier frames "
+        "associated with TEST geometry lying horizontally outside FIT support? "
+        "Do not integrate any correction into FIELD from this diagnostic alone."
     )
 
 
