@@ -15,9 +15,11 @@
   const result = document.querySelector("#test-result");
   const resultSection = document.querySelector("#test-result-section");
   const projectionToggle = document.querySelector("#test-projection-toggle");
-  const projectionModes = document.querySelector("#test-projection-modes");
-  const supportedProjectionButton = document.querySelector("#test-supported-projection");
-  const completeProjectionButton = document.querySelector("#test-complete-projection");
+  const cameraModelModes = document.querySelector("#test-camera-model-modes");
+  const homographyButton = document.querySelector("#test-model-homography");
+  const radialButton = document.querySelector("#test-model-radial");
+  const anisotropicButton = document.querySelector("#test-model-anisotropic");
+  const cameraBest = document.querySelector("#test-camera-best");
   const previousButton = document.querySelector("#test-previous-frame");
   const playButton = document.querySelector("#test-play-pause");
   const nextButton = document.querySelector("#test-next-frame");
@@ -39,8 +41,8 @@
   let fixedFrame = null;
   let projected = null;
   let projectionVisible = true;
-  let projectionMode = "supported";
-  let projectionSupport = null;
+  let cameraModel = "pure_homography";
+  let cameraModelProbe = null;
   let diagnosticFocus = null;
   let pendingStartTime = null;
 
@@ -58,7 +60,7 @@
   const formatTime = (seconds) => [Math.floor(Math.max(0, seconds || 0) / 3600), Math.floor((Math.max(0, seconds || 0) % 3600) / 60), Math.floor(Math.max(0, seconds || 0) % 60)].map((part) => String(part).padStart(2, "0")).join(":");
 
   function resetSolution() {
-    projected = null; projectionSupport = null; projectionVisible = true; projectionMode = "supported"; diagnosticFocus = null; projectionToggle.hidden = true; projectionModes.hidden = true; resultSection.hidden = true; result.textContent = "";
+    projected = null; cameraModelProbe = null; projectionVisible = true; cameraModel = "pure_homography"; diagnosticFocus = null; projectionToggle.hidden = true; cameraModelModes.hidden = true; resultSection.hidden = true; result.textContent = "";
   }
   function resetAnnotations() {
     lineAnnotations.clear(); pointAnnotations.clear(); history.length = 0; draft = null; resetSolution();
@@ -155,12 +157,7 @@
     if (!frameLocked || !canvas.width || !canvas.height) return;
     context.clearRect(0, 0, canvas.width, canvas.height); context.lineJoin = "round"; context.lineCap = "round";
     if (projected && projectionVisible) {
-      const supportPolygon = projectionSupport?.support_image_polygon;
-      const useSupport = projectionMode === "supported" && supportPolygon?.length >= 3;
-      if (useSupport) { context.save(); drawPolygonPath(supportPolygon); context.clip(); }
       drawProjectedGeometry();
-      if (useSupport) context.restore();
-      if (useSupport) { context.save(); context.setLineDash([7, 5]); context.lineWidth = Math.max(1, canvas.width / 1800); context.strokeStyle = "rgba(103, 216, 255, .48)"; drawPolygonPath(supportPolygon); context.stroke(); context.restore(); }
     }
     const scale = Math.max(2, canvas.width / 900); context.strokeStyle = "#f2c94c"; context.fillStyle = "#f2c94c";
     lineAnnotations.forEach((annotation, name) => { const emphasis = (mode === "line" && name === selectedName) || (diagnosticFocus?.kind === "line" && diagnosticFocus.name === name); context.lineWidth = scale * (emphasis ? 1.75 : 1); context.beginPath(); context.moveTo(...annotation.points[0]); context.lineTo(...annotation.points[1]); context.stroke(); annotation.points.forEach(([x, y]) => { context.beginPath(); context.arc(x, y, context.lineWidth * 1.7, 0, Math.PI * 2); context.fill(); }); });
@@ -169,11 +166,9 @@
   }
   function drawProjectedGeometry() {
     context.lineWidth = Math.max(1.5, canvas.width / 1150); context.strokeStyle = "rgba(103, 216, 255, .92)";
-    projected.lines.forEach((line) => drawPolyline(line.points, false)); projected.curves.forEach((curve) => drawPolyline(curve.points, curve.closed));
-    context.fillStyle = "rgba(103, 216, 255, .92)"; projected.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
-  }
-  function drawPolygonPath(points) {
-    context.beginPath(); context.moveTo(points[0][0], points[0][1]); points.slice(1).forEach(([x, y]) => context.lineTo(x, y)); context.closePath();
+    const geometryToDraw = cameraModelProbe?.models?.[cameraModel]?.projected_geometry || projected;
+    geometryToDraw.lines.forEach((line) => drawPolyline(line.points, false)); geometryToDraw.curves.forEach((curve) => drawPolyline(curve.points, curve.closed));
+    context.fillStyle = "rgba(103, 216, 255, .92)"; geometryToDraw.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
   }
   function finite(value) { return typeof value === "number" && Number.isFinite(value); }
   function metricText(value) { return finite(value) ? `${value.toFixed(2)} px` : "—"; }
@@ -193,6 +188,7 @@
   function renderDiagnostics(solved) {
     const metrics = solved.metrics || {};
     const support = solved.projection_support || {};
+    const probe = solved.camera_model_probe || {};
     const pointRows = diagnosticRows("point", metrics.per_point);
     const lineRows = diagnosticRows("line", metrics.per_line);
     const pointBlock = Object.keys(metrics.per_point || {}).length ? `<section class="test-diagnostic-block"><h3>Puntos</h3><div class="test-detail-list">${pointRows}</div></section>` : "";
@@ -200,7 +196,18 @@
     const supportRatio = finite(support.support_ratio_of_visible) ? `${(support.support_ratio_of_visible * 100).toFixed(0)} %` : "—";
     const supportWarnings = (support.warnings || []).map((warning) => `<li>${warning}</li>`).join("");
     const supportStatus = support.projective_valid === false ? "⚠ Revisar geometría proyectiva" : "Correcta";
-    result.innerHTML = `<div class="test-diagnostic-summary"><h3>Evidencia</h3><dl><div><dt>Líneas</dt><dd>${solved.line_annotation_count ?? 0}</dd></div><div><dt>Puntos</dt><dd>${solved.point_annotation_count ?? 0}</dd></div><div><dt>Restricciones de línea</dt><dd>${solved.line_constraint_count ?? 0}</dd></div><div><dt>Restricciones de punto</dt><dd>${solved.direct_correspondence_count ?? 0}</dd></div><div><dt>Rango geométrico</dt><dd>${solved.linear_rank ?? "—"} / 8</dd></div><div><dt>Refinamiento</dt><dd>${solved.refinement_iterations ?? "—"} iteraciones</dd></div></dl></div><section class="test-diagnostic-block"><h3>Error global</h3><p class="test-diagnostic-caption">Error balanceado de las anotaciones</p><div class="test-diagnostic-metrics"><span>Mediana <strong>${metricText(metrics.median_px)}</strong></span><span>P95 <strong>${metricText(metrics.p95_px)}</strong></span><span>Máximo <strong>${metricText(metrics.max_px)}</strong></span></div></section>${metricBlock("Error de puntos", metrics.point_error)}${metricBlock("Error de líneas", metrics.line_error)}<section class="test-diagnostic-block"><h3>Soporte de proyección</h3><dl><div><dt>Puntos de soporte</dt><dd>${support.point_evidence_count ?? 0}</dd></div><div><dt>Líneas de soporte</dt><dd>${support.line_evidence_count ?? 0}</dd></div><div><dt>Cobertura visible</dt><dd>${supportRatio}</dd></div><div><dt>Margen</dt><dd>${finite(support.support_margin_m) ? `${support.support_margin_m.toFixed(1)} m` : "—"}</dd></div><div><dt>Geometría proyectiva</dt><dd>${supportStatus}</dd></div></dl>${supportWarnings ? `<ul class="test-support-warnings">${supportWarnings}</ul>` : ""}</section><section class="test-diagnostic-block"><h3>Detalle de anotaciones</h3>${pointBlock}${lineBlock}</section>`;
+    const modelLabel = { pure_homography: "Homografía", radial_1p: "Radial 1P", anisotropic_2p: "Anisotrópica 2P" };
+    const modelRows = Object.entries(probe.models || {}).map(([name, model]) => {
+      const params = model.parameters || [];
+      const parameters = name === "radial_1p" ? `k ${finite(params[0]) ? params[0].toFixed(4) : "—"}` : name === "anisotropic_2p" ? `kx ${finite(params[0]) ? params[0].toFixed(4) : "—"} · ky ${finite(params[1]) ? params[1].toFixed(4) : "—"}` : "H sin parámetros adicionales";
+      const summary = model.residual_summary || {};
+      const improvement = finite(model.annotation_objective_improvement_percent) ? ` · Mejora ${model.annotation_objective_improvement_percent.toFixed(1)} %` : "";
+      const warp = finite(model.max_warp_px) ? `Warp máx. ${model.max_warp_px.toFixed(1)} px` : "Warp máx. —";
+      return `<div class="test-camera-model-row"><strong>${modelLabel[name] || name}</strong><small>${parameters}</small><span>Mediana ${metricText(summary.median_px)} · P95 ${metricText(summary.p95_px)}${improvement}</span><small>${warp}</small></div>`;
+    }).join("");
+    const bestLabel = modelLabel[probe.best_regularized_model] || probe.best_regularized_model || "—";
+    const cameraWarning = probe.warning ? `<p class="test-support-warnings">${probe.warning}</p>` : "";
+    result.innerHTML = `<div class="test-diagnostic-summary"><h3>Evidencia</h3><dl><div><dt>Líneas</dt><dd>${solved.line_annotation_count ?? 0}</dd></div><div><dt>Puntos</dt><dd>${solved.point_annotation_count ?? 0}</dd></div><div><dt>Restricciones de línea</dt><dd>${solved.line_constraint_count ?? 0}</dd></div><div><dt>Restricciones de punto</dt><dd>${solved.direct_correspondence_count ?? 0}</dd></div><div><dt>Rango geométrico</dt><dd>${solved.linear_rank ?? "—"} / 8</dd></div><div><dt>Refinamiento</dt><dd>${solved.refinement_iterations ?? "—"} iteraciones</dd></div></dl></div><section class="test-diagnostic-block"><h3>Error global</h3><p class="test-diagnostic-caption">Error balanceado de las anotaciones</p><div class="test-diagnostic-metrics"><span>Mediana <strong>${metricText(metrics.median_px)}</strong></span><span>P95 <strong>${metricText(metrics.p95_px)}</strong></span><span>Máximo <strong>${metricText(metrics.max_px)}</strong></span></div></section>${metricBlock("Error de puntos", metrics.point_error)}${metricBlock("Error de líneas", metrics.line_error)}<section class="test-diagnostic-block"><h3>Modelo de cámara</h3><p class="test-diagnostic-caption">Comparación experimental sobre las mismas anotaciones. Un error menor no demuestra por sí solo que el modelo generalice.</p><div class="test-camera-model-list">${modelRows || "Sin datos del probe."}</div>${probe.models ? `<p class="test-diagnostic-caption">Mejor ajuste regularizado: ${bestLabel}</p>` : ""}</section><section class="test-diagnostic-block"><h3>Soporte de proyección</h3><dl><div><dt>Puntos de soporte</dt><dd>${support.point_evidence_count ?? 0}</dd></div><div><dt>Líneas de soporte</dt><dd>${support.line_evidence_count ?? 0}</dd></div><div><dt>Cobertura visible</dt><dd>${supportRatio}</dd></div><div><dt>Margen</dt><dd>${finite(support.support_margin_m) ? `${support.support_margin_m.toFixed(1)} m` : "—"}</dd></div><div><dt>Geometría proyectiva</dt><dd>${supportStatus}</dd></div></dl>${supportWarnings ? `<ul class="test-support-warnings">${supportWarnings}</ul>` : ""}</section>${cameraWarning}<section class="test-diagnostic-block"><h3>Detalle de anotaciones</h3>${pointBlock}${lineBlock}</section>`;
     result.querySelectorAll("[data-diagnostic-name]").forEach((row) => {
       row.addEventListener("mouseenter", () => { diagnosticFocus = { kind: row.dataset.diagnosticKind, name: row.dataset.diagnosticName }; draw(); });
       row.addEventListener("mouseleave", () => { diagnosticFocus = null; draw(); });
@@ -280,13 +287,14 @@
         point_annotations: [...pointAnnotations.values()],
       };
       const solved = await api("/api/field/calibration/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      projected = solved.projected_geometry; projectionSupport = solved.projection_support || null; projectionVisible = true; projectionMode = "supported"; projectionToggle.hidden = false; projectionModes.hidden = false; supportedProjectionButton.classList.add("is-active"); completeProjectionButton.classList.remove("is-active"); diagnosticFocus = null; renderDiagnostics(solved);
+      projected = solved.projected_geometry; cameraModelProbe = solved.camera_model_probe || null; projectionVisible = true; cameraModel = "pure_homography"; projectionToggle.hidden = false; cameraModelModes.hidden = !Object.keys(cameraModelProbe?.models || {}).length; homographyButton.classList.add("is-active"); radialButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); cameraBest.textContent = cameraModelProbe?.best_regularized_model ? `Mejor ajuste: ${{ pure_homography: "Homografía", radial_1p: "Radial 1P", anisotropic_2p: "Anisotrópica 2P" }[cameraModelProbe.best_regularized_model] || cameraModelProbe.best_regularized_model}` : ""; diagnosticFocus = null; renderDiagnostics(solved);
       draw();
     } catch (error) { resultSection.hidden = false; result.textContent = `No se pudo resolver: ${error.message}`; }
   });
   projectionToggle.addEventListener("click", () => { projectionVisible = !projectionVisible; projectionToggle.textContent = projectionVisible ? "Ocultar proyección" : "Mostrar proyección"; draw(); });
-  supportedProjectionButton.addEventListener("click", () => { projectionMode = "supported"; supportedProjectionButton.classList.add("is-active"); completeProjectionButton.classList.remove("is-active"); draw(); });
-  completeProjectionButton.addEventListener("click", () => { projectionMode = "complete"; completeProjectionButton.classList.add("is-active"); supportedProjectionButton.classList.remove("is-active"); draw(); });
+  homographyButton.addEventListener("click", () => { cameraModel = "pure_homography"; homographyButton.classList.add("is-active"); radialButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); draw(); });
+  radialButton.addEventListener("click", () => { cameraModel = "radial_1p"; radialButton.classList.add("is-active"); homographyButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); draw(); });
+  anisotropicButton.addEventListener("click", () => { cameraModel = "anisotropic_2p"; anisotropicButton.classList.add("is-active"); homographyButton.classList.remove("is-active"); radialButton.classList.remove("is-active"); draw(); });
   previousButton.addEventListener("click", () => stepFrame(-1)); nextButton.addEventListener("click", () => stepFrame(1));
   playButton.addEventListener("click", () => { if (testVideo.paused) void testVideo.play(); else testVideo.pause(); });
   timeline.addEventListener("input", () => { unlockFrame(); testVideo.currentTime = Number(timeline.value); });

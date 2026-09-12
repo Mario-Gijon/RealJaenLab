@@ -26,6 +26,7 @@ from supervisor.media_uploads import (
 from supervisor.field.calibration import CalibrationError, solve_calibration_payload
 from supervisor.field.pitch import PitchModel
 from supervisor.field.projection_support import build_projection_support_payload
+from supervisor.field.camera_model_probe import probe_camera_models_payload
 
 
 BASE_DIR = Path(__file__).parent
@@ -130,6 +131,14 @@ def solve_field_calibration(payload: dict = Body()) -> dict:
             "projective_valid": False,
             "warnings": [f"No se pudo calcular el soporte de proyección: {error}"],
         }
+    try:
+        camera_model_probe = probe_camera_models_payload(result, payload)
+    except Exception as error:  # The probe is diagnostic and must be non-fatal.
+        camera_model_probe = {
+            "models": {},
+            "best_regularized_model": None,
+            "warning": f"No se pudo ejecutar la prueba de modelos de cámara: {error}",
+        }
     return {
         "asset_id": payload.get("asset_id"),
         "timestamp_seconds": payload.get("timestamp_seconds"),
@@ -137,6 +146,7 @@ def solve_field_calibration(payload: dict = Body()) -> dict:
         "video_width": payload.get("video_width"),
         "video_height": payload.get("video_height"),
         "projection_support": projection_support,
+        "camera_model_probe": camera_model_probe,
         **result,
     }
 
