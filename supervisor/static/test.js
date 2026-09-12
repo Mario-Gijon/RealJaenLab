@@ -36,6 +36,7 @@
   let fixedFrame = null;
   let projected = null;
   let projectionVisible = true;
+  let diagnosticFocus = null;
   let pendingStartTime = null;
 
   const api = async (url, options) => {
@@ -52,7 +53,7 @@
   const formatTime = (seconds) => [Math.floor(Math.max(0, seconds || 0) / 3600), Math.floor((Math.max(0, seconds || 0) % 3600) / 60), Math.floor(Math.max(0, seconds || 0) % 60)].map((part) => String(part).padStart(2, "0")).join(":");
 
   function resetSolution() {
-    projected = null; projectionVisible = true; projectionToggle.hidden = true; resultSection.hidden = true; result.textContent = "";
+    projected = null; projectionVisible = true; diagnosticFocus = null; projectionToggle.hidden = true; resultSection.hidden = true; result.textContent = "";
   }
   function resetAnnotations() {
     lineAnnotations.clear(); pointAnnotations.clear(); history.length = 0; draft = null; resetSolution();
@@ -154,9 +155,38 @@
       context.fillStyle = "rgba(103, 216, 255, .92)"; projected.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
     }
     const scale = Math.max(2, canvas.width / 900); context.strokeStyle = "#f2c94c"; context.fillStyle = "#f2c94c";
-    lineAnnotations.forEach((annotation, name) => { context.lineWidth = scale * (mode === "line" && name === selectedName ? 1.45 : 1); context.beginPath(); context.moveTo(...annotation.points[0]); context.lineTo(...annotation.points[1]); context.stroke(); annotation.points.forEach(([x, y]) => { context.beginPath(); context.arc(x, y, context.lineWidth * 1.7, 0, Math.PI * 2); context.fill(); }); });
-    pointAnnotations.forEach((annotation, name) => { const [x, y] = annotation.point; context.beginPath(); context.arc(x, y, scale * (mode === "point" && name === selectedName ? 2.4 : 1.9), 0, Math.PI * 2); context.fill(); });
+    lineAnnotations.forEach((annotation, name) => { const emphasis = (mode === "line" && name === selectedName) || (diagnosticFocus?.kind === "line" && diagnosticFocus.name === name); context.lineWidth = scale * (emphasis ? 1.75 : 1); context.beginPath(); context.moveTo(...annotation.points[0]); context.lineTo(...annotation.points[1]); context.stroke(); annotation.points.forEach(([x, y]) => { context.beginPath(); context.arc(x, y, context.lineWidth * 1.7, 0, Math.PI * 2); context.fill(); }); });
+    pointAnnotations.forEach((annotation, name) => { const [x, y] = annotation.point; const emphasis = (mode === "point" && name === selectedName) || (diagnosticFocus?.kind === "point" && diagnosticFocus.name === name); context.beginPath(); context.arc(x, y, scale * (emphasis ? 2.8 : 1.9), 0, Math.PI * 2); context.fill(); });
     if (draft?.points.length) { const [x, y] = draft.points[0]; context.beginPath(); context.arc(x, y, scale * 2.4, 0, Math.PI * 2); context.fill(); }
+  }
+  function finite(value) { return typeof value === "number" && Number.isFinite(value); }
+  function metricText(value) { return finite(value) ? `${value.toFixed(2)} px` : "—"; }
+  function qualityClass(value) { return !finite(value) ? "" : value <= 5 ? "is-good" : value <= 15 ? "is-warning" : "is-danger"; }
+  function labelFor(kind, name) { return geometry?.[kind === "line" ? "lines" : "points"]?.find((item) => item.name === name)?.label || name; }
+  function metricBlock(title, metrics) {
+    if (!metrics || ![metrics.median_px, metrics.p95_px, metrics.max_px].some(finite)) return "";
+    return `<section class="test-diagnostic-block"><h3>${title}</h3><div class="test-diagnostic-metrics"><span>Mediana <strong>${metricText(metrics.median_px)}</strong></span><span>P95 <strong>${metricText(metrics.p95_px)}</strong></span><span>Máximo <strong>${metricText(metrics.max_px)}</strong></span></div></section>`;
+  }
+  function diagnosticRows(kind, values) {
+    return Object.entries(values || {}).map(([name, value]) => {
+      const metrics = kind === "line" ? value : { median_px: value, p95_px: null, max_px: value };
+      const primary = kind === "line" ? metrics.median_px : value;
+      return `<button class="test-diagnostic-row ${qualityClass(primary)}" type="button" data-diagnostic-kind="${kind}" data-diagnostic-name="${name}"><span><b>${labelFor(kind, name)}</b><small>${kind === "line" ? `Mediana ${metricText(metrics.median_px)} · P95 ${metricText(metrics.p95_px)}` : metricText(value)}</small></span><i aria-hidden="true"></i></button>`;
+    }).join("");
+  }
+  function renderDiagnostics(solved) {
+    const metrics = solved.metrics || {};
+    const pointRows = diagnosticRows("point", metrics.per_point);
+    const lineRows = diagnosticRows("line", metrics.per_line);
+    const pointBlock = Object.keys(metrics.per_point || {}).length ? `<section class="test-diagnostic-block"><h3>Puntos</h3><div class="test-detail-list">${pointRows}</div></section>` : "";
+    const lineBlock = Object.keys(metrics.per_line || {}).length ? `<section class="test-diagnostic-block"><h3>Líneas</h3><div class="test-detail-list">${lineRows}</div></section>` : "";
+    result.innerHTML = `<div class="test-diagnostic-summary"><h3>Evidencia</h3><dl><div><dt>Líneas</dt><dd>${solved.line_annotation_count ?? 0}</dd></div><div><dt>Puntos</dt><dd>${solved.point_annotation_count ?? 0}</dd></div><div><dt>Restricciones de línea</dt><dd>${solved.line_constraint_count ?? 0}</dd></div><div><dt>Restricciones de punto</dt><dd>${solved.direct_correspondence_count ?? 0}</dd></div><div><dt>Rango geométrico</dt><dd>${solved.linear_rank ?? "—"} / 8</dd></div><div><dt>Refinamiento</dt><dd>${solved.refinement_iterations ?? "—"} iteraciones</dd></div></dl></div><section class="test-diagnostic-block"><h3>Error global</h3><p class="test-diagnostic-caption">Error balanceado de las anotaciones</p><div class="test-diagnostic-metrics"><span>Mediana <strong>${metricText(metrics.median_px)}</strong></span><span>P95 <strong>${metricText(metrics.p95_px)}</strong></span><span>Máximo <strong>${metricText(metrics.max_px)}</strong></span></div></section>${metricBlock("Error de puntos", metrics.point_error)}${metricBlock("Error de líneas", metrics.line_error)}<section class="test-diagnostic-block"><h3>Detalle de anotaciones</h3>${pointBlock}${lineBlock}</section>`;
+    result.querySelectorAll("[data-diagnostic-name]").forEach((row) => {
+      row.addEventListener("mouseenter", () => { diagnosticFocus = { kind: row.dataset.diagnosticKind, name: row.dataset.diagnosticName }; draw(); });
+      row.addEventListener("mouseleave", () => { diagnosticFocus = null; draw(); });
+      row.addEventListener("focus", () => { diagnosticFocus = { kind: row.dataset.diagnosticKind, name: row.dataset.diagnosticName }; draw(); });
+      row.addEventListener("blur", () => { diagnosticFocus = null; draw(); });
+    });
   }
   function pathData(points, closed) { return points?.length ? `M ${points.map((point) => point.join(" ")).join(" L ")}${closed ? " Z" : ""}` : ""; }
   function renderMiniPitch() {
@@ -230,8 +260,7 @@
         point_annotations: [...pointAnnotations.values()],
       };
       const solved = await api("/api/field/calibration/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      projected = solved.projected_geometry; projectionVisible = true; projectionToggle.hidden = false;
-      result.innerHTML = `<strong>Resuelto</strong><dl><div><dt>Líneas</dt><dd>${solved.line_annotation_count}</dd></div><div><dt>Puntos</dt><dd>${solved.point_annotation_count}</dd></div><div><dt>Intersecciones de líneas</dt><dd>${solved.derived_correspondence_count}</dd></div><div><dt>Correspondencias directas</dt><dd>${solved.direct_correspondence_count}</dd></div><div><dt>Total correspondencias</dt><dd>${solved.correspondence_count}</dd></div><div><dt>Error mediano</dt><dd>${solved.metrics.median_px.toFixed(2)} px</dd></div><div><dt>Error p95</dt><dd>${solved.metrics.p95_px.toFixed(2)} px</dd></div><div><dt>Error máximo</dt><dd>${solved.metrics.max_px.toFixed(2)} px</dd></div></dl>`;
+      projected = solved.projected_geometry; projectionVisible = true; projectionToggle.hidden = false; diagnosticFocus = null; renderDiagnostics(solved);
       draw();
     } catch (error) { resultSection.hidden = false; result.textContent = `No se pudo resolver: ${error.message}`; }
   });
