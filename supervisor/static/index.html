@@ -15,6 +15,7 @@
           <button class="workspace-tab is-active" data-workspace="video" type="button">VIDEO</button>
           <button class="workspace-tab" data-workspace="preview" type="button">PREVIEW</button>
           <button class="workspace-tab" data-workspace="calibration" type="button">CALIBRACIÓN</button>
+          <button class="workspace-tab" data-workspace="test" type="button">TEST</button>
         </nav>
         <div class="workspace-title"><span id="workspace-kicker">VIDEO</span><strong id="video-name">Sin vídeo seleccionado</strong></div>
         <button class="button button-secondary" id="back-to-library" type="button">← Biblioteca</button>
@@ -44,6 +45,25 @@
           <p>Área de desarrollo disponible para una futura aproximación de calibración.</p>
         </div>
       </section>
+      <section class="test-workspace" id="test-workspace" aria-labelledby="test-title" hidden>
+        <div class="test-canvas-panel">
+          <div class="test-canvas-wrap" id="test-canvas-wrap">
+            <canvas id="test-canvas" aria-label="Fotograma congelado para calibración"></canvas>
+            <div class="test-empty" id="test-empty"><strong>TEST</strong><span>Abre un vídeo y pausa en un fotograma para comenzar.</span></div>
+          </div>
+          <div class="test-sidebar">
+            <div><span class="development-kicker">TEST · FIELD LAB</span><h1 id="test-title">Calibración sobre fotograma real</h1><p id="test-frame-info">Sin fotograma capturado.</p></div>
+            <label>Línea semántica<select id="test-line-select"><option>Cargando líneas…</option></select></label>
+            <p class="test-status" id="test-status">Dos clics por línea. Las coordenadas se guardan en píxeles nativos.</p>
+            <div class="test-family-status" id="test-family-status"></div>
+            <div class="test-actions"><button class="button button-secondary" id="test-undo" type="button">Undo</button><button class="button button-secondary" id="test-remove" type="button">Eliminar línea</button><button class="button button-secondary" id="test-clear" type="button">Clear</button></div>
+            <div class="test-dimensions"><label>Largo (m)<input id="test-pitch-length" type="number" min="33" step="0.1" value="105.0" /></label><label>Ancho (m)<input id="test-pitch-width" type="number" min="30" step="0.1" value="68.0" /></label></div>
+            <button class="button button-primary" id="test-solve" type="button">Solve</button>
+            <button class="button button-secondary" id="test-recapture" type="button">Recapturar frame</button>
+            <div class="test-result" id="test-result" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
       <footer class="controls" id="video-controls" aria-label="Controles de vídeo">
         <div class="transport-controls">
           <button class="icon-button" id="previous-frame" type="button" aria-label="Fotograma anterior" disabled>|&lt;</button>
@@ -61,6 +81,7 @@
       </footer>
     </main>
     <script src="/static/app.js"></script>
+    <script src="/static/test.js"></script>
     <script src="/static/library.js"></script>
   </body>
 </html>

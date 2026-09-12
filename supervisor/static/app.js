@@ -7,6 +7,7 @@ const workspaceTabs = document.querySelectorAll(".workspace-tab");
 const videoWorkspace = document.querySelector("#video-workspace");
 const previewWorkspace = document.querySelector("#preview-workspace");
 const calibrationWorkspace = document.querySelector("#calibration-workspace");
+const testWorkspace = document.querySelector("#test-workspace");
 const videoControls = document.querySelector("#video-controls");
 const videoEmpty = document.querySelector("#video-empty");
 const workspaceTitle = document.querySelector("#workspace-title");
@@ -32,6 +33,7 @@ function setWorkspace(workspace) {
   videoWorkspace.hidden = !isVideo;
   previewWorkspace.hidden = workspace !== "preview";
   calibrationWorkspace.hidden = workspace !== "calibration";
+  testWorkspace.hidden = workspace !== "test";
   videoControls.hidden = !isVideo;
   workspaceKicker.textContent = workspace === "calibration" ? "CALIBRACIÓN" : workspace.toUpperCase();
   workspaceTabs.forEach((tab) => {
@@ -39,6 +41,7 @@ function setWorkspace(workspace) {
     tab.classList.toggle("is-active", selected);
     tab.setAttribute("aria-current", selected ? "page" : "false");
   });
+  if (workspace === "test") window.SupervisorTest?.enter();
 }
 
 function formatTime(seconds) {
@@ -144,5 +147,5 @@ document.addEventListener("keydown", (event) => {
   if (video.paused && event.key === "ArrowRight") { event.preventDefault(); stepFrame(1); }
 });
 
-window.SupervisorWorkspace = { openVideo, showLibrary };
+window.SupervisorWorkspace = { openVideo, showLibrary, setWorkspace, getVideo: () => video, getSelectedVideo: () => selectedVideo };
 setWorkspace("video");

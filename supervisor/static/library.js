@@ -24,6 +24,7 @@
     return response.json();
   };
   const currentAsset = (asset) => ({
+    assetId: asset.id,
     // Local input files use their filename; managed originals use their asset id.
     name: asset.storage_type === "local_input"
       ? String(asset.relative_path || "").split("/").pop()

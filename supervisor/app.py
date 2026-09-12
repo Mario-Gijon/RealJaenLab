@@ -23,6 +23,8 @@ from supervisor.media_uploads import (
     MediaUploadNotFoundError,
     parse_content_range,
 )
+from supervisor.field.calibration import CalibrationError, solve_calibration_payload
+from supervisor.field.pitch import PitchModel
 
 
 BASE_DIR = Path(__file__).parent
@@ -104,6 +106,34 @@ def get_media_library() -> dict:
         return media_library().list()
     except MediaLibraryError as error:
         raise media_library_error(error) from error
+
+
+@app.get("/api/field/pitch-lines")
+def get_field_pitch_lines() -> dict:
+    pitch = PitchModel()
+    return {
+        "dimensions": {"length": pitch.length, "width": pitch.width},
+        "lines": [
+            {"name": line.name, "label": line.label, "family": line.family}
+            for line in pitch.straight_lines
+        ],
+    }
+
+
+@app.post("/api/field/calibration/solve")
+def solve_field_calibration(payload: dict = Body()) -> dict:
+    try:
+        result = solve_calibration_payload(payload)
+    except (CalibrationError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {
+        "asset_id": payload.get("asset_id"),
+        "timestamp_seconds": payload.get("timestamp_seconds"),
+        "frame_index": payload.get("frame_index"),
+        "video_width": payload.get("video_width"),
+        "video_height": payload.get("video_height"),
+        **result,
+    }
 
 
 @app.post("/api/library/venues")
