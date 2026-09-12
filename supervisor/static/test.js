@@ -74,6 +74,7 @@
   function setEmpty(message) {
     empty.querySelector("span").textContent = message;
     empty.hidden = false;
+    updateUI();
   }
   function updatePlayback() {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
@@ -89,10 +90,14 @@
   }
   function updateControls() {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
-    const ready = Boolean(selected && testVideo.readyState >= 2);
-    const fpsReady = ready && Boolean(selected?.fps);
-    previousButton.disabled = !fpsReady; nextButton.disabled = !fpsReady; frameInput.disabled = !fpsReady;
-    playButton.disabled = !ready; timeline.disabled = !ready; lockButton.disabled = !ready;
+    const sourceSelected = Boolean(selected?.playbackUrl && testVideo.src);
+    const metadataReady = sourceSelected && testVideo.readyState >= HTMLMediaElement.HAVE_METADATA;
+    const durationReady = metadataReady && (Number.isFinite(testVideo.duration) || Number(selected?.duration) > 0);
+    const frameDataReady = metadataReady && testVideo.videoWidth > 0 && testVideo.videoHeight > 0 && testVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+    const fpsReady = metadataReady && Boolean(selected?.fps);
+    const navigationAllowed = !frameLocked;
+    previousButton.disabled = !fpsReady || !navigationAllowed; nextButton.disabled = !fpsReady || !navigationAllowed; frameInput.disabled = !fpsReady || !navigationAllowed;
+    playButton.disabled = !metadataReady || !navigationAllowed; timeline.disabled = !durationReady || !navigationAllowed; lockButton.disabled = !frameDataReady;
     playButton.textContent = testVideo.paused ? "▶" : "❚❚";
     playButton.setAttribute("aria-label", testVideo.paused ? "Reproducir" : "Pausar");
     lockButton.textContent = frameLocked ? "Cambiar fotograma" : "Fijar fotograma";
@@ -170,7 +175,12 @@
   }
   function lockFrame() {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
-    if (!selected || testVideo.readyState < 2) return;
+    if (!selected) return;
+    if (testVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !testVideo.videoWidth || !testVideo.videoHeight) {
+      frameInfo.textContent = "Cargando fotograma…";
+      updateControls();
+      return;
+    }
     testVideo.pause(); frameLocked = true; fixedTimestamp = testVideo.currentTime; fixedFrame = selected.fps ? Math.floor(fixedTimestamp * selected.fps) : null;
     canvas.width = testVideo.videoWidth; canvas.height = testVideo.videoHeight; clearOverlay(); empty.hidden = true;
     frameInfo.textContent = `${selected.displayName || selected.name} · ${fixedTimestamp.toFixed(3)} s${fixedFrame !== null ? ` · fotograma ${fixedFrame}` : ""} · ${canvas.width} × ${canvas.height}px`;
@@ -189,8 +199,8 @@
     if (!selected) { testVideo.removeAttribute("src"); testVideo.load(); setEmpty("Abre un vídeo desde Biblioteca para comenzar."); return; }
     const sourceChanged = testVideo.dataset.assetId !== selected.assetId;
     pendingStartTime = sourceVideo?.currentTime || 0;
-    if (sourceChanged) { unlockFrame(); testVideo.dataset.assetId = selected.assetId; testVideo.src = selected.playbackUrl; testVideo.load(); setEmpty("El vídeo todavía no está listo."); }
-    else if (testVideo.readyState >= 2) { if (!frameLocked) testVideo.currentTime = pendingStartTime; empty.hidden = true; updateUI(); }
+    if (sourceChanged) { unlockFrame(); testVideo.dataset.assetId = selected.assetId; testVideo.src = selected.playbackUrl; testVideo.load(); setEmpty("Cargando vídeo…"); }
+    else if (testVideo.readyState >= HTMLMediaElement.HAVE_METADATA) { if (!frameLocked && pendingStartTime !== null) { testVideo.currentTime = pendingStartTime; pendingStartTime = null; } empty.hidden = true; updatePlayback(); updateUI(); }
   }
   canvas.addEventListener("click", (event) => {
     if (!frameLocked || !selectedName) return;
@@ -231,8 +241,11 @@
   timeline.addEventListener("input", () => { unlockFrame(); testVideo.currentTime = Number(timeline.value); });
   frameInput.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); seekFrame(Number(frameInput.value)); } }); frameInput.addEventListener("change", () => seekFrame(Number(frameInput.value)));
   lockButton.addEventListener("click", () => { if (frameLocked) unlockFrame(); else lockFrame(); });
-  testVideo.addEventListener("loadeddata", () => { if (pendingStartTime !== null) { testVideo.currentTime = pendingStartTime; pendingStartTime = null; } empty.hidden = true; updatePlayback(); updateUI(); });
-  testVideo.addEventListener("timeupdate", updatePlayback); testVideo.addEventListener("seeked", updatePlayback);
+  testVideo.addEventListener("loadedmetadata", () => { if (pendingStartTime !== null && !frameLocked) { testVideo.currentTime = pendingStartTime; pendingStartTime = null; } empty.hidden = true; updatePlayback(); updateUI(); });
+  testVideo.addEventListener("loadeddata", () => { empty.hidden = true; updatePlayback(); updateUI(); });
+  testVideo.addEventListener("canplay", () => { updatePlayback(); updateUI(); });
+  testVideo.addEventListener("durationchange", () => { updatePlayback(); updateUI(); });
+  testVideo.addEventListener("timeupdate", () => { updatePlayback(); updateUI(); }); testVideo.addEventListener("seeked", () => { updatePlayback(); updateUI(); });
   testVideo.addEventListener("play", () => { unlockFrame(); updateUI(); }); testVideo.addEventListener("pause", updateUI);
   testVideo.addEventListener("error", () => { setEmpty("No se pudo cargar el vídeo seleccionado."); updateUI(); });
   window.addEventListener("resize", draw);
