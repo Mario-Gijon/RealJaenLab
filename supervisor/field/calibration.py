@@ -1,6 +1,7 @@
 """Human-assisted homography solver for RealJaenLab FIELD calibration.
 
-V2 makes semantic field lines first-class homography constraints.
+V3 keeps semantic field lines as first-class constraints and improves how
+visible line segments participate in nonlinear refinement.
 
 Key idea
 --------
@@ -11,8 +12,14 @@ A human line annotation means:
 The two image clicks ONLY define the observed image line. They are not assumed
 to correspond to the canonical endpoints of the pitch segment.
 
-Therefore V2 does NOT create artificial point correspondences by intersecting
+As in V2, V3 does NOT create artificial point correspondences by intersecting
 unrelated annotated lines.
+
+V3 refinement is deliberately LOCAL to what the human actually saw: for a line
+annotation, the predicted canonical pitch line is projected into the image and
+its distance is measured at the two human click positions. The solver no longer
+refines a partial visible line by projecting distant canonical endpoints that
+may lie far outside the frame.
 
 The solver combines:
 
@@ -139,8 +146,11 @@ class CalibrationResult:
             "direct_correspondence_count": point_count,
             "constraint_count": line_count + point_count,
             "constraint_equation_count": 2 * (line_count + point_count),
-            "linear_rank": int(self.linear_rank),
             "refinement_iterations": int(self.refinement_iterations),
+            "linear_matrix_rank": int(self.linear_rank),
+            # Homography has eight observable degrees of freedom; cap the
+            # user-facing sufficiency rank even when noisy A is numerically full-rank.
+            "linear_rank": min(int(self.linear_rank), 8),
             # Compatibility with the V1 TEST UI. V2 no longer creates line
             # intersections, so this is intentionally always zero.
             "derived_correspondence_count": 0,
@@ -784,6 +794,65 @@ def _signed_point_to_line_distance(
     )
 
 
+def _project_pitch_line_to_image(
+    canonical: LineSegment,
+    homography: np.ndarray,
+    *,
+    observed_reference: np.ndarray | None = None,
+) -> np.ndarray:
+    """Project a canonical pitch line into image-line space.
+
+    If x_img = H x_pitch, then l_img = H^{-T} l_pitch.
+
+    The returned line is normalized so sqrt(a^2+b^2)=1, making
+    ax+by+c a signed pixel distance.  When an observed reference line is
+    provided, the sign is aligned to it to keep residuals locally continuous.
+    """
+
+    try:
+        inverse_transpose = np.linalg.inv(homography).T
+    except np.linalg.LinAlgError as exc:
+        raise DegenerateCalibrationError(
+            "Homography cannot project pitch lines because it is singular."
+        ) from exc
+
+    pitch_line = np.asarray(
+        canonical.homogeneous_line(),
+        dtype=float,
+    )
+    predicted = inverse_transpose @ pitch_line
+
+    norm = math.hypot(
+        float(predicted[0]),
+        float(predicted[1]),
+    )
+    if norm < EPS:
+        raise DegenerateCalibrationError(
+            f"Projected pitch line {canonical.name!r} is degenerate."
+        )
+
+    predicted = predicted / norm
+
+    if (
+        observed_reference is not None
+        and float(np.dot(predicted[:2], observed_reference[:2])) < 0.0
+    ):
+        predicted = -predicted
+
+    return predicted
+
+
+def _line_angle_difference_deg(
+    first: np.ndarray,
+    second: np.ndarray,
+) -> float:
+    """Smallest angle between two normalized image lines."""
+
+    a = _line_angle_deg(first)
+    b = _line_angle_deg(second)
+    return _angular_distance_deg(a, b)
+
+
 def _geometric_residuals(
     parameters: np.ndarray,
     pitch: PitchModel,
@@ -794,8 +863,13 @@ def _geometric_residuals(
     """Residuals in native image pixels.
 
     Point annotation -> 2 residuals: du, dv.
-    Line annotation  -> 2 residuals: perpendicular distance of two known
-                        canonical points on that line to the observed image line.
+
+    Line annotation -> 2 LOCAL residuals: signed distance from each human
+    click to the image line predicted by H for that semantic pitch line.
+
+    This is the important V3 change.  The two clicks are exactly the visible
+    evidence supplied by the human.  They do not correspond to canonical
+    endpoints, and distant/off-screen endpoints no longer dominate refinement.
     """
 
     homography = _parameters_to_homography(parameters)
@@ -819,19 +893,24 @@ def _geometric_residuals(
     for annotation in line_annotations:
         canonical = pitch.line(annotation.line_name)
         observed = observed_lines[annotation.line_name]
+        predicted = _project_pitch_line_to_image(
+            canonical,
+            homography,
+            observed_reference=observed,
+        )
 
-        for canonical_point in (canonical.start, canonical.end):
-            projected = _project_one(
-                canonical_point.x,
-                canonical_point.y,
-                homography,
+        residuals.append(
+            _signed_point_to_line_distance(
+                annotation.p1,
+                predicted,
             )
-            residuals.append(
-                _signed_point_to_line_distance(
-                    projected,
-                    observed,
-                )
+        )
+        residuals.append(
+            _signed_point_to_line_distance(
+                annotation.p2,
+                predicted,
             )
+        )
 
     return np.asarray(residuals, dtype=float)
 
@@ -1068,56 +1147,77 @@ def _reprojection_metrics(
     observed_lines: dict[str, np.ndarray],
     homography: np.ndarray,
 ) -> dict[str, Any]:
-    """Return balanced diagnostics.
+    """Return V3 diagnostics tied to the visible human evidence.
 
-    V1 mixed every sampled point of every line into the global metric, which
-    could make one annotated line dominate the summary. V2 uses one representative
-    error per annotation for the global summary:
+    Global summary uses one representative error per annotation:
 
-    - point annotation -> its reprojection distance;
-    - line annotation  -> median distance along that canonical line.
+    - point: Euclidean reprojection error;
+    - line: median distance of the two human clicks to the predicted semantic
+      line.
 
-    Detailed sample-level metrics are still returned separately.
+    Per-line diagnostics also expose endpoint distances and angular mismatch.
     """
 
-    per_line: dict[str, Any] = {}
-    line_sample_errors: list[float] = []
     annotation_errors: list[float] = []
+    per_line: dict[str, Any] = {}
+    line_errors: list[float] = []
 
     for annotation in line_annotations:
         canonical = pitch.line(annotation.line_name)
         observed = observed_lines[annotation.line_name]
-
-        samples = _line_sample_points(
+        predicted = _project_pitch_line_to_image(
             canonical,
-            sample_count=21,
-        )
-        projected = project_points(
-            samples,
             homography,
+            observed_reference=observed,
         )
 
-        errors = [
+        click_errors = [
             abs(
                 _signed_point_to_line_distance(
-                    point,
-                    observed,
+                    annotation.p1,
+                    predicted,
                 )
-            )
-            for point in projected
+            ),
+            abs(
+                _signed_point_to_line_distance(
+                    annotation.p2,
+                    predicted,
+                )
+            ),
         ]
 
-        median = float(np.median(errors))
-        p95 = float(np.percentile(errors, 95))
-        maximum = float(np.max(errors))
+        median = float(np.median(click_errors))
+        p95 = float(np.percentile(click_errors, 95))
+        maximum = float(np.max(click_errors))
+        angle_error = float(
+            _line_angle_difference_deg(
+                predicted,
+                observed,
+            )
+        )
+
+        midpoint = ImagePoint(
+            (annotation.p1.u + annotation.p2.u) / 2.0,
+            (annotation.p1.v + annotation.p2.v) / 2.0,
+        )
+        midpoint_error = abs(
+            _signed_point_to_line_distance(
+                midpoint,
+                predicted,
+            )
+        )
 
         per_line[annotation.line_name] = {
             "median_px": median,
             "p95_px": p95,
             "max_px": maximum,
+            "click_1_px": float(click_errors[0]),
+            "click_2_px": float(click_errors[1]),
+            "midpoint_px": float(midpoint_error),
+            "angle_deg": angle_error,
         }
 
-        line_sample_errors.extend(errors)
+        line_errors.append(median)
         annotation_errors.append(median)
 
     per_point: dict[str, float] = {}
@@ -1149,7 +1249,6 @@ def _reprojection_metrics(
             }
 
         array = np.asarray(values, dtype=float)
-
         return {
             "median_px": float(np.median(array)),
             "p95_px": float(np.percentile(array, 95)),
@@ -1158,30 +1257,64 @@ def _reprojection_metrics(
 
     balanced = summarize(annotation_errors)
     point_summary = summarize(point_errors)
-    line_summary = summarize(
-        [
-            details["median_px"]
-            for details in per_line.values()
-        ]
-    )
-    line_sample_summary = summarize(
-        line_sample_errors
-    )
+    line_summary = summarize(line_errors)
 
     return {
-        # Existing top-level names retained for TEST compatibility.
         "median_px": balanced["median_px"],
         "p95_px": balanced["p95_px"],
         "max_px": balanced["max_px"],
-        # New clearer diagnostics.
         "balanced_annotation_error": balanced,
         "point_error": point_summary,
         "line_error": line_summary,
-        "line_sample_error": line_sample_summary,
+        # Kept for current TEST compatibility; in V3 these are local visible
+        # line diagnostics rather than full canonical-line samples.
+        "line_sample_error": line_summary,
         "point_sample_count": len(point_errors),
-        "line_sample_count": len(line_sample_errors),
+        "line_sample_count": 2 * len(line_annotations),
         "per_point": per_point,
         "per_line": per_line,
+    }
+
+def _projective_pitch_diagnostics(
+    pitch: PitchModel,
+    homography: np.ndarray,
+) -> dict[str, Any]:
+    """Inspect the projective denominator over the finite pitch rectangle.
+
+    A pinhole-plane homography should not place the projective horizon through
+    the physical 105x68-ish pitch.  This does not alter the fit; it exposes a
+    useful warning and allows pathological refined solutions to be avoided.
+    """
+
+    samples: list[float] = []
+    for x in np.linspace(0.0, pitch.length, 9):
+        for y in np.linspace(0.0, pitch.width, 7):
+            w = float(
+                homography[2, 0] * x
+                + homography[2, 1] * y
+                + homography[2, 2]
+            )
+            samples.append(w)
+
+    values = np.asarray(samples, dtype=float)
+    positive = bool(np.all(values > 0.0))
+    negative = bool(np.all(values < 0.0))
+    same_sign = positive or negative
+
+    max_abs = float(np.max(np.abs(values)))
+    min_abs = float(np.min(np.abs(values)))
+    relative_margin = (
+        min_abs / max_abs
+        if max_abs > EPS
+        else 0.0
+    )
+
+    return {
+        "same_denominator_sign": same_sign,
+        "horizon_crosses_pitch": not same_sign,
+        "min_abs_w": min_abs,
+        "max_abs_w": max_abs,
+        "relative_horizon_margin": float(relative_margin),
     }
 
 
@@ -1350,6 +1483,10 @@ def solve_calibration(
         lines,
         points,
         observed_lines,
+        homography,
+    )
+    metrics["projective_geometry"] = _projective_pitch_diagnostics(
+        pitch,
         homography,
     )
 
@@ -1664,7 +1801,26 @@ def _self_check() -> None:
 
     assert rejected
 
-    print("Calibration solver V2 self-check: OK")
+    # 5) Local visible-line refinement check with deliberately partial segments
+    # and mild click noise.  The line diagnostics should remain tied to the
+    # clicked segment rather than distant canonical endpoints.
+    noisy_lines = []
+    for annotation in mixed_lines:
+        noisy_lines.append(
+            LineAnnotation(
+                annotation.line_name,
+                ImagePoint(annotation.p1.u + 1.5, annotation.p1.v - 0.8),
+                ImagePoint(annotation.p2.u - 1.0, annotation.p2.v + 0.7),
+            )
+        )
+    noisy_solution = solve_calibration(
+        noisy_lines,
+        point_annotations=mixed_points,
+    )
+    noisy_line_median = noisy_solution.metrics["line_error"]["median_px"]
+    assert noisy_line_median < 5.0, noisy_line_median
+
+    print("Calibration solver V3 self-check: OK")
     print(
         "Point-only recovery max matrix error: "
         f"{point_error:.3e}"
@@ -1681,10 +1837,14 @@ def _self_check() -> None:
         "Line intersections fabricated by solver: 0"
     )
     print(
+        "Noisy partial-line local median error: "
+        f"{noisy_line_median:.3f} px"
+    )
+    print(
         "Insufficient-geometry rejection: OK"
     )
     print(
-        "V2 line meaning: clicks define the observed image line only; "
+        "V3 line meaning: clicks define the visible observed segment; "
         "they are NOT canonical endpoint correspondences."
     )
 

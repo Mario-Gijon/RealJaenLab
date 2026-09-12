@@ -25,6 +25,7 @@ from supervisor.media_uploads import (
 )
 from supervisor.field.calibration import CalibrationError, solve_calibration_payload
 from supervisor.field.pitch import PitchModel
+from supervisor.field.projection_support import build_projection_support_payload
 
 
 BASE_DIR = Path(__file__).parent
@@ -120,12 +121,22 @@ def solve_field_calibration(payload: dict = Body()) -> dict:
         result = solve_calibration_payload(payload)
     except (CalibrationError, ValueError, TypeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    try:
+        projection_support = build_projection_support_payload(result, payload)
+    except Exception as error:  # Support diagnostics must not invalidate a solve.
+        projection_support = {
+            "support_image_polygon": [],
+            "visible_image_polygon": [],
+            "projective_valid": False,
+            "warnings": [f"No se pudo calcular el soporte de proyección: {error}"],
+        }
     return {
         "asset_id": payload.get("asset_id"),
         "timestamp_seconds": payload.get("timestamp_seconds"),
         "frame_index": payload.get("frame_index"),
         "video_width": payload.get("video_width"),
         "video_height": payload.get("video_height"),
+        "projection_support": projection_support,
         **result,
     }
 

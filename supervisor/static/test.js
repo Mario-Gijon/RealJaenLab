@@ -15,6 +15,9 @@
   const result = document.querySelector("#test-result");
   const resultSection = document.querySelector("#test-result-section");
   const projectionToggle = document.querySelector("#test-projection-toggle");
+  const projectionModes = document.querySelector("#test-projection-modes");
+  const supportedProjectionButton = document.querySelector("#test-supported-projection");
+  const completeProjectionButton = document.querySelector("#test-complete-projection");
   const previousButton = document.querySelector("#test-previous-frame");
   const playButton = document.querySelector("#test-play-pause");
   const nextButton = document.querySelector("#test-next-frame");
@@ -36,6 +39,8 @@
   let fixedFrame = null;
   let projected = null;
   let projectionVisible = true;
+  let projectionMode = "supported";
+  let projectionSupport = null;
   let diagnosticFocus = null;
   let pendingStartTime = null;
 
@@ -53,7 +58,7 @@
   const formatTime = (seconds) => [Math.floor(Math.max(0, seconds || 0) / 3600), Math.floor((Math.max(0, seconds || 0) % 3600) / 60), Math.floor(Math.max(0, seconds || 0) % 60)].map((part) => String(part).padStart(2, "0")).join(":");
 
   function resetSolution() {
-    projected = null; projectionVisible = true; diagnosticFocus = null; projectionToggle.hidden = true; resultSection.hidden = true; result.textContent = "";
+    projected = null; projectionSupport = null; projectionVisible = true; projectionMode = "supported"; diagnosticFocus = null; projectionToggle.hidden = true; projectionModes.hidden = true; resultSection.hidden = true; result.textContent = "";
   }
   function resetAnnotations() {
     lineAnnotations.clear(); pointAnnotations.clear(); history.length = 0; draft = null; resetSolution();
@@ -150,14 +155,25 @@
     if (!frameLocked || !canvas.width || !canvas.height) return;
     context.clearRect(0, 0, canvas.width, canvas.height); context.lineJoin = "round"; context.lineCap = "round";
     if (projected && projectionVisible) {
-      context.lineWidth = Math.max(1.5, canvas.width / 1150); context.strokeStyle = "rgba(103, 216, 255, .92)";
-      projected.lines.forEach((line) => drawPolyline(line.points, false)); projected.curves.forEach((curve) => drawPolyline(curve.points, curve.closed));
-      context.fillStyle = "rgba(103, 216, 255, .92)"; projected.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
+      const supportPolygon = projectionSupport?.support_image_polygon;
+      const useSupport = projectionMode === "supported" && supportPolygon?.length >= 3;
+      if (useSupport) { context.save(); drawPolygonPath(supportPolygon); context.clip(); }
+      drawProjectedGeometry();
+      if (useSupport) context.restore();
+      if (useSupport) { context.save(); context.setLineDash([7, 5]); context.lineWidth = Math.max(1, canvas.width / 1800); context.strokeStyle = "rgba(103, 216, 255, .48)"; drawPolygonPath(supportPolygon); context.stroke(); context.restore(); }
     }
     const scale = Math.max(2, canvas.width / 900); context.strokeStyle = "#f2c94c"; context.fillStyle = "#f2c94c";
     lineAnnotations.forEach((annotation, name) => { const emphasis = (mode === "line" && name === selectedName) || (diagnosticFocus?.kind === "line" && diagnosticFocus.name === name); context.lineWidth = scale * (emphasis ? 1.75 : 1); context.beginPath(); context.moveTo(...annotation.points[0]); context.lineTo(...annotation.points[1]); context.stroke(); annotation.points.forEach(([x, y]) => { context.beginPath(); context.arc(x, y, context.lineWidth * 1.7, 0, Math.PI * 2); context.fill(); }); });
     pointAnnotations.forEach((annotation, name) => { const [x, y] = annotation.point; const emphasis = (mode === "point" && name === selectedName) || (diagnosticFocus?.kind === "point" && diagnosticFocus.name === name); context.beginPath(); context.arc(x, y, scale * (emphasis ? 2.8 : 1.9), 0, Math.PI * 2); context.fill(); });
     if (draft?.points.length) { const [x, y] = draft.points[0]; context.beginPath(); context.arc(x, y, scale * 2.4, 0, Math.PI * 2); context.fill(); }
+  }
+  function drawProjectedGeometry() {
+    context.lineWidth = Math.max(1.5, canvas.width / 1150); context.strokeStyle = "rgba(103, 216, 255, .92)";
+    projected.lines.forEach((line) => drawPolyline(line.points, false)); projected.curves.forEach((curve) => drawPolyline(curve.points, curve.closed));
+    context.fillStyle = "rgba(103, 216, 255, .92)"; projected.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
+  }
+  function drawPolygonPath(points) {
+    context.beginPath(); context.moveTo(points[0][0], points[0][1]); points.slice(1).forEach(([x, y]) => context.lineTo(x, y)); context.closePath();
   }
   function finite(value) { return typeof value === "number" && Number.isFinite(value); }
   function metricText(value) { return finite(value) ? `${value.toFixed(2)} px` : "—"; }
@@ -176,11 +192,15 @@
   }
   function renderDiagnostics(solved) {
     const metrics = solved.metrics || {};
+    const support = solved.projection_support || {};
     const pointRows = diagnosticRows("point", metrics.per_point);
     const lineRows = diagnosticRows("line", metrics.per_line);
     const pointBlock = Object.keys(metrics.per_point || {}).length ? `<section class="test-diagnostic-block"><h3>Puntos</h3><div class="test-detail-list">${pointRows}</div></section>` : "";
     const lineBlock = Object.keys(metrics.per_line || {}).length ? `<section class="test-diagnostic-block"><h3>Líneas</h3><div class="test-detail-list">${lineRows}</div></section>` : "";
-    result.innerHTML = `<div class="test-diagnostic-summary"><h3>Evidencia</h3><dl><div><dt>Líneas</dt><dd>${solved.line_annotation_count ?? 0}</dd></div><div><dt>Puntos</dt><dd>${solved.point_annotation_count ?? 0}</dd></div><div><dt>Restricciones de línea</dt><dd>${solved.line_constraint_count ?? 0}</dd></div><div><dt>Restricciones de punto</dt><dd>${solved.direct_correspondence_count ?? 0}</dd></div><div><dt>Rango geométrico</dt><dd>${solved.linear_rank ?? "—"} / 8</dd></div><div><dt>Refinamiento</dt><dd>${solved.refinement_iterations ?? "—"} iteraciones</dd></div></dl></div><section class="test-diagnostic-block"><h3>Error global</h3><p class="test-diagnostic-caption">Error balanceado de las anotaciones</p><div class="test-diagnostic-metrics"><span>Mediana <strong>${metricText(metrics.median_px)}</strong></span><span>P95 <strong>${metricText(metrics.p95_px)}</strong></span><span>Máximo <strong>${metricText(metrics.max_px)}</strong></span></div></section>${metricBlock("Error de puntos", metrics.point_error)}${metricBlock("Error de líneas", metrics.line_error)}<section class="test-diagnostic-block"><h3>Detalle de anotaciones</h3>${pointBlock}${lineBlock}</section>`;
+    const supportRatio = finite(support.support_ratio_of_visible) ? `${(support.support_ratio_of_visible * 100).toFixed(0)} %` : "—";
+    const supportWarnings = (support.warnings || []).map((warning) => `<li>${warning}</li>`).join("");
+    const supportStatus = support.projective_valid === false ? "⚠ Revisar geometría proyectiva" : "Correcta";
+    result.innerHTML = `<div class="test-diagnostic-summary"><h3>Evidencia</h3><dl><div><dt>Líneas</dt><dd>${solved.line_annotation_count ?? 0}</dd></div><div><dt>Puntos</dt><dd>${solved.point_annotation_count ?? 0}</dd></div><div><dt>Restricciones de línea</dt><dd>${solved.line_constraint_count ?? 0}</dd></div><div><dt>Restricciones de punto</dt><dd>${solved.direct_correspondence_count ?? 0}</dd></div><div><dt>Rango geométrico</dt><dd>${solved.linear_rank ?? "—"} / 8</dd></div><div><dt>Refinamiento</dt><dd>${solved.refinement_iterations ?? "—"} iteraciones</dd></div></dl></div><section class="test-diagnostic-block"><h3>Error global</h3><p class="test-diagnostic-caption">Error balanceado de las anotaciones</p><div class="test-diagnostic-metrics"><span>Mediana <strong>${metricText(metrics.median_px)}</strong></span><span>P95 <strong>${metricText(metrics.p95_px)}</strong></span><span>Máximo <strong>${metricText(metrics.max_px)}</strong></span></div></section>${metricBlock("Error de puntos", metrics.point_error)}${metricBlock("Error de líneas", metrics.line_error)}<section class="test-diagnostic-block"><h3>Soporte de proyección</h3><dl><div><dt>Puntos de soporte</dt><dd>${support.point_evidence_count ?? 0}</dd></div><div><dt>Líneas de soporte</dt><dd>${support.line_evidence_count ?? 0}</dd></div><div><dt>Cobertura visible</dt><dd>${supportRatio}</dd></div><div><dt>Margen</dt><dd>${finite(support.support_margin_m) ? `${support.support_margin_m.toFixed(1)} m` : "—"}</dd></div><div><dt>Geometría proyectiva</dt><dd>${supportStatus}</dd></div></dl>${supportWarnings ? `<ul class="test-support-warnings">${supportWarnings}</ul>` : ""}</section><section class="test-diagnostic-block"><h3>Detalle de anotaciones</h3>${pointBlock}${lineBlock}</section>`;
     result.querySelectorAll("[data-diagnostic-name]").forEach((row) => {
       row.addEventListener("mouseenter", () => { diagnosticFocus = { kind: row.dataset.diagnosticKind, name: row.dataset.diagnosticName }; draw(); });
       row.addEventListener("mouseleave", () => { diagnosticFocus = null; draw(); });
@@ -260,11 +280,13 @@
         point_annotations: [...pointAnnotations.values()],
       };
       const solved = await api("/api/field/calibration/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      projected = solved.projected_geometry; projectionVisible = true; projectionToggle.hidden = false; diagnosticFocus = null; renderDiagnostics(solved);
+      projected = solved.projected_geometry; projectionSupport = solved.projection_support || null; projectionVisible = true; projectionMode = "supported"; projectionToggle.hidden = false; projectionModes.hidden = false; supportedProjectionButton.classList.add("is-active"); completeProjectionButton.classList.remove("is-active"); diagnosticFocus = null; renderDiagnostics(solved);
       draw();
     } catch (error) { resultSection.hidden = false; result.textContent = `No se pudo resolver: ${error.message}`; }
   });
   projectionToggle.addEventListener("click", () => { projectionVisible = !projectionVisible; projectionToggle.textContent = projectionVisible ? "Ocultar proyección" : "Mostrar proyección"; draw(); });
+  supportedProjectionButton.addEventListener("click", () => { projectionMode = "supported"; supportedProjectionButton.classList.add("is-active"); completeProjectionButton.classList.remove("is-active"); draw(); });
+  completeProjectionButton.addEventListener("click", () => { projectionMode = "complete"; completeProjectionButton.classList.add("is-active"); supportedProjectionButton.classList.remove("is-active"); draw(); });
   previousButton.addEventListener("click", () => stepFrame(-1)); nextButton.addEventListener("click", () => stepFrame(1));
   playButton.addEventListener("click", () => { if (testVideo.paused) void testVideo.play(); else testVideo.pause(); });
   timeline.addEventListener("input", () => { unlockFrame(); testVideo.currentTime = Number(timeline.value); });
