@@ -22,12 +22,14 @@ const nextFrameButtons = document.querySelectorAll("#next-frame, #next-frame-lab
 const timeline = document.querySelector("#timeline");
 const currentTimeLabel = document.querySelector("#current-time");
 const totalTimeLabel = document.querySelector("#total-time");
-const frameReadout = document.querySelector("#frame-readout");
+const videoFrameInput = document.querySelector("#video-frame-input");
+const videoFrameTotal = document.querySelector("#video-frame-total");
 
 let selectedVideo = null;
 let activeWorkspace = "video";
 
 function setWorkspace(workspace) {
+  if (activeWorkspace === "test" && workspace !== "test") window.SupervisorTest?.leave();
   activeWorkspace = workspace;
   const isVideo = workspace === "video";
   document.body.classList.toggle("is-nonvideo-workspace", !isVideo);
@@ -58,6 +60,7 @@ function setControlsEnabled(enabled) {
   timeline.disabled = !enabled;
   previousFrameButtons.forEach((button) => { button.disabled = !enabled; });
   nextFrameButtons.forEach((button) => { button.disabled = !enabled; });
+  videoFrameInput.disabled = !enabled || !selectedVideo?.fps;
 }
 
 function updateMuteControl() {
@@ -76,9 +79,13 @@ function updatePlaybackDisplay() {
   totalTimeLabel.textContent = formatTime(duration);
   if (selectedVideo?.fps) {
     const frame = Math.min(Math.floor(currentTime * selectedVideo.fps), Math.max(0, (selectedVideo.frame_count || Infinity) - 1));
-    frameReadout.textContent = `Fotograma ${frame} / ${selectedVideo.frame_count ?? "—"}`;
+    videoFrameInput.value = String(frame);
+    videoFrameInput.max = selectedVideo.frame_count ? String(Math.max(0, selectedVideo.frame_count - 1)) : "";
+    videoFrameTotal.textContent = selectedVideo.frame_count ? String(selectedVideo.frame_count) : "—";
   } else {
-    frameReadout.textContent = "Fotograma —";
+    videoFrameInput.value = "";
+    videoFrameInput.max = "";
+    videoFrameTotal.textContent = "—";
   }
 }
 
@@ -89,7 +96,16 @@ function stepFrame(direction) {
   video.currentTime = Math.max(0, Math.min(duration, video.currentTime + direction / selectedVideo.fps));
 }
 
+function seekVideoFrame(value) {
+  if (!selectedVideo?.fps || !Number.isFinite(value)) return;
+  const maximum = selectedVideo.frame_count ? selectedVideo.frame_count - 1 : Math.floor((video.duration || 0) * selectedVideo.fps);
+  const frame = Math.max(0, Math.min(Math.floor(value), Number.isFinite(maximum) ? maximum : Math.floor(value)));
+  video.pause();
+  video.currentTime = frame / selectedVideo.fps;
+}
+
 function showLibrary() {
+  if (activeWorkspace === "test") window.SupervisorTest?.leave();
   video.pause();
   document.body.classList.add("is-library");
   libraryScreen.hidden = false;
@@ -138,6 +154,8 @@ playPauseButton.addEventListener("click", () => { if (video.paused) void video.p
 muteToggleButton.addEventListener("click", () => { video.muted = !video.muted; });
 previousFrameButtons.forEach((button) => button.addEventListener("click", () => stepFrame(-1)));
 nextFrameButtons.forEach((button) => button.addEventListener("click", () => stepFrame(1)));
+videoFrameInput.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); seekVideoFrame(Number(videoFrameInput.value)); } });
+videoFrameInput.addEventListener("change", () => seekVideoFrame(Number(videoFrameInput.value)));
 timeline.addEventListener("input", () => { video.currentTime = Number(timeline.value); });
 backToLibraryButton.addEventListener("click", showLibrary);
 workspaceTabs.forEach((tab) => tab.addEventListener("click", () => setWorkspace(tab.dataset.workspace)));

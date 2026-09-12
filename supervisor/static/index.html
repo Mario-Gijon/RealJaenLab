@@ -47,17 +47,28 @@
       </section>
       <section class="test-workspace" id="test-workspace" aria-labelledby="test-title" hidden>
         <div class="test-canvas-panel">
-          <div class="test-canvas-wrap" id="test-canvas-wrap">
-            <canvas id="test-canvas" aria-label="Fotograma congelado para calibración"></canvas>
-            <div class="test-empty" id="test-empty"><strong>FIELD LAB</strong><span>Abre un vídeo desde Biblioteca para comenzar.</span></div>
+          <div class="test-player-column">
+            <div class="test-canvas-wrap" id="test-canvas-wrap">
+              <video id="test-video" class="test-video" playsinline preload="metadata"></video>
+              <canvas id="test-canvas" aria-label="Fotograma fijado para calibración"></canvas>
+              <div class="test-empty" id="test-empty"><strong>FIELD LAB</strong><span>Abre un vídeo desde Biblioteca para comenzar.</span></div>
+            </div>
+            <div class="test-video-controls" aria-label="Controles de vídeo de FIELD Lab">
+              <div class="test-transport-controls"><button class="icon-button" id="test-previous-frame" type="button" aria-label="Fotograma anterior" disabled>|&lt;</button><button class="play-button" id="test-play-pause" type="button" aria-label="Reproducir" disabled>▶</button><button class="icon-button" id="test-next-frame" type="button" aria-label="Fotograma siguiente" disabled>&gt;|</button></div>
+              <input class="timeline" id="test-timeline" type="range" min="0" max="0" value="0" step="0.001" aria-label="Línea de tiempo de FIELD Lab" disabled />
+              <div class="time-readout"><span id="test-current-time">00:00:00</span> <span>/</span> <span id="test-total-time">00:00:00</span></div>
+              <label class="frame-readout test-frame-direct">Fotograma <input id="test-frame-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Ir al fotograma" disabled /> <span>/</span> <span id="test-frame-total">—</span></label>
+              <button class="button button-primary test-lock-frame" id="test-lock-frame" type="button" disabled>Fijar fotograma</button>
+            </div>
           </div>
           <div class="test-sidebar">
             <section class="test-section test-heading"><span class="development-kicker">TEST · FIELD LAB</span><h1 id="test-title">Calibración sobre fotograma real</h1><p id="test-frame-info">Sin fotograma capturado.</p></section>
             <section class="test-section"><h2>Campo</h2><div class="mini-pitch" id="test-mini-pitch" aria-label="Selecciona una línea del campo"></div></section>
-            <section class="test-section"><h2>Línea seleccionada</h2><strong class="test-line-name" id="test-line-name">Selecciona una línea en el campo.</strong><ol class="test-point-progress" id="test-point-progress"><li>Primer punto</li><li>Segundo punto</li></ol></section>
-            <section class="test-section"><h2>Geometría</h2><p class="test-geometry-note">Orientativo; el solver valida la geometría final.</p><div class="test-family-status" id="test-family-status"></div></section>
+            <section class="test-section"><div class="test-mode-toggle" role="group" aria-label="Modo de anotación"><button id="test-line-mode" type="button" class="is-active">Líneas</button><button id="test-point-mode" type="button">Puntos</button></div></section>
+            <section class="test-section"><h2 id="test-selection-heading">Línea seleccionada</h2><strong class="test-line-name" id="test-line-name">Selecciona una línea en el campo.</strong><ol class="test-point-progress" id="test-point-progress"><li>Primer punto</li><li>Segundo punto</li></ol></section>
+            <section class="test-section"><h2>Geometría</h2><p class="test-geometry-note">El solver comprobará si la geometría es suficiente.</p><div class="test-family-status" id="test-family-status"></div></section>
             <section class="test-section test-dimensions"><h2>Dimensiones</h2><div><label>Largo (m)<input id="test-pitch-length" type="number" min="33" step="0.1" value="105.0" /></label><label>Ancho (m)<input id="test-pitch-width" type="number" min="30" step="0.1" value="68.0" /></label></div></section>
-            <section class="test-section"><h2>Acciones</h2><div class="test-actions"><button class="button button-secondary" id="test-undo" type="button">Deshacer</button><button class="button button-secondary" id="test-remove" type="button">Eliminar línea</button><button class="button button-secondary" id="test-clear" type="button">Limpiar</button></div><button class="button button-secondary test-recapture" id="test-recapture" type="button">Recapturar fotograma</button></section>
+            <section class="test-section"><h2>Acciones</h2><div class="test-actions"><button class="button button-secondary" id="test-undo" type="button">Deshacer</button><button class="button button-secondary" id="test-remove" type="button">Eliminar línea</button><button class="button button-secondary" id="test-clear" type="button">Limpiar</button></div></section>
             <button class="button button-primary test-solve" id="test-solve" type="button">Resolver</button>
             <button class="test-projection-toggle" id="test-projection-toggle" type="button" hidden>Ocultar proyección</button>
             <section class="test-section test-result-section" id="test-result-section" hidden><h2>Resultado</h2><div class="test-result" id="test-result" aria-live="polite"></div></section>
@@ -75,7 +86,7 @@
         <div class="time-readout"><span id="current-time">00:00:00</span> <span>/</span> <span id="total-time">00:00:00</span></div>
         <div class="frame-controls">
           <button class="frame-button" id="previous-frame-label" type="button" disabled>− Fotograma</button>
-          <span class="frame-readout" id="frame-readout">Fotograma —</span>
+          <label class="frame-readout">Fotograma <input id="video-frame-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Ir al fotograma" disabled /> <span>/</span> <span id="video-frame-total">—</span></label>
           <button class="frame-button" id="next-frame-label" type="button" disabled>+ Fotograma</button>
         </div>
       </footer>
