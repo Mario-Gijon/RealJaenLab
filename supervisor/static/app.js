@@ -30,6 +30,7 @@ let activeWorkspace = "video";
 function setWorkspace(workspace) {
   activeWorkspace = workspace;
   const isVideo = workspace === "video";
+  document.body.classList.toggle("is-nonvideo-workspace", !isVideo);
   videoWorkspace.hidden = !isVideo;
   previewWorkspace.hidden = workspace !== "preview";
   calibrationWorkspace.hidden = workspace !== "calibration";

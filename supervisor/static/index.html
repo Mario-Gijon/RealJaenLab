@@ -49,18 +49,18 @@
         <div class="test-canvas-panel">
           <div class="test-canvas-wrap" id="test-canvas-wrap">
             <canvas id="test-canvas" aria-label="Fotograma congelado para calibración"></canvas>
-            <div class="test-empty" id="test-empty"><strong>TEST</strong><span>Abre un vídeo y pausa en un fotograma para comenzar.</span></div>
+            <div class="test-empty" id="test-empty"><strong>FIELD LAB</strong><span>Abre un vídeo desde Biblioteca para comenzar.</span></div>
           </div>
           <div class="test-sidebar">
-            <div><span class="development-kicker">TEST · FIELD LAB</span><h1 id="test-title">Calibración sobre fotograma real</h1><p id="test-frame-info">Sin fotograma capturado.</p></div>
-            <label>Línea semántica<select id="test-line-select"><option>Cargando líneas…</option></select></label>
-            <p class="test-status" id="test-status">Dos clics por línea. Las coordenadas se guardan en píxeles nativos.</p>
-            <div class="test-family-status" id="test-family-status"></div>
-            <div class="test-actions"><button class="button button-secondary" id="test-undo" type="button">Undo</button><button class="button button-secondary" id="test-remove" type="button">Eliminar línea</button><button class="button button-secondary" id="test-clear" type="button">Clear</button></div>
-            <div class="test-dimensions"><label>Largo (m)<input id="test-pitch-length" type="number" min="33" step="0.1" value="105.0" /></label><label>Ancho (m)<input id="test-pitch-width" type="number" min="30" step="0.1" value="68.0" /></label></div>
-            <button class="button button-primary" id="test-solve" type="button">Solve</button>
-            <button class="button button-secondary" id="test-recapture" type="button">Recapturar frame</button>
-            <div class="test-result" id="test-result" aria-live="polite"></div>
+            <section class="test-section test-heading"><span class="development-kicker">TEST · FIELD LAB</span><h1 id="test-title">Calibración sobre fotograma real</h1><p id="test-frame-info">Sin fotograma capturado.</p></section>
+            <section class="test-section"><h2>Campo</h2><div class="mini-pitch" id="test-mini-pitch" aria-label="Selecciona una línea del campo"></div></section>
+            <section class="test-section"><h2>Línea seleccionada</h2><strong class="test-line-name" id="test-line-name">Selecciona una línea en el campo.</strong><ol class="test-point-progress" id="test-point-progress"><li>Primer punto</li><li>Segundo punto</li></ol></section>
+            <section class="test-section"><h2>Geometría</h2><p class="test-geometry-note">Orientativo; el solver valida la geometría final.</p><div class="test-family-status" id="test-family-status"></div></section>
+            <section class="test-section test-dimensions"><h2>Dimensiones</h2><div><label>Largo (m)<input id="test-pitch-length" type="number" min="33" step="0.1" value="105.0" /></label><label>Ancho (m)<input id="test-pitch-width" type="number" min="30" step="0.1" value="68.0" /></label></div></section>
+            <section class="test-section"><h2>Acciones</h2><div class="test-actions"><button class="button button-secondary" id="test-undo" type="button">Deshacer</button><button class="button button-secondary" id="test-remove" type="button">Eliminar línea</button><button class="button button-secondary" id="test-clear" type="button">Limpiar</button></div><button class="button button-secondary test-recapture" id="test-recapture" type="button">Recapturar fotograma</button></section>
+            <button class="button button-primary test-solve" id="test-solve" type="button">Resolver</button>
+            <button class="test-projection-toggle" id="test-projection-toggle" type="button" hidden>Ocultar proyección</button>
+            <section class="test-section test-result-section" id="test-result-section" hidden><h2>Resultado</h2><div class="test-result" id="test-result" aria-live="polite"></div></section>
           </div>
         </div>
       </section>

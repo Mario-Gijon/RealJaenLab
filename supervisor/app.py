@@ -111,13 +111,7 @@ def get_media_library() -> dict:
 @app.get("/api/field/pitch-lines")
 def get_field_pitch_lines() -> dict:
     pitch = PitchModel()
-    return {
-        "dimensions": {"length": pitch.length, "width": pitch.width},
-        "lines": [
-            {"name": line.name, "label": line.label, "family": line.family}
-            for line in pitch.straight_lines
-        ],
-    }
+    return pitch.geometry_dict()
 
 
 @app.post("/api/field/calibration/solve")
