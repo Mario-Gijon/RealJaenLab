@@ -6,6 +6,7 @@
   const miniPitch = document.querySelector("#test-mini-pitch");
   const lineModeButton = document.querySelector("#test-line-mode");
   const pointModeButton = document.querySelector("#test-point-mode");
+  const annotationGuidance = document.querySelector("#test-annotation-guidance");
   const selectionHeading = document.querySelector("#test-selection-heading");
   const selectionName = document.querySelector("#test-line-name");
   const pointProgress = document.querySelector("#test-point-progress");
@@ -61,11 +62,13 @@
     if (annotation) target.set(name, cloneAnnotation(kind, annotation)); else target.delete(name);
   }
   function selectItem(name) {
+    if (!frameLocked) return;
     const collection = geometry?.[mode === "line" ? "lines" : "points"] || [];
     if (!collection.some((item) => item.name === name)) return;
     draft = null; selectedName = name; updateUI(); draw();
   }
   function setMode(nextMode) {
+    if (!frameLocked) return;
     mode = nextMode; selectedName = null; draft = null; updateUI(); draw();
   }
   function setEmpty(message) {
@@ -112,15 +115,23 @@
       node.classList.toggle("is-done", done); node.classList.toggle("is-current", current);
     });
     if (mode === "point") pointProgress.children[0].classList.toggle("is-done", complete);
+    if (!frameLocked) annotationGuidance.textContent = "Fija un fotograma para comenzar a anotar.";
+    else if (!item) annotationGuidance.textContent = `Selecciona ${mode === "line" ? "una línea" : "un punto"} en el mini campo.`;
+    else if (mode === "point") annotationGuidance.textContent = complete ? "Punto completado. Puedes seleccionar otro." : "Haz clic en su posición en el fotograma.";
+    else if (complete) annotationGuidance.textContent = "Línea completada. Puedes seleccionar otra.";
+    else if (draft?.points.length === 1) annotationGuidance.textContent = "Marca el segundo punto sobre esta línea.";
+    else annotationGuidance.textContent = "Marca dos puntos sobre esta línea.";
     const counts = { x_constant: 0, y_constant: 0 };
     lineAnnotations.forEach((_, name) => { const line = geometry?.lines.find((candidate) => candidate.name === name); if (line) counts[line.family] += 1; });
     familyStatus.innerHTML = `<span>Líneas <strong>${lineAnnotations.size}</strong></span><span>Puntos <strong>${pointAnnotations.size}</strong></span><span>Longitudinales <strong>${counts.x_constant}</strong></span><span>Transversales <strong>${counts.y_constant}</strong></span>`;
     lineModeButton.classList.toggle("is-active", mode === "line"); pointModeButton.classList.toggle("is-active", mode === "point");
-    miniPitch.classList.toggle("is-point-mode", mode === "point");
+    lineModeButton.disabled = !frameLocked; pointModeButton.disabled = !frameLocked;
+    miniPitch.classList.toggle("is-point-mode", mode === "point"); miniPitch.classList.toggle("is-frame-unfixed", !frameLocked);
     miniPitch.querySelectorAll("[data-line-name]").forEach((node) => { const name = node.dataset.lineName; node.classList.toggle("is-selected", mode === "line" && name === selectedName); node.classList.toggle("is-annotated", lineAnnotations.has(name)); });
     miniPitch.querySelectorAll("[data-point-name]").forEach((node) => { const name = node.dataset.pointName; node.classList.toggle("is-selected", mode === "point" && name === selectedName); node.classList.toggle("is-annotated", pointAnnotations.has(name)); });
     document.querySelector("#test-undo").disabled = !history.length && !draft?.points.length;
     document.querySelector("#test-remove").disabled = !selectedName || !selectedAnnotations.has(selectedName);
+    document.querySelector("#test-clear").disabled = !frameLocked;
     document.querySelector("#test-remove").textContent = mode === "line" ? "Eliminar línea" : "Eliminar punto";
     document.querySelector("#test-solve").disabled = !frameLocked;
     updateControls();
@@ -150,12 +161,12 @@
     const curves = geometry.curves.map((curve) => `<path class="mini-pitch-mark" d="${pathData(curve.points, curve.closed)}"></path>`).join("");
     const points = geometry.points.map((point) => `<g class="mini-pitch-point-hit" data-point-name="${point.name}" tabindex="0" role="button" aria-label="${point.label}"><circle class="mini-pitch-point-target" cx="${point.point[0]}" cy="${point.point[1]}" r="3"></circle><circle class="mini-pitch-point" cx="${point.point[0]}" cy="${point.point[1]}" r=".9"></circle></g>`).join("");
     miniPitch.innerHTML = `<svg viewBox="-3 -3 ${length + 6} ${width + 6}" preserveAspectRatio="xMidYMid meet" aria-label="Campo de fútbol interactivo"><rect class="mini-pitch-grass" x="0" y="0" width="${length}" height="${width}"></rect>${curves}${lines}${points}</svg>`;
-    miniPitch.querySelectorAll("[data-line-name], [data-point-name]").forEach((node) => { const kind = node.dataset.lineName ? "line" : "point"; const name = node.dataset.lineName || node.dataset.pointName; node.addEventListener("click", () => { if (mode === kind) selectItem(name); }); node.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && mode === kind) { event.preventDefault(); selectItem(name); } }); });
+    miniPitch.querySelectorAll("[data-line-name], [data-point-name]").forEach((node) => { const kind = node.dataset.lineName ? "line" : "point"; const name = node.dataset.lineName || node.dataset.pointName; node.addEventListener("click", () => { if (frameLocked && mode === kind) selectItem(name); }); node.addEventListener("keydown", (event) => { if ((event.key === "Enter" || event.key === " ") && frameLocked && mode === kind) { event.preventDefault(); selectItem(name); } }); });
   }
   function clearOverlay() { context.clearRect(0, 0, canvas.width, canvas.height); }
   function unlockFrame() {
     if (!frameLocked) return;
-    frameLocked = false; fixedTimestamp = null; fixedFrame = null; resetAnnotations(); clearOverlay(); frameInfo.textContent = "Navega por el vídeo y fija un fotograma para anotar."; updateUI();
+    frameLocked = false; fixedTimestamp = null; fixedFrame = null; selectedName = null; resetAnnotations(); clearOverlay(); frameInfo.textContent = "Navega por el vídeo y fija un fotograma para anotar."; updateUI();
   }
   function lockFrame() {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
