@@ -128,6 +128,7 @@ function openVideo(videoInfo) {
   workspaceDescription.textContent = videoInfo.displayName || videoInfo.name;
   video.src = videoInfo.playbackUrl;
   video.load();
+  if (activeWorkspace === "test") window.SupervisorTest?.enter();
 }
 
 video.addEventListener("loadedmetadata", () => {

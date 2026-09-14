@@ -27,6 +27,10 @@ from supervisor.field.calibration import CalibrationError, solve_calibration_pay
 from supervisor.field.pitch import PitchModel
 from supervisor.field.projection_support import build_projection_support_payload
 from supervisor.field.camera_model_probe import probe_camera_models_payload
+from supervisor.field.camera_state_probe import (
+    CameraStateProbeError,
+    probe_camera_states_payload,
+)
 
 
 BASE_DIR = Path(__file__).parent
@@ -149,6 +153,14 @@ def solve_field_calibration(payload: dict = Body()) -> dict:
         "camera_model_probe": camera_model_probe,
         **result,
     }
+
+
+@app.post("/api/field/camera-state/probe")
+def probe_field_camera_states(payload: dict = Body()) -> dict:
+    try:
+        return probe_camera_states_payload(payload)
+    except (CameraStateProbeError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.post("/api/library/venues")

@@ -20,6 +20,14 @@
   const radialButton = document.querySelector("#test-model-radial");
   const anisotropicButton = document.querySelector("#test-model-anisotropic");
   const cameraBest = document.querySelector("#test-camera-best");
+  const pitchLengthInput = document.querySelector("#test-pitch-length");
+  const pitchWidthInput = document.querySelector("#test-pitch-width");
+  const cameraStateProfile = document.querySelector("#test-camera-state-profile");
+  const saveHumanButton = document.querySelector("#test-save-human");
+  const analyzeCameraStatesButton = document.querySelector("#test-analyze-camera-states");
+  const resetCameraStatesButton = document.querySelector("#test-reset-camera-states");
+  const cameraStateList = document.querySelector("#test-camera-state-list");
+  const cameraStateAnalysisElement = document.querySelector("#test-camera-state-analysis");
   const previousButton = document.querySelector("#test-previous-frame");
   const playButton = document.querySelector("#test-play-pause");
   const nextButton = document.querySelector("#test-next-frame");
@@ -43,6 +51,12 @@
   let projectionVisible = true;
   let cameraModel = "pure_homography";
   let cameraModelProbe = null;
+  let currentSolve = null;
+  let humanStates = [];
+  let cameraStateReferenceId = null;
+  let cameraStateAnalysis = null;
+  let cameraStateFieldProfile = null;
+  let cameraStateVideoAssetId = null;
   let diagnosticFocus = null;
   let pendingStartTime = null;
 
@@ -58,9 +72,113 @@
     ? { line_name: annotation.line_name, points: annotation.points.map((point) => [...point]) }
     : { point_name: annotation.point_name, point: [...annotation.point] });
   const formatTime = (seconds) => [Math.floor(Math.max(0, seconds || 0) / 3600), Math.floor((Math.max(0, seconds || 0) % 3600) / 60), Math.floor(Math.max(0, seconds || 0) % 60)].map((part) => String(part).padStart(2, "0")).join(":");
+  const cloneJson = (value) => typeof structuredClone === "function" ? structuredClone(value) : JSON.parse(JSON.stringify(value));
+  const cameraStateModelLabel = (name) => ({ translation: "Traslación", similarity: "Similitud", affine: "Afín", homography: "Homografía" }[name] || name || "—");
+  const projectionModelLabel = (name) => ({ pure_homography: "Homografía", radial_1p: "Radial 1P", anisotropic_2p: "Anisotrópica 2P" }[name] || name || "—");
+  const cameraStateDescription = (name) => ({ translation: "desplazamiento", similarity: "zoom uniforme + rotación + desplazamiento", affine: "escala/ejes distintos + cizalla + desplazamiento", homography: "cambio proyectivo de la cámara" }[name] || "modelo no identificado");
+  const numberText = (value, digits = 2) => finite(value) ? Number(value).toFixed(digits) : "—";
+  const stateFrameText = (state) => `Fotograma ${state.frame_index ?? "—"} · ${formatTime(state.timestamp_seconds)}${state.state_id === cameraStateReferenceId ? " · referencia" : ""}`;
+  const anisotropicGeometryAvailable = () => Boolean(
+    currentSolve?.camera_model_probe?.models?.anisotropic_2p?.projected_geometry
+  );
+
+  function clearCameraStateAnalysis() {
+    cameraStateAnalysis = null;
+  }
+  function resetCameraStateExperiment() {
+    humanStates = [];
+    cameraStateReferenceId = null;
+    cameraStateAnalysis = null;
+    cameraStateFieldProfile = null;
+    cameraStateVideoAssetId = null;
+    renderCameraStateExperiment();
+  }
+  function saveCurrentHumanState() {
+    if (!frameLocked || !Number.isInteger(fixedFrame) || !anisotropicGeometryAvailable()) return;
+    const stateId = `frame_${fixedFrame}`;
+    const state = {
+      state_id: stateId,
+      frame_index: fixedFrame,
+      timestamp_seconds: fixedTimestamp,
+      projection_model: "anisotropic_2p",
+      solve: cloneJson(currentSolve),
+    };
+    const existing = humanStates.findIndex((candidate) => candidate.state_id === stateId);
+    if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
+    if (!cameraStateFieldProfile) {
+      cameraStateFieldProfile = {
+        length: currentSolve.pitch_length,
+        width: currentSolve.pitch_width,
+      };
+    }
+    cameraStateVideoAssetId = window.SupervisorWorkspace?.getSelectedVideo()?.assetId || null;
+    if (!cameraStateReferenceId) cameraStateReferenceId = stateId;
+    clearCameraStateAnalysis();
+    renderCameraStateExperiment();
+  }
+  function setCameraStateReference(stateId) {
+    if (!humanStates.some((state) => state.state_id === stateId)) return;
+    cameraStateReferenceId = stateId;
+    clearCameraStateAnalysis();
+    renderCameraStateExperiment();
+  }
+  function removeHumanState(stateId) {
+    humanStates = humanStates.filter((state) => state.state_id !== stateId);
+    if (cameraStateReferenceId === stateId) cameraStateReferenceId = humanStates[0]?.state_id || null;
+    if (!humanStates.length) {
+      cameraStateFieldProfile = null;
+      cameraStateVideoAssetId = null;
+    }
+    clearCameraStateAnalysis();
+    renderCameraStateExperiment();
+  }
+  function transformDetails(transform) {
+    if (!transform) return "No se pudo interpretar la transformación.";
+    const shift = transform.center_shift_px || [];
+    const normalized = transform.center_shift_normalized || [];
+    const projective = transform.projective_terms_per_diagonal || [];
+    return `Centro Δ ${numberText(shift[0])}, ${numberText(shift[1])} px · normalizado ${numberText(normalized[0], 4)}, ${numberText(normalized[1], 4)} · escala ${numberText(transform.scale_geometric, 4)} · log ${numberText(transform.log_scale, 4)} · mayor/menor ${numberText(transform.scale_major, 4)} / ${numberText(transform.scale_minor, 4)} · anisotropía ${numberText(transform.anisotropy_ratio, 4)} · rotación ${numberText(transform.rotation_deg, 2)}° · proyectivo/diagonal ${numberText(projective[0], 4)}, ${numberText(projective[1], 4)}`;
+  }
+  function relationMarkup(relation) {
+    const modelRows = ["translation", "similarity", "affine", "homography"].map((name) => {
+      const model = relation.models?.[name] || {};
+      if (model.error) return `<div class="test-camera-state-model"><strong>${cameraStateModelLabel(name)}</strong> · ${model.error}</div>`;
+      const summary = model.residual_summary || {};
+      const recommended = name === relation.recommended_model;
+      return `<div class="test-camera-state-model ${recommended ? "is-recommended" : ""}"><strong>${cameraStateModelLabel(name)}${recommended ? " · recomendado" : ""}</strong><br>Mediana ${metricText(summary.median_px)} · P95 ${metricText(summary.p95_px)}${recommended ? ` · Máximo ${metricText(summary.max_px)}<br>${transformDetails(model.transform)}` : ""}</div>`;
+    }).join("");
+    const fallbackWarning = relation.correspondence_scope === "all_field_fallback" ? "Comparación con poco solapamiento visible; se usó geometría extrapolada del campo completo." : "";
+    return `<article class="test-camera-state-relation"><strong>${relation.source_state_id} (fotograma ${relation.source_frame_index ?? "—"}) → ${relation.target_state_id} (fotograma ${relation.target_frame_index ?? "—"}) · ${cameraStateModelLabel(relation.recommended_model)}</strong><small>${cameraStateDescription(relation.recommended_model)} · ${relation.correspondence_scope} · ${relation.correspondence_count} correspondencias · solapamiento visible ${relation.visible_overlap_count}</small>${fallbackWarning ? `<p class="test-camera-state-warning">${fallbackWarning}</p>` : ""}<div class="test-camera-state-models">${modelRows}</div></article>`;
+  }
+  function analysisMarkup(analysis) {
+    if (!analysis) return "";
+    const profile = analysis.pitch_profile || {};
+    const reference = (analysis.states || []).find((state) => state.state_id === analysis.reference_state_id);
+    const warnings = (analysis.warnings || []).map((warning) => `<p class="test-camera-state-warning">${warning}</p>`).join("");
+    const relations = (analysis.relations_to_reference || []).map(relationMarkup).join("") || "<p>La referencia es el único estado disponible.</p>";
+    const pairs = (analysis.pairwise_summary || []).map((pair) => `<article class="test-camera-state-pair"><strong>${pair.source_state_id} → ${pair.target_state_id}</strong><small>${cameraStateModelLabel(pair.recommended_model)} · P95 ${metricText(pair.p95_px)} · ${pair.correspondence_scope} · solapamiento visible ${pair.visible_overlap_count}</small></article>`).join("");
+    const counts = Object.entries(analysis.recommendation_counts || {}).map(([name, count]) => `${cameraStateModelLabel(name)}: ${count}`).join(" · ");
+    return `<h3>Camera State · Análisis</h3><p class="test-diagnostic-caption">Experimento diagnóstico. Buscamos la representación numérica mínima que explique cambios de encuadre/zoom entre calibraciones HUMAN del mismo campo.</p><dl><div><dt>HUMAN</dt><dd>${analysis.state_count ?? 0}</dd></div><div><dt>Referencia</dt><dd>Fotograma ${reference?.frame_index ?? analysis.reference_state_id ?? "—"}</dd></div><div><dt>Proyección</dt><dd>${projectionModelLabel(analysis.projection_model)}</dd></div><div><dt>Campo fijo</dt><dd>${numberText(profile.length, 1)} × ${numberText(profile.width, 1)} m</dd></div><div><dt>Dominante</dt><dd>${cameraStateModelLabel(analysis.dominant_recommended_model)}</dd></div></dl><p class="test-diagnostic-caption">${counts}</p>${warnings}<h3>Relaciones con referencia</h3>${relations}<h3>Resumen por pares</h3>${pairs || "<p>Sin pares para resumir.</p>"}`;
+  }
+  function renderCameraStateExperiment() {
+    const hasStates = humanStates.length > 0;
+    pitchLengthInput.disabled = hasStates;
+    pitchWidthInput.disabled = hasStates;
+    cameraStateProfile.textContent = hasStates
+      ? `Perfil FIELD bloqueado: ${numberText(cameraStateFieldProfile?.length, 1)} × ${numberText(cameraStateFieldProfile?.width, 1)} m · ${humanStates.length} HUMAN.`
+      : "Sin experimento HUMAN. Las dimensiones del campo siguen editables.";
+    saveHumanButton.disabled = !frameLocked || !Number.isInteger(fixedFrame) || !anisotropicGeometryAvailable();
+    analyzeCameraStatesButton.disabled = humanStates.length < 2;
+    resetCameraStatesButton.disabled = !hasStates;
+    cameraStateList.innerHTML = humanStates.map((state) => `<article class="test-camera-state-card ${state.state_id === cameraStateReferenceId ? "is-reference" : ""}"><strong>CAMERA STATE · HUMAN</strong><small>${stateFrameText(state)} · ${projectionModelLabel(state.projection_model)}</small><div><button class="button button-secondary" type="button" data-camera-state-reference="${state.state_id}" ${state.state_id === cameraStateReferenceId ? "disabled" : ""}>Usar como referencia</button><button class="button button-secondary" type="button" data-camera-state-remove="${state.state_id}">Eliminar</button></div></article>`).join("") || "<p>Guarda solves anisotrópicos de fotogramas fijos para iniciar el experimento.</p>";
+    cameraStateList.querySelectorAll("[data-camera-state-reference]").forEach((button) => button.addEventListener("click", () => setCameraStateReference(button.dataset.cameraStateReference)));
+    cameraStateList.querySelectorAll("[data-camera-state-remove]").forEach((button) => button.addEventListener("click", () => removeHumanState(button.dataset.cameraStateRemove)));
+    cameraStateAnalysisElement.hidden = !cameraStateAnalysis;
+    cameraStateAnalysisElement.innerHTML = analysisMarkup(cameraStateAnalysis);
+  }
 
   function resetSolution() {
-    projected = null; cameraModelProbe = null; projectionVisible = true; cameraModel = "pure_homography"; diagnosticFocus = null; projectionToggle.hidden = true; cameraModelModes.hidden = true; resultSection.hidden = true; result.textContent = "";
+    projected = null; cameraModelProbe = null; currentSolve = null; projectionVisible = true; cameraModel = "pure_homography"; diagnosticFocus = null; projectionToggle.hidden = true; cameraModelModes.hidden = true; resultSection.hidden = true; result.textContent = "";
   }
   function resetAnnotations() {
     lineAnnotations.clear(); pointAnnotations.clear(); history.length = 0; draft = null; resetSolution();
@@ -142,12 +260,13 @@
     miniPitch.classList.toggle("is-point-mode", mode === "point"); miniPitch.classList.toggle("is-frame-unfixed", !frameLocked);
     miniPitch.querySelectorAll("[data-line-name]").forEach((node) => { const name = node.dataset.lineName; node.classList.toggle("is-selected", mode === "line" && name === selectedName); node.classList.toggle("is-annotated", lineAnnotations.has(name)); });
     miniPitch.querySelectorAll("[data-point-name]").forEach((node) => { const name = node.dataset.pointName; node.classList.toggle("is-selected", mode === "point" && name === selectedName); node.classList.toggle("is-annotated", pointAnnotations.has(name)); });
-    document.querySelector("#test-undo").disabled = !history.length && !draft?.points.length;
-    document.querySelector("#test-remove").disabled = !selectedName || !selectedAnnotations.has(selectedName);
+    document.querySelector("#test-undo").disabled = !frameLocked || (!history.length && !draft?.points.length);
+    document.querySelector("#test-remove").disabled = !frameLocked || !selectedName || !selectedAnnotations.has(selectedName);
     document.querySelector("#test-clear").disabled = !frameLocked;
     document.querySelector("#test-remove").textContent = mode === "line" ? "Eliminar línea" : "Eliminar punto";
     document.querySelector("#test-solve").disabled = !frameLocked;
     updateControls();
+    renderCameraStateExperiment();
   }
   function drawPolyline(points, closed) {
     if (!points?.length) return;
@@ -255,6 +374,7 @@
     const selected = window.SupervisorWorkspace?.getSelectedVideo(); const sourceVideo = window.SupervisorWorkspace?.getVideo();
     if (!selected) { testVideo.removeAttribute("src"); testVideo.load(); setEmpty("Abre un vídeo desde Biblioteca para comenzar."); return; }
     const sourceChanged = testVideo.dataset.assetId !== selected.assetId;
+    if (sourceChanged && cameraStateVideoAssetId && cameraStateVideoAssetId !== selected.assetId) resetCameraStateExperiment();
     pendingStartTime = sourceVideo?.currentTime || 0;
     if (sourceChanged) { unlockFrame(); testVideo.dataset.assetId = selected.assetId; testVideo.src = selected.playbackUrl; testVideo.load(); setEmpty("Cargando vídeo…"); }
     else if (testVideo.readyState >= HTMLMediaElement.HAVE_METADATA) { if (!frameLocked && pendingStartTime !== null) { testVideo.currentTime = pendingStartTime; pendingStartTime = null; } empty.hidden = true; updatePlayback(); updateUI(); }
@@ -287,14 +407,40 @@
         point_annotations: [...pointAnnotations.values()],
       };
       const solved = await api("/api/field/calibration/solve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      projected = solved.projected_geometry; cameraModelProbe = solved.camera_model_probe || null; projectionVisible = true; cameraModel = "pure_homography"; projectionToggle.hidden = false; cameraModelModes.hidden = !Object.keys(cameraModelProbe?.models || {}).length; homographyButton.classList.add("is-active"); radialButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); cameraBest.textContent = cameraModelProbe?.best_regularized_model ? `Mejor ajuste: ${{ pure_homography: "Homografía", radial_1p: "Radial 1P", anisotropic_2p: "Anisotrópica 2P" }[cameraModelProbe.best_regularized_model] || cameraModelProbe.best_regularized_model}` : ""; diagnosticFocus = null; renderDiagnostics(solved);
-      draw();
+      currentSolve = solved; projected = solved.projected_geometry; cameraModelProbe = solved.camera_model_probe || null; projectionVisible = true; cameraModel = "pure_homography"; projectionToggle.hidden = false; cameraModelModes.hidden = !Object.keys(cameraModelProbe?.models || {}).length; homographyButton.classList.add("is-active"); radialButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); cameraBest.textContent = cameraModelProbe?.best_regularized_model ? `Mejor ajuste: ${{ pure_homography: "Homografía", radial_1p: "Radial 1P", anisotropic_2p: "Anisotrópica 2P" }[cameraModelProbe.best_regularized_model] || cameraModelProbe.best_regularized_model}` : ""; diagnosticFocus = null; renderDiagnostics(solved);
+      updateUI(); draw();
     } catch (error) { resultSection.hidden = false; result.textContent = `No se pudo resolver: ${error.message}`; }
   });
   projectionToggle.addEventListener("click", () => { projectionVisible = !projectionVisible; projectionToggle.textContent = projectionVisible ? "Ocultar proyección" : "Mostrar proyección"; draw(); });
   homographyButton.addEventListener("click", () => { cameraModel = "pure_homography"; homographyButton.classList.add("is-active"); radialButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); draw(); });
   radialButton.addEventListener("click", () => { cameraModel = "radial_1p"; radialButton.classList.add("is-active"); homographyButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); draw(); });
   anisotropicButton.addEventListener("click", () => { cameraModel = "anisotropic_2p"; anisotropicButton.classList.add("is-active"); homographyButton.classList.remove("is-active"); radialButton.classList.remove("is-active"); draw(); });
+  saveHumanButton.addEventListener("click", saveCurrentHumanState);
+  resetCameraStatesButton.addEventListener("click", resetCameraStateExperiment);
+  analyzeCameraStatesButton.addEventListener("click", async () => {
+    if (humanStates.length < 2 || !cameraStateReferenceId) return;
+    analyzeCameraStatesButton.disabled = true;
+    cameraStateAnalysisElement.hidden = false;
+    cameraStateAnalysisElement.textContent = "Analizando relaciones entre estados HUMAN…";
+    try {
+      cameraStateAnalysis = await api("/api/field/camera-state/probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projection_model: "anisotropic_2p",
+          reference_state_id: cameraStateReferenceId,
+          states: humanStates,
+        }),
+      });
+    } catch (error) {
+      cameraStateAnalysis = null;
+      cameraStateAnalysisElement.hidden = false;
+      cameraStateAnalysisElement.textContent = `No se pudo analizar el experimento: ${error.message}`;
+      analyzeCameraStatesButton.disabled = false;
+      return;
+    }
+    renderCameraStateExperiment();
+  });
   previousButton.addEventListener("click", () => stepFrame(-1)); nextButton.addEventListener("click", () => stepFrame(1));
   playButton.addEventListener("click", () => { if (testVideo.paused) void testVideo.play(); else testVideo.pause(); });
   timeline.addEventListener("input", () => { unlockFrame(); testVideo.currentTime = Number(timeline.value); });
