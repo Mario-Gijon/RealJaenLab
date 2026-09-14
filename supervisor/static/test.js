@@ -31,6 +31,9 @@
   const propagateHumanButton = document.querySelector("#test-propagate-human");
   const viewTransformModes = document.querySelector("#test-view-transform-modes");
   const viewTransformResult = document.querySelector("#test-view-transform-result");
+  const refineDerivedButton = document.querySelector("#test-refine-derived");
+  const derivedRefinementModes = document.querySelector("#test-derived-refinement-modes");
+  const derivedRefinementResult = document.querySelector("#test-derived-refinement-result");
   const previousButton = document.querySelector("#test-previous-frame");
   const playButton = document.querySelector("#test-play-pause");
   const nextButton = document.querySelector("#test-next-frame");
@@ -62,6 +65,8 @@
   let cameraStateVideoAssetId = null;
   let viewTransformPropagation = null;
   let viewTransformModel = null;
+  let derivedRefinement = null;
+  let derivedRefinementModel = null;
   let diagnosticFocus = null;
   let pendingStartTime = null;
 
@@ -95,6 +100,13 @@
       && reference && cameraStateVideoAssetId === selected.assetId
       && reference.frame_index !== fixedFrame && referenceHumanGeometry());
   };
+  const selectedTransportedGeometry = () => viewTransformPropagation?.models?.[viewTransformModel]?.transported_geometry || null;
+  const refinementReady = () => Boolean(
+    frameLocked && viewTransformPropagation
+    && viewTransformPropagation.target_frame_index === fixedFrame
+    && selectedTransportedGeometry()
+    && (lineAnnotations.size + pointAnnotations.size) > 0
+  );
 
   function clearCameraStateAnalysis() {
     cameraStateAnalysis = null;
@@ -102,6 +114,11 @@
   function clearViewTransformPropagation() {
     viewTransformPropagation = null;
     viewTransformModel = null;
+    clearDerivedRefinement();
+  }
+  function clearDerivedRefinement() {
+    derivedRefinement = null;
+    derivedRefinementModel = null;
   }
   function resetCameraStateExperiment() {
     humanStates = [];
@@ -196,6 +213,11 @@
   }
   function renderViewTransform() {
     propagateHumanButton.disabled = !propagationReady();
+    if (!projected && !viewTransformPropagation) projectionToggle.hidden = true;
+    else if (!projected && viewTransformPropagation) {
+      projectionToggle.hidden = false;
+      projectionToggle.textContent = projectionVisible ? "Ocultar proyección" : "Mostrar proyección";
+    }
     viewTransformModes.hidden = !viewTransformPropagation;
     viewTransformModes.querySelectorAll("[data-view-transform-model]").forEach((button) => {
       const name = button.dataset.viewTransformModel;
@@ -204,6 +226,38 @@
     });
     viewTransformResult.hidden = !viewTransformPropagation;
     viewTransformResult.innerHTML = viewTransformMarkup(viewTransformPropagation);
+  }
+  function derivedRefinementMarkup(refinement) {
+    if (!refinement) return "";
+    const baseline = refinement.baseline?.residual_summary || {};
+    const recommended = refinement.models?.[refinement.recommended_model] || {};
+    const recommendedSummary = recommended.residual_summary || {};
+    const selected = derivedRefinementModel === "propagated" ? refinement.baseline : refinement.models?.[derivedRefinementModel];
+    const details = selected?.annotation_details || refinement.baseline?.annotation_details || [];
+    const modelRows = ["translation", "similarity", "affine", "homography"].map((name) => {
+      const model = refinement.models?.[name] || {};
+      if (model.error) return `<div class="test-camera-state-model"><strong>${cameraStateModelLabel(name)}</strong> · No disponible: ${model.error}</div>`;
+      const summary = model.residual_summary || {};
+      return `<div class="test-camera-state-model ${name === refinement.recommended_model ? "is-recommended" : ""}"><strong>${cameraStateModelLabel(name)}${name === refinement.recommended_model ? " · recomendado" : ""}</strong><br>Mediana ${metricText(summary.median_px)} · P95 ${metricText(summary.p95_px)} · Máximo ${metricText(summary.max_px)}<br>Regularización ${numberText(model.regularization)} · pérdida ${numberText(model.data_loss)}</div>`;
+    }).join("");
+    const annotationDetails = details.map((detail) => detail.kind === "point"
+      ? `<div class="test-derived-refinement-detail"><strong>Punto ${detail.name}</strong><small>Error ${metricText(detail.error_px)}</small></div>`
+      : `<div class="test-derived-refinement-detail"><strong>Línea ${detail.name}</strong><small>Clicks ${detail.click_errors_px?.map((value) => metricText(value)).join(" · ") || "—"} · mediana ${metricText(detail.median_px)}</small></div>`).join("");
+    const warnings = (refinement.warnings || []).map((warning) => `<p class="test-camera-state-warning">${warning}</p>`).join("");
+    return `<h3>DERIVED · Diagnóstico refinado</h3><dl><div><dt>Prior</dt><dd>${cameraStateModelLabel(viewTransformModel)}</dd></div><div><dt>Puntos / líneas</dt><dd>${refinement.point_annotation_count ?? 0} / ${refinement.line_annotation_count ?? 0}</dd></div><div><dt>Restricciones escalares</dt><dd>${refinement.constraint_count ?? 0}</dd></div><div><dt>Corrección recomendada</dt><dd>${cameraStateModelLabel(refinement.recommended_model)}</dd></div><div><dt>Baseline mediana / P95 / máx.</dt><dd>${metricText(baseline.median_px)} · ${metricText(baseline.p95_px)} · ${metricText(baseline.max_px)}</dd></div><div><dt>Refinado mediana / P95 / máx.</dt><dd>${metricText(recommendedSummary.median_px)} · ${metricText(recommendedSummary.p95_px)} · ${metricText(recommendedSummary.max_px)}</dd></div><div><dt>Mejora P95</dt><dd>${numberText(refinement.recommended_p95_improvement_percent, 1)} %</dd></div></dl>${warnings}<div class="test-camera-state-models">${modelRows}</div>${selected?.transform ? `<p class="test-diagnostic-caption">${cameraStateModelLabel(derivedRefinementModel)} seleccionado. ${transformDetails(selected.transform)}</p>` : ""}${annotationDetails ? `<h3>Detalle de anotaciones</h3><div class="test-derived-refinement-details">${annotationDetails}</div>` : ""}`;
+  }
+  function renderDerivedRefinement() {
+    refineDerivedButton.disabled = !refinementReady();
+    derivedRefinementModes.hidden = !derivedRefinement;
+    derivedRefinementModes.querySelectorAll("[data-derived-refinement-model]").forEach((button) => {
+      const name = button.dataset.derivedRefinementModel;
+      const candidate = name === "propagated" ? viewTransformPropagation : derivedRefinement?.models?.[name];
+      button.disabled = name !== "propagated" && Boolean(candidate?.error);
+      button.classList.toggle("is-active", name === derivedRefinementModel);
+      button.classList.toggle("is-recommended", name === derivedRefinement?.recommended_model);
+    });
+    derivedRefinementResult.hidden = !derivedRefinement;
+    derivedRefinementResult.innerHTML = derivedRefinementMarkup(derivedRefinement);
   }
   function renderCameraStateExperiment() {
     const hasStates = humanStates.length > 0;
@@ -221,13 +275,14 @@
     cameraStateAnalysisElement.hidden = !cameraStateAnalysis;
     cameraStateAnalysisElement.innerHTML = analysisMarkup(cameraStateAnalysis);
     renderViewTransform();
+    renderDerivedRefinement();
   }
 
   function resetSolution() {
-    projected = null; cameraModelProbe = null; currentSolve = null; projectionVisible = true; cameraModel = "pure_homography"; diagnosticFocus = null; projectionToggle.hidden = true; cameraModelModes.hidden = true; resultSection.hidden = true; result.textContent = "";
+    projected = null; cameraModelProbe = null; currentSolve = null; projectionVisible = true; cameraModel = "pure_homography"; diagnosticFocus = null; projectionToggle.hidden = !viewTransformPropagation; projectionToggle.textContent = "Ocultar proyección"; cameraModelModes.hidden = true; resultSection.hidden = true; result.textContent = "";
   }
   function resetAnnotations() {
-    lineAnnotations.clear(); pointAnnotations.clear(); history.length = 0; draft = null; resetSolution();
+    lineAnnotations.clear(); pointAnnotations.clear(); history.length = 0; draft = null; clearDerivedRefinement(); resetSolution();
   }
   function applyAnnotation(kind, name, annotation) {
     const target = annotationMap(kind);
@@ -318,10 +373,18 @@
     if (!points?.length) return;
     context.beginPath(); context.moveTo(points[0][0], points[0][1]); points.slice(1).forEach(([x, y]) => context.lineTo(x, y)); if (closed) context.closePath(); context.stroke();
   }
+  function selectedDerivedGeometry() {
+    return selectedTransportedGeometry();
+  }
+  function selectedDerivedRefinedGeometry() {
+    return derivedRefinementModel && derivedRefinementModel !== "propagated"
+      ? derivedRefinement?.models?.[derivedRefinementModel]?.refined_geometry || null
+      : null;
+  }
   function draw() {
     if (!frameLocked || !canvas.width || !canvas.height) return;
     context.clearRect(0, 0, canvas.width, canvas.height); context.lineJoin = "round"; context.lineCap = "round";
-    if (projected && projectionVisible) {
+    if ((projected || selectedDerivedRefinedGeometry() || selectedDerivedGeometry()) && projectionVisible) {
       drawProjectedGeometry();
     }
     const scale = Math.max(2, canvas.width / 900); context.strokeStyle = "#f2c94c"; context.fillStyle = "#f2c94c";
@@ -333,7 +396,7 @@
     context.lineWidth = Math.max(1.5, canvas.width / 1150); context.strokeStyle = "rgba(103, 216, 255, .92)";
     const geometryToDraw = projected
       ? (cameraModelProbe?.models?.[cameraModel]?.projected_geometry || projected)
-      : viewTransformPropagation?.models?.[viewTransformModel]?.transported_geometry;
+      : (selectedDerivedRefinedGeometry() || selectedDerivedGeometry());
     if (!geometryToDraw) return;
     geometryToDraw.lines.forEach((line) => drawPolyline(line.points, false)); geometryToDraw.curves.forEach((curve) => drawPolyline(curve.points, curve.closed));
     context.fillStyle = "rgba(103, 216, 255, .92)"; geometryToDraw.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
@@ -431,13 +494,14 @@
   canvas.addEventListener("click", (event) => {
     if (!frameLocked || !selectedName) return;
     const rect = canvas.getBoundingClientRect(); const point = [(event.clientX - rect.left) * canvas.width / rect.width, (event.clientY - rect.top) * canvas.height / rect.height];
+    clearDerivedRefinement();
     if (mode === "point") { const before = cloneAnnotation("point", pointAnnotations.get(selectedName)); const after = { point_name: selectedName, point }; applyAnnotation("point", selectedName, after); history.push({ kind: "point", name: selectedName, before, after: cloneAnnotation("point", after) }); resetSolution(); }
     else { if (!draft) draft = { name: selectedName, points: [] }; draft.points.push(point); if (draft.points.length === 2) { const before = cloneAnnotation("line", lineAnnotations.get(selectedName)); const after = { line_name: selectedName, points: draft.points }; applyAnnotation("line", selectedName, after); history.push({ kind: "line", name: selectedName, before, after: cloneAnnotation("line", after) }); draft = null; resetSolution(); } }
     updateUI(); draw();
   });
   lineModeButton.addEventListener("click", () => setMode("line")); pointModeButton.addEventListener("click", () => setMode("point"));
-  document.querySelector("#test-undo").addEventListener("click", () => { if (draft?.points.length) { draft = null; updateUI(); draw(); return; } const operation = history.pop(); if (!operation) return; applyAnnotation(operation.kind, operation.name, operation.before); resetSolution(); updateUI(); draw(); });
-  document.querySelector("#test-remove").addEventListener("click", () => { const target = annotationMap(mode); if (!selectedName || !target.has(selectedName)) return; const before = cloneAnnotation(mode, target.get(selectedName)); applyAnnotation(mode, selectedName, null); history.push({ kind: mode, name: selectedName, before, after: null }); draft = null; resetSolution(); updateUI(); draw(); });
+  document.querySelector("#test-undo").addEventListener("click", () => { clearDerivedRefinement(); if (draft?.points.length) { draft = null; updateUI(); draw(); return; } const operation = history.pop(); if (!operation) return; applyAnnotation(operation.kind, operation.name, operation.before); resetSolution(); updateUI(); draw(); });
+  document.querySelector("#test-remove").addEventListener("click", () => { const target = annotationMap(mode); if (!selectedName || !target.has(selectedName)) return; clearDerivedRefinement(); const before = cloneAnnotation(mode, target.get(selectedName)); applyAnnotation(mode, selectedName, null); history.push({ kind: mode, name: selectedName, before, after: null }); draft = null; resetSolution(); updateUI(); draw(); });
   document.querySelector("#test-clear").addEventListener("click", () => { resetAnnotations(); updateUI(); draw(); });
   document.querySelector("#test-solve").addEventListener("click", async () => {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
@@ -483,11 +547,13 @@
           source_projected_geometry: sourceGeometry,
         }),
       });
+      clearDerivedRefinement();
       viewTransformModel = viewTransformPropagation.recommended_model;
       projectionVisible = true;
       projectionToggle.hidden = false;
       projectionToggle.textContent = "Ocultar proyección";
       renderViewTransform();
+      renderDerivedRefinement();
       draw();
     } catch (error) {
       viewTransformResult.hidden = false;
@@ -498,7 +564,44 @@
   viewTransformModes.querySelectorAll("[data-view-transform-model]").forEach((button) => button.addEventListener("click", () => {
     if (!viewTransformPropagation?.models?.[button.dataset.viewTransformModel]) return;
     viewTransformModel = button.dataset.viewTransformModel;
+    clearDerivedRefinement();
     renderViewTransform();
+    renderDerivedRefinement();
+    draw();
+  }));
+  refineDerivedButton.addEventListener("click", async () => {
+    const transportedGeometry = selectedTransportedGeometry();
+    if (!refinementReady() || !transportedGeometry) return;
+    const payload = {
+      transported_geometry: transportedGeometry,
+      video_width: canvas.width,
+      video_height: canvas.height,
+      point_annotations: [...pointAnnotations.values()],
+      annotations: [...lineAnnotations.values()],
+    };
+    refineDerivedButton.disabled = true;
+    derivedRefinementResult.hidden = false;
+    derivedRefinementResult.textContent = "Refinando proyección DERIVED…";
+    try {
+      derivedRefinement = await api("/api/field/derived/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      derivedRefinementModel = derivedRefinement.recommended_model;
+      renderDerivedRefinement();
+      draw();
+    } catch (error) {
+      derivedRefinementResult.hidden = false;
+      derivedRefinementResult.textContent = `No se pudo refinar: ${error.message}`;
+      refineDerivedButton.disabled = false;
+    }
+  });
+  derivedRefinementModes.querySelectorAll("[data-derived-refinement-model]").forEach((button) => button.addEventListener("click", () => {
+    const name = button.dataset.derivedRefinementModel;
+    if (name !== "propagated" && derivedRefinement?.models?.[name]?.error) return;
+    derivedRefinementModel = name;
+    renderDerivedRefinement();
     draw();
   }));
   saveHumanButton.addEventListener("click", saveCurrentHumanState);

@@ -36,6 +36,10 @@ from supervisor.field.view_transform_probe import (
     probe_video_frames,
     transform_projected_geometry,
 )
+from supervisor.field.derived_refinement import (
+    DerivedRefinementError,
+    refine_derived_projection_payload,
+)
 
 
 BASE_DIR = Path(__file__).parent
@@ -204,6 +208,14 @@ def probe_field_view_transform(payload: dict = Body()) -> dict:
     except MediaLibraryError as error:
         raise media_library_error(error) from error
     except (ViewTransformProbeError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/field/derived/refine")
+def refine_field_derived_projection(payload: dict = Body()) -> dict:
+    try:
+        return refine_derived_projection_payload(payload)
+    except (DerivedRefinementError, ValueError, TypeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
