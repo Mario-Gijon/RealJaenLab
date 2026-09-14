@@ -28,6 +28,9 @@
   const resetCameraStatesButton = document.querySelector("#test-reset-camera-states");
   const cameraStateList = document.querySelector("#test-camera-state-list");
   const cameraStateAnalysisElement = document.querySelector("#test-camera-state-analysis");
+  const propagateHumanButton = document.querySelector("#test-propagate-human");
+  const viewTransformModes = document.querySelector("#test-view-transform-modes");
+  const viewTransformResult = document.querySelector("#test-view-transform-result");
   const previousButton = document.querySelector("#test-previous-frame");
   const playButton = document.querySelector("#test-play-pause");
   const nextButton = document.querySelector("#test-next-frame");
@@ -57,6 +60,8 @@
   let cameraStateAnalysis = null;
   let cameraStateFieldProfile = null;
   let cameraStateVideoAssetId = null;
+  let viewTransformPropagation = null;
+  let viewTransformModel = null;
   let diagnosticFocus = null;
   let pendingStartTime = null;
 
@@ -81,9 +86,22 @@
   const anisotropicGeometryAvailable = () => Boolean(
     currentSolve?.camera_model_probe?.models?.anisotropic_2p?.projected_geometry
   );
+  const referenceHuman = () => humanStates.find((state) => state.state_id === cameraStateReferenceId) || null;
+  const referenceHumanGeometry = () => referenceHuman()?.solve?.camera_model_probe?.models?.anisotropic_2p?.projected_geometry || null;
+  const propagationReady = () => {
+    const selected = window.SupervisorWorkspace?.getSelectedVideo();
+    const reference = referenceHuman();
+    return Boolean(selected?.assetId && frameLocked && Number.isInteger(fixedFrame)
+      && reference && cameraStateVideoAssetId === selected.assetId
+      && reference.frame_index !== fixedFrame && referenceHumanGeometry());
+  };
 
   function clearCameraStateAnalysis() {
     cameraStateAnalysis = null;
+  }
+  function clearViewTransformPropagation() {
+    viewTransformPropagation = null;
+    viewTransformModel = null;
   }
   function resetCameraStateExperiment() {
     humanStates = [];
@@ -91,6 +109,7 @@
     cameraStateAnalysis = null;
     cameraStateFieldProfile = null;
     cameraStateVideoAssetId = null;
+    clearViewTransformPropagation();
     renderCameraStateExperiment();
   }
   function saveCurrentHumanState() {
@@ -114,12 +133,14 @@
     cameraStateVideoAssetId = window.SupervisorWorkspace?.getSelectedVideo()?.assetId || null;
     if (!cameraStateReferenceId) cameraStateReferenceId = stateId;
     clearCameraStateAnalysis();
+    clearViewTransformPropagation();
     renderCameraStateExperiment();
   }
   function setCameraStateReference(stateId) {
     if (!humanStates.some((state) => state.state_id === stateId)) return;
     cameraStateReferenceId = stateId;
     clearCameraStateAnalysis();
+    clearViewTransformPropagation();
     renderCameraStateExperiment();
   }
   function removeHumanState(stateId) {
@@ -130,6 +151,7 @@
       cameraStateVideoAssetId = null;
     }
     clearCameraStateAnalysis();
+    clearViewTransformPropagation();
     renderCameraStateExperiment();
   }
   function transformDetails(transform) {
@@ -160,6 +182,29 @@
     const counts = Object.entries(analysis.recommendation_counts || {}).map(([name, count]) => `${cameraStateModelLabel(name)}: ${count}`).join(" · ");
     return `<h3>Camera State · Análisis</h3><p class="test-diagnostic-caption">Experimento diagnóstico. Buscamos la representación numérica mínima que explique cambios de encuadre/zoom entre calibraciones HUMAN del mismo campo.</p><dl><div><dt>HUMAN</dt><dd>${analysis.state_count ?? 0}</dd></div><div><dt>Referencia</dt><dd>Fotograma ${reference?.frame_index ?? analysis.reference_state_id ?? "—"}</dd></div><div><dt>Proyección</dt><dd>${projectionModelLabel(analysis.projection_model)}</dd></div><div><dt>Campo fijo</dt><dd>${numberText(profile.length, 1)} × ${numberText(profile.width, 1)} m</dd></div><div><dt>Dominante</dt><dd>${cameraStateModelLabel(analysis.dominant_recommended_model)}</dd></div></dl><p class="test-diagnostic-caption">${counts}</p>${warnings}<h3>Relaciones con referencia</h3>${relations}<h3>Resumen por pares</h3>${pairs || "<p>Sin pares para resumir.</p>"}`;
   }
+  function viewTransformMarkup(propagation) {
+    if (!propagation) return "";
+    const selected = propagation.models?.[viewTransformModel] || {};
+    const modelRows = ["translation", "similarity", "affine", "homography"].map((name) => {
+      const model = propagation.models?.[name] || {};
+      const metrics = model.residual_summary || {};
+      const recommended = name === propagation.recommended_model;
+      return `<div class="test-camera-state-model ${recommended ? "is-recommended" : ""}"><strong>${cameraStateModelLabel(name)}${recommended ? " · recomendado" : ""}</strong><br>Mediana ${metricText(metrics.median_px)} · P95 ${metricText(metrics.p95_px)} · Máximo ${metricText(metrics.max_px)}</div>`;
+    }).join("");
+    const warnings = (propagation.warnings || []).map((warning) => `<p class="test-camera-state-warning">${warning}</p>`).join("");
+    return `<h3>Diagnóstico DERIVED</h3><dl><div><dt>HUMAN origen</dt><dd>Fotograma ${propagation.source_frame_index ?? "—"}</dd></div><div><dt>Destino</dt><dd>Fotograma ${propagation.target_frame_index ?? "—"}</dd></div><div><dt>Features</dt><dd>${propagation.feature_method || "—"}</dd></div><div><dt>Keypoints origen/destino</dt><dd>${propagation.source_keypoint_count ?? "—"} / ${propagation.target_keypoint_count ?? "—"}</dd></div><div><dt>Matches mutuos</dt><dd>${propagation.mutual_match_count ?? "—"}</dd></div><div><dt>Inliers robustos</dt><dd>${propagation.consensus_inlier_count ?? "—"} · ${finite(propagation.consensus_inlier_ratio) ? `${(propagation.consensus_inlier_ratio * 100).toFixed(1)} %` : "—"}</dd></div><div><dt>Cobertura origen/destino</dt><dd>${finite(propagation.source_spatial_coverage) ? `${(propagation.source_spatial_coverage * 100).toFixed(1)} %` : "—"} / ${finite(propagation.target_spatial_coverage) ? `${(propagation.target_spatial_coverage * 100).toFixed(1)} %` : "—"}</dd></div><div><dt>Recomendado</dt><dd>${cameraStateModelLabel(propagation.recommended_model)}</dd></div></dl>${warnings}<div class="test-camera-state-models">${modelRows}</div><p class="test-diagnostic-caption">${cameraStateModelLabel(viewTransformModel)} seleccionado. ${transformDetails(selected.transform)}</p>`;
+  }
+  function renderViewTransform() {
+    propagateHumanButton.disabled = !propagationReady();
+    viewTransformModes.hidden = !viewTransformPropagation;
+    viewTransformModes.querySelectorAll("[data-view-transform-model]").forEach((button) => {
+      const name = button.dataset.viewTransformModel;
+      button.classList.toggle("is-active", name === viewTransformModel);
+      button.classList.toggle("is-recommended", name === viewTransformPropagation?.recommended_model);
+    });
+    viewTransformResult.hidden = !viewTransformPropagation;
+    viewTransformResult.innerHTML = viewTransformMarkup(viewTransformPropagation);
+  }
   function renderCameraStateExperiment() {
     const hasStates = humanStates.length > 0;
     pitchLengthInput.disabled = hasStates;
@@ -175,6 +220,7 @@
     cameraStateList.querySelectorAll("[data-camera-state-remove]").forEach((button) => button.addEventListener("click", () => removeHumanState(button.dataset.cameraStateRemove)));
     cameraStateAnalysisElement.hidden = !cameraStateAnalysis;
     cameraStateAnalysisElement.innerHTML = analysisMarkup(cameraStateAnalysis);
+    renderViewTransform();
   }
 
   function resetSolution() {
@@ -285,7 +331,10 @@
   }
   function drawProjectedGeometry() {
     context.lineWidth = Math.max(1.5, canvas.width / 1150); context.strokeStyle = "rgba(103, 216, 255, .92)";
-    const geometryToDraw = cameraModelProbe?.models?.[cameraModel]?.projected_geometry || projected;
+    const geometryToDraw = projected
+      ? (cameraModelProbe?.models?.[cameraModel]?.projected_geometry || projected)
+      : viewTransformPropagation?.models?.[viewTransformModel]?.transported_geometry;
+    if (!geometryToDraw) return;
     geometryToDraw.lines.forEach((line) => drawPolyline(line.points, false)); geometryToDraw.curves.forEach((curve) => drawPolyline(curve.points, curve.closed));
     context.fillStyle = "rgba(103, 216, 255, .92)"; geometryToDraw.points.forEach((point) => { context.beginPath(); context.arc(point.point[0], point.point[1], context.lineWidth * 1.2, 0, Math.PI * 2); context.fill(); });
   }
@@ -347,7 +396,7 @@
   function clearOverlay() { context.clearRect(0, 0, canvas.width, canvas.height); }
   function unlockFrame() {
     if (!frameLocked) return;
-    frameLocked = false; fixedTimestamp = null; fixedFrame = null; selectedName = null; resetAnnotations(); clearOverlay(); frameInfo.textContent = "Navega por el vídeo y fija un fotograma para anotar."; updateUI();
+    frameLocked = false; fixedTimestamp = null; fixedFrame = null; selectedName = null; clearViewTransformPropagation(); resetAnnotations(); clearOverlay(); frameInfo.textContent = "Navega por el vídeo y fija un fotograma para anotar."; updateUI();
   }
   function lockFrame() {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
@@ -415,6 +464,43 @@
   homographyButton.addEventListener("click", () => { cameraModel = "pure_homography"; homographyButton.classList.add("is-active"); radialButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); draw(); });
   radialButton.addEventListener("click", () => { cameraModel = "radial_1p"; radialButton.classList.add("is-active"); homographyButton.classList.remove("is-active"); anisotropicButton.classList.remove("is-active"); draw(); });
   anisotropicButton.addEventListener("click", () => { cameraModel = "anisotropic_2p"; anisotropicButton.classList.add("is-active"); homographyButton.classList.remove("is-active"); radialButton.classList.remove("is-active"); draw(); });
+  propagateHumanButton.addEventListener("click", async () => {
+    const selected = window.SupervisorWorkspace?.getSelectedVideo();
+    const reference = referenceHuman();
+    const sourceGeometry = referenceHumanGeometry();
+    if (!propagationReady() || !selected || !reference || !sourceGeometry) return;
+    propagateHumanButton.disabled = true;
+    viewTransformResult.hidden = false;
+    viewTransformResult.textContent = "Transportando proyección desde HUMAN…";
+    try {
+      viewTransformPropagation = await api("/api/field/view-transform/probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asset_id: selected.assetId,
+          source_frame_index: reference.frame_index,
+          target_frame_index: fixedFrame,
+          source_projected_geometry: sourceGeometry,
+        }),
+      });
+      viewTransformModel = viewTransformPropagation.recommended_model;
+      projectionVisible = true;
+      projectionToggle.hidden = false;
+      projectionToggle.textContent = "Ocultar proyección";
+      renderViewTransform();
+      draw();
+    } catch (error) {
+      viewTransformResult.hidden = false;
+      viewTransformResult.textContent = `No se pudo propagar: ${error.message}`;
+      propagateHumanButton.disabled = false;
+    }
+  });
+  viewTransformModes.querySelectorAll("[data-view-transform-model]").forEach((button) => button.addEventListener("click", () => {
+    if (!viewTransformPropagation?.models?.[button.dataset.viewTransformModel]) return;
+    viewTransformModel = button.dataset.viewTransformModel;
+    renderViewTransform();
+    draw();
+  }));
   saveHumanButton.addEventListener("click", saveCurrentHumanState);
   resetCameraStatesButton.addEventListener("click", resetCameraStateExperiment);
   analyzeCameraStatesButton.addEventListener("click", async () => {

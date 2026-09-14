@@ -31,6 +31,11 @@ from supervisor.field.camera_state_probe import (
     CameraStateProbeError,
     probe_camera_states_payload,
 )
+from supervisor.field.view_transform_probe import (
+    ViewTransformProbeError,
+    probe_video_frames,
+    transform_projected_geometry,
+)
 
 
 BASE_DIR = Path(__file__).parent
@@ -160,6 +165,45 @@ def probe_field_camera_states(payload: dict = Body()) -> dict:
     try:
         return probe_camera_states_payload(payload)
     except (CameraStateProbeError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/field/view-transform/probe")
+def probe_field_view_transform(payload: dict = Body()) -> dict:
+    try:
+        asset_id = payload.get("asset_id")
+        if not isinstance(asset_id, str) or not asset_id.strip():
+            raise ValueError("asset_id is required.")
+        source_frame_index = int(payload.get("source_frame_index"))
+        target_frame_index = int(payload.get("target_frame_index"))
+        if source_frame_index < 0 or target_frame_index < 0:
+            raise ValueError("Frame indices must be non-negative.")
+        if source_frame_index == target_frame_index:
+            raise ValueError("Source and target frames must be different.")
+        source_geometry = payload.get("source_projected_geometry")
+        if not isinstance(source_geometry, dict):
+            raise ValueError("source_projected_geometry must be an object.")
+        video_path = media_library().resolve_asset_path(asset_id)
+        result = probe_video_frames(video_path, source_frame_index, target_frame_index)
+        models = result.get("models")
+        if not isinstance(models, dict):
+            raise ViewTransformProbeError("View-transform probe returned no candidate models.")
+        for model in models.values():
+            if not isinstance(model, dict):
+                raise ViewTransformProbeError("View-transform candidate model is invalid.")
+            model["transported_geometry"] = transform_projected_geometry(
+                source_geometry, model.get("matrix")
+            )
+        result.pop("video_path", None)
+        return {
+            "asset_id": asset_id,
+            "source_frame_index": source_frame_index,
+            "target_frame_index": target_frame_index,
+            **result,
+        }
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+    except (ViewTransformProbeError, ValueError, TypeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
