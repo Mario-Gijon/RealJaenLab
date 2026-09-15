@@ -32,6 +32,7 @@
   const viewTransformModes = document.querySelector("#test-view-transform-modes");
   const viewTransformResult = document.querySelector("#test-view-transform-result");
   const refineDerivedButton = document.querySelector("#test-refine-derived");
+  const saveAssistedHumanButton = document.querySelector("#test-save-assisted-human");
   const derivedRefinementModes = document.querySelector("#test-derived-refinement-modes");
   const derivedRefinementResult = document.querySelector("#test-derived-refinement-result");
   const previousButton = document.querySelector("#test-previous-frame");
@@ -91,8 +92,13 @@
   const anisotropicGeometryAvailable = () => Boolean(
     currentSolve?.camera_model_probe?.models?.anisotropic_2p?.projected_geometry
   );
+  const humanGeometry = (state) => state?.projected_geometry
+    || state?.solve?.camera_model_probe?.models?.anisotropic_2p?.projected_geometry
+    || null;
+  const isDirectHuman = (state) => state?.anchor_type !== "assisted" && Boolean(state?.solve);
+  const directHumanStates = () => humanStates.filter(isDirectHuman);
   const referenceHuman = () => humanStates.find((state) => state.state_id === cameraStateReferenceId) || null;
-  const referenceHumanGeometry = () => referenceHuman()?.solve?.camera_model_probe?.models?.anisotropic_2p?.projected_geometry || null;
+  const referenceHumanGeometry = () => humanGeometry(referenceHuman());
   const propagationReady = () => {
     const selected = window.SupervisorWorkspace?.getSelectedVideo();
     const reference = referenceHuman();
@@ -107,6 +113,22 @@
     && selectedTransportedGeometry()
     && (lineAnnotations.size + pointAnnotations.size) > 0
   );
+  const selectedRefinedGeometry = () => derivedRefinementModel && derivedRefinementModel !== "propagated"
+    ? derivedRefinement?.models?.[derivedRefinementModel]?.refined_geometry || null
+    : null;
+  const matchesExperimentField = (state) => !state?.field_profile
+    || (Math.abs(Number(state.field_profile.length) - Number(cameraStateFieldProfile?.length)) < 1e-6
+      && Math.abs(Number(state.field_profile.width) - Number(cameraStateFieldProfile?.width)) < 1e-6);
+  const assistedHumanReady = () => {
+    const selected = window.SupervisorWorkspace?.getSelectedVideo();
+    const source = referenceHuman();
+    return Boolean(selected?.assetId && frameLocked && Number.isInteger(fixedFrame)
+      && cameraStateFieldProfile && cameraStateVideoAssetId === selected.assetId
+      && source && viewTransformPropagation?.source_frame_index === source.frame_index
+      && viewTransformPropagation?.target_frame_index === fixedFrame
+      && fixedFrame !== source.frame_index && matchesExperimentField(source)
+      && selectedRefinedGeometry());
+  };
 
   function clearCameraStateAnalysis() {
     cameraStateAnalysis = null;
@@ -132,12 +154,17 @@
   function saveCurrentHumanState() {
     if (!frameLocked || !Number.isInteger(fixedFrame) || !anisotropicGeometryAvailable()) return;
     const stateId = `frame_${fixedFrame}`;
+    const solve = cloneJson(currentSolve);
     const state = {
       state_id: stateId,
       frame_index: fixedFrame,
       timestamp_seconds: fixedTimestamp,
+      anchor_type: "direct",
       projection_model: "anisotropic_2p",
-      solve: cloneJson(currentSolve),
+      projected_geometry: solve.camera_model_probe.models.anisotropic_2p.projected_geometry,
+      field_profile: { length: solve.pitch_length, width: solve.pitch_width },
+      provenance: { kind: "independent_solve", projection_model: "anisotropic_2p" },
+      solve,
     };
     const existing = humanStates.findIndex((candidate) => candidate.state_id === stateId);
     if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
@@ -151,6 +178,39 @@
     if (!cameraStateReferenceId) cameraStateReferenceId = stateId;
     clearCameraStateAnalysis();
     clearViewTransformPropagation();
+    renderCameraStateExperiment();
+  }
+  function saveAssistedHumanState() {
+    if (!assistedHumanReady()) return;
+    const selected = window.SupervisorWorkspace?.getSelectedVideo();
+    const source = referenceHuman();
+    const refinedGeometry = selectedRefinedGeometry();
+    const stateId = `frame_${fixedFrame}`;
+    const refinementModel = derivedRefinement.models[derivedRefinementModel];
+    const state = {
+      state_id: stateId,
+      frame_index: fixedFrame,
+      timestamp_seconds: fixedTimestamp,
+      anchor_type: "assisted",
+      projection_model: "anisotropic_2p",
+      projected_geometry: cloneJson(refinedGeometry),
+      field_profile: cloneJson(cameraStateFieldProfile),
+      provenance: {
+        kind: "derived_refinement",
+        source_human_state_id: source.state_id,
+        source_human_frame_index: source.frame_index,
+        view_transform_model: viewTransformModel,
+        refinement_model: derivedRefinementModel,
+        baseline_residual_summary: cloneJson(derivedRefinement.baseline?.residual_summary || {}),
+        refined_residual_summary: cloneJson(refinementModel?.residual_summary || {}),
+        p95_improvement_percent: derivedRefinement.recommended_p95_improvement_percent,
+      },
+    };
+    const existing = humanStates.findIndex((candidate) => candidate.state_id === stateId);
+    if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
+    cameraStateVideoAssetId = selected.assetId;
+    if (!cameraStateReferenceId) cameraStateReferenceId = stateId;
+    clearCameraStateAnalysis();
     renderCameraStateExperiment();
   }
   function setCameraStateReference(stateId) {
@@ -248,6 +308,7 @@
   }
   function renderDerivedRefinement() {
     refineDerivedButton.disabled = !refinementReady();
+    saveAssistedHumanButton.disabled = !assistedHumanReady();
     derivedRefinementModes.hidden = !derivedRefinement;
     derivedRefinementModes.querySelectorAll("[data-derived-refinement-model]").forEach((button) => {
       const name = button.dataset.derivedRefinementModel;
@@ -261,15 +322,21 @@
   }
   function renderCameraStateExperiment() {
     const hasStates = humanStates.length > 0;
+    const directStates = directHumanStates();
+    const assistedCount = humanStates.length - directStates.length;
     pitchLengthInput.disabled = hasStates;
     pitchWidthInput.disabled = hasStates;
     cameraStateProfile.textContent = hasStates
-      ? `Perfil FIELD bloqueado: ${numberText(cameraStateFieldProfile?.length, 1)} × ${numberText(cameraStateFieldProfile?.width, 1)} m · ${humanStates.length} HUMAN.`
+      ? `Perfil FIELD bloqueado: ${numberText(cameraStateFieldProfile?.length, 1)} × ${numberText(cameraStateFieldProfile?.width, 1)} m · ${humanStates.length} HUMAN.${assistedCount ? ` ${assistedCount} ASSISTED no participa en análisis Camera State.` : ""}`
       : "Sin experimento HUMAN. Las dimensiones del campo siguen editables.";
     saveHumanButton.disabled = !frameLocked || !Number.isInteger(fixedFrame) || !anisotropicGeometryAvailable();
-    analyzeCameraStatesButton.disabled = humanStates.length < 2;
+    analyzeCameraStatesButton.disabled = directStates.length < 2;
     resetCameraStatesButton.disabled = !hasStates;
-    cameraStateList.innerHTML = humanStates.map((state) => `<article class="test-camera-state-card ${state.state_id === cameraStateReferenceId ? "is-reference" : ""}"><strong>CAMERA STATE · HUMAN</strong><small>${stateFrameText(state)} · ${projectionModelLabel(state.projection_model)}</small><div><button class="button button-secondary" type="button" data-camera-state-reference="${state.state_id}" ${state.state_id === cameraStateReferenceId ? "disabled" : ""}>Usar como referencia</button><button class="button button-secondary" type="button" data-camera-state-remove="${state.state_id}">Eliminar</button></div></article>`).join("") || "<p>Guarda solves anisotrópicos de fotogramas fijos para iniciar el experimento.</p>";
+    cameraStateList.innerHTML = humanStates.map((state) => {
+      const assisted = state.anchor_type === "assisted";
+      const provenance = assisted ? `ASSISTED · desde frame ${state.provenance?.source_human_frame_index ?? "—"} · ${cameraStateModelLabel(state.provenance?.refinement_model)}` : "DIRECT · solve independiente";
+      return `<article class="test-camera-state-card ${state.state_id === cameraStateReferenceId ? "is-reference" : ""}"><strong>CAMERA STATE · ${assisted ? "ASSISTED" : "DIRECT"}</strong><small>${stateFrameText(state)} · ${projectionModelLabel(state.projection_model)}<br>${provenance}</small><div><button class="button button-secondary" type="button" data-camera-state-reference="${state.state_id}" ${state.state_id === cameraStateReferenceId ? "disabled" : ""}>Usar como referencia</button><button class="button button-secondary" type="button" data-camera-state-remove="${state.state_id}">Eliminar</button></div></article>`;
+    }).join("") || "<p>Guarda solves anisotrópicos de fotogramas fijos para iniciar el experimento.</p>";
     cameraStateList.querySelectorAll("[data-camera-state-reference]").forEach((button) => button.addEventListener("click", () => setCameraStateReference(button.dataset.cameraStateReference)));
     cameraStateList.querySelectorAll("[data-camera-state-remove]").forEach((button) => button.addEventListener("click", () => removeHumanState(button.dataset.cameraStateRemove)));
     cameraStateAnalysisElement.hidden = !cameraStateAnalysis;
@@ -377,9 +444,7 @@
     return selectedTransportedGeometry();
   }
   function selectedDerivedRefinedGeometry() {
-    return derivedRefinementModel && derivedRefinementModel !== "propagated"
-      ? derivedRefinement?.models?.[derivedRefinementModel]?.refined_geometry || null
-      : null;
+    return selectedRefinedGeometry();
   }
   function draw() {
     if (!frameLocked || !canvas.width || !canvas.height) return;
@@ -605,9 +670,14 @@
     draw();
   }));
   saveHumanButton.addEventListener("click", saveCurrentHumanState);
+  saveAssistedHumanButton.addEventListener("click", saveAssistedHumanState);
   resetCameraStatesButton.addEventListener("click", resetCameraStateExperiment);
   analyzeCameraStatesButton.addEventListener("click", async () => {
-    if (humanStates.length < 2 || !cameraStateReferenceId) return;
+    const states = directHumanStates();
+    const referenceStateId = states.some((state) => state.state_id === cameraStateReferenceId)
+      ? cameraStateReferenceId
+      : states[0]?.state_id;
+    if (states.length < 2 || !referenceStateId) return;
     analyzeCameraStatesButton.disabled = true;
     cameraStateAnalysisElement.hidden = false;
     cameraStateAnalysisElement.textContent = "Analizando relaciones entre estados HUMAN…";
@@ -617,8 +687,8 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projection_model: "anisotropic_2p",
-          reference_state_id: cameraStateReferenceId,
-          states: humanStates,
+          reference_state_id: referenceStateId,
+          states,
         }),
       });
     } catch (error) {
