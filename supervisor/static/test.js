@@ -27,6 +27,7 @@
   const analyzeCameraStatesButton = document.querySelector("#test-analyze-camera-states");
   const resetCameraStatesButton = document.querySelector("#test-reset-camera-states");
   const cameraStateList = document.querySelector("#test-camera-state-list");
+  const humanAtlasElement = document.querySelector("#test-human-atlas");
   const cameraStateAnalysisElement = document.querySelector("#test-camera-state-analysis");
   const propagateHumanButton = document.querySelector("#test-propagate-human");
   const viewTransformModes = document.querySelector("#test-view-transform-modes");
@@ -64,6 +65,10 @@
   let cameraStateAnalysis = null;
   let cameraStateFieldProfile = null;
   let cameraStateVideoAssetId = null;
+  let humanAtlasSummary = null;
+  let humanAtlasError = null;
+  let nextHumanDescriptorRequestId = 0;
+  let humanAtlasRequestId = 0;
   let viewTransformPropagation = null;
   let viewTransformModel = null;
   let derivedRefinement = null;
@@ -148,8 +153,83 @@
     cameraStateAnalysis = null;
     cameraStateFieldProfile = null;
     cameraStateVideoAssetId = null;
+    humanAtlasSummary = null;
+    humanAtlasError = null;
+    humanAtlasRequestId += 1;
     clearViewTransformPropagation();
     renderCameraStateExperiment();
+  }
+  function validHumanDescriptors() {
+    return humanStates.filter((state) => state.view_descriptor && typeof state.view_descriptor === "object");
+  }
+  function refreshHumanAtlas() {
+    const requestId = ++humanAtlasRequestId;
+    const descriptorStates = validHumanDescriptors();
+    const descriptors = descriptorStates.map((state) => state.view_descriptor);
+    humanAtlasSummary = null;
+    humanAtlasError = null;
+    if (!descriptors.length) return;
+    void api("/api/field/human-atlas/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descriptors }),
+    }).then((summary) => {
+      if (requestId !== humanAtlasRequestId) return;
+      const current = validHumanDescriptors();
+      if (current.length !== descriptorStates.length || current.some((state, index) => state.view_descriptor !== descriptors[index])) return;
+      humanAtlasSummary = summary;
+      renderCameraStateExperiment();
+    }).catch((error) => {
+      if (requestId !== humanAtlasRequestId) return;
+      const current = validHumanDescriptors();
+      if (current.length !== descriptorStates.length || current.some((state, index) => state.view_descriptor !== descriptors[index])) return;
+      humanAtlasError = error.message;
+      renderCameraStateExperiment();
+    });
+  }
+  function requestHumanViewDescriptor(state) {
+    const videoWidth = testVideo.videoWidth || canvas.width;
+    const videoHeight = testVideo.videoHeight || canvas.height;
+    const requestId = ++nextHumanDescriptorRequestId;
+    state.view_descriptor = null;
+    state.view_descriptor_error = null;
+    state.view_descriptor_request_id = requestId;
+    if (!finite(videoWidth) || !finite(videoHeight) || videoWidth <= 0 || videoHeight <= 0) {
+      state.view_descriptor_error = "No se conocen las dimensiones reales del vídeo.";
+      refreshHumanAtlas();
+      return;
+    }
+    void api("/api/field/human-view/describe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projected_geometry: cloneJson(humanGeometry(state)),
+        field_profile: cloneJson(state.field_profile),
+        video_width: videoWidth,
+        video_height: videoHeight,
+        human_id: state.state_id,
+      }),
+    }).then((descriptor) => {
+      const current = humanStates.find((candidate) => candidate.state_id === state.state_id);
+      if (!current || current.view_descriptor_request_id !== requestId) return;
+      current.view_descriptor = descriptor;
+      current.view_descriptor_error = null;
+      refreshHumanAtlas();
+      renderCameraStateExperiment();
+    }).catch((error) => {
+      const current = humanStates.find((candidate) => candidate.state_id === state.state_id);
+      if (!current || current.view_descriptor_request_id !== requestId) return;
+      current.view_descriptor = null;
+      current.view_descriptor_error = error.message;
+      refreshHumanAtlas();
+      renderCameraStateExperiment();
+    });
+  }
+  function upsertHumanState(state) {
+    const existing = humanStates.findIndex((candidate) => candidate.state_id === state.state_id);
+    if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
+    requestHumanViewDescriptor(state);
+    refreshHumanAtlas();
   }
   function saveCurrentHumanState() {
     if (!frameLocked || !Number.isInteger(fixedFrame) || !anisotropicGeometryAvailable()) return;
@@ -166,8 +246,7 @@
       provenance: { kind: "independent_solve", projection_model: "anisotropic_2p" },
       solve,
     };
-    const existing = humanStates.findIndex((candidate) => candidate.state_id === stateId);
-    if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
+    upsertHumanState(state);
     if (!cameraStateFieldProfile) {
       cameraStateFieldProfile = {
         length: currentSolve.pitch_length,
@@ -187,6 +266,11 @@
     const refinedGeometry = selectedRefinedGeometry();
     const stateId = `frame_${fixedFrame}`;
     const refinementModel = derivedRefinement.models[derivedRefinementModel];
+    const baselineP95 = Number(derivedRefinement.baseline?.residual_summary?.p95_px);
+    const selectedP95 = Number(refinementModel?.residual_summary?.p95_px);
+    const p95ImprovementPercent = finite(baselineP95) && finite(selectedP95) && baselineP95 > 0
+      ? 100 * (baselineP95 - selectedP95) / baselineP95
+      : null;
     const state = {
       state_id: stateId,
       frame_index: fixedFrame,
@@ -203,11 +287,10 @@
         refinement_model: derivedRefinementModel,
         baseline_residual_summary: cloneJson(derivedRefinement.baseline?.residual_summary || {}),
         refined_residual_summary: cloneJson(refinementModel?.residual_summary || {}),
-        p95_improvement_percent: derivedRefinement.recommended_p95_improvement_percent,
+        p95_improvement_percent: p95ImprovementPercent,
       },
     };
-    const existing = humanStates.findIndex((candidate) => candidate.state_id === stateId);
-    if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
+    upsertHumanState(state);
     cameraStateVideoAssetId = selected.assetId;
     if (!cameraStateReferenceId) cameraStateReferenceId = stateId;
     clearCameraStateAnalysis();
@@ -227,6 +310,7 @@
       cameraStateFieldProfile = null;
       cameraStateVideoAssetId = null;
     }
+    refreshHumanAtlas();
     clearCameraStateAnalysis();
     clearViewTransformPropagation();
     renderCameraStateExperiment();
@@ -306,6 +390,42 @@
     const warnings = (refinement.warnings || []).map((warning) => `<p class="test-camera-state-warning">${warning}</p>`).join("");
     return `<h3>DERIVED · Diagnóstico refinado</h3><dl><div><dt>Prior</dt><dd>${cameraStateModelLabel(viewTransformModel)}</dd></div><div><dt>Puntos / líneas</dt><dd>${refinement.point_annotation_count ?? 0} / ${refinement.line_annotation_count ?? 0}</dd></div><div><dt>Restricciones escalares</dt><dd>${refinement.constraint_count ?? 0}</dd></div><div><dt>Corrección recomendada</dt><dd>${cameraStateModelLabel(refinement.recommended_model)}</dd></div><div><dt>Baseline mediana / P95 / máx.</dt><dd>${metricText(baseline.median_px)} · ${metricText(baseline.p95_px)} · ${metricText(baseline.max_px)}</dd></div><div><dt>Refinado mediana / P95 / máx.</dt><dd>${metricText(recommendedSummary.median_px)} · ${metricText(recommendedSummary.p95_px)} · ${metricText(recommendedSummary.max_px)}</dd></div><div><dt>Mejora P95</dt><dd>${numberText(refinement.recommended_p95_improvement_percent, 1)} %</dd></div></dl>${warnings}<div class="test-camera-state-models">${modelRows}</div>${selected?.transform ? `<p class="test-diagnostic-caption">${cameraStateModelLabel(derivedRefinementModel)} seleccionado. ${transformDetails(selected.transform)}</p>` : ""}${annotationDetails ? `<h3>Detalle de anotaciones</h3><div class="test-derived-refinement-details">${annotationDetails}</div>` : ""}`;
   }
+  function humanDescriptorMarkup(state) {
+    const descriptor = state.view_descriptor;
+    if (!descriptor) {
+      if (state.view_descriptor_error) return `<p class="test-camera-state-warning">FIELD no disponible: ${state.view_descriptor_error}</p>`;
+      return `<small>Cobertura FIELD: calculando descriptor…</small>`;
+    }
+    const coverage = descriptor.coverage || {};
+    const center = coverage.view_center_normalized || [];
+    const scale = descriptor.effective_view_scale || {};
+    const visibility = descriptor.semantic_visibility || {};
+    const approximation = descriptor.approximation?.residual_summary || {};
+    const warnings = (descriptor.warnings || []).map((warning) => `⚠ ${warning}`).join(" · ");
+    return `<small>FIELD ${numberText(coverage.visible_field_percent, 1)}% · centro ${numberText(center[0])} / ${numberText(center[1])} · escala ${numberText(scale.scale_geometric_px_per_m, 1)} px/m<br>Landmarks ${visibility.visible_landmark_count ?? "—"}/${visibility.total_landmark_count ?? "—"} · approx P95 ${metricText(approximation.p95_px)}${warnings ? `<br>${warnings}` : ""}</small>`;
+  }
+  function humanAtlasMarkup() {
+    const descriptorStates = validHumanDescriptors();
+    if (!humanStates.length) return "";
+    if (!descriptorStates.length) {
+      const unavailable = humanStates.some((state) => state.view_descriptor_error)
+        ? "Cobertura FIELD no disponible para los HUMAN sin descriptor válido."
+        : "Calculando descriptores HUMAN para la cobertura FIELD…";
+      return `<h3>Human Atlas · Cobertura FIELD</h3><dl><div><dt>HUMAN total / descriptor válido</dt><dd>${humanStates.length} / 0</dd></div><div><dt>Cobertura FIELD acumulada</dt><dd>No disponible</dd></div><div><dt>Muestras cubiertas / total</dt><dd>— / —</dd></div></dl><p>${unavailable}</p><p class="test-diagnostic-caption">La cobertura FIELD mide qué superficie canónica del campo aparece en al menos un HUMAN. No mide todavía la cobertura de estados de cámara.</p>`;
+    }
+    if (humanAtlasError) {
+      return `<h3>Human Atlas · Cobertura FIELD</h3><dl><div><dt>HUMAN total / descriptor válido</dt><dd>${humanStates.length} / ${descriptorStates.length}</dd></div><div><dt>Cobertura FIELD acumulada</dt><dd>No disponible</dd></div><div><dt>Muestras cubiertas / total</dt><dd>— / —</dd></div></dl><p class="test-camera-state-warning">Atlas no disponible: ${humanAtlasError}</p><p class="test-diagnostic-caption">La cobertura FIELD mide qué superficie canónica del campo aparece en al menos un HUMAN. No mide todavía la cobertura de estados de cámara.</p>`;
+    }
+    if (!humanAtlasSummary) {
+      return `<h3>Human Atlas · Cobertura FIELD</h3><dl><div><dt>HUMAN total / descriptor válido</dt><dd>${humanStates.length} / ${descriptorStates.length}</dd></div><div><dt>Cobertura FIELD acumulada</dt><dd>Calculando…</dd></div><div><dt>Muestras cubiertas / total</dt><dd>— / —</dd></div></dl><p>Calculando cobertura acumulada de ${descriptorStates.length} HUMAN…</p><p class="test-diagnostic-caption">La cobertura FIELD mide qué superficie canónica del campo aparece en al menos un HUMAN. No mide todavía la cobertura de estados de cámara.</p>`;
+    }
+    const grid = humanAtlasSummary.grid || {};
+    const marginal = (humanAtlasSummary.marginal_coverage || []).map((entry) => {
+      const state = humanStates.find((candidate) => candidate.state_id === entry.human_id);
+      return `<small>Frame ${state?.frame_index ?? entry.human_id} · +${numberText(entry.marginal_field_coverage_percent, 1)}% · acumulado ${numberText(entry.cumulative_field_coverage_percent, 1)}%</small>`;
+    }).join("");
+    return `<h3>Human Atlas · Cobertura FIELD</h3><dl><div><dt>HUMAN total / descriptor válido</dt><dd>${humanStates.length} / ${descriptorStates.length}</dd></div><div><dt>Cobertura FIELD acumulada</dt><dd>${numberText(humanAtlasSummary.accumulated_field_coverage_percent, 1)}%</dd></div><div><dt>Muestras cubiertas / total</dt><dd>${grid.covered_sample_count ?? "—"} / ${grid.total_sample_count ?? "—"}</dd></div></dl>${marginal}<p class="test-diagnostic-caption">La cobertura FIELD mide qué superficie canónica del campo aparece en al menos un HUMAN. No mide todavía la cobertura de estados de cámara.</p>`;
+  }
   function renderDerivedRefinement() {
     refineDerivedButton.disabled = !refinementReady();
     saveAssistedHumanButton.disabled = !assistedHumanReady();
@@ -335,10 +455,12 @@
     cameraStateList.innerHTML = humanStates.map((state) => {
       const assisted = state.anchor_type === "assisted";
       const provenance = assisted ? `ASSISTED · desde frame ${state.provenance?.source_human_frame_index ?? "—"} · ${cameraStateModelLabel(state.provenance?.refinement_model)}` : "DIRECT · solve independiente";
-      return `<article class="test-camera-state-card ${state.state_id === cameraStateReferenceId ? "is-reference" : ""}"><strong>CAMERA STATE · ${assisted ? "ASSISTED" : "DIRECT"}</strong><small>${stateFrameText(state)} · ${projectionModelLabel(state.projection_model)}<br>${provenance}</small><div><button class="button button-secondary" type="button" data-camera-state-reference="${state.state_id}" ${state.state_id === cameraStateReferenceId ? "disabled" : ""}>Usar como referencia</button><button class="button button-secondary" type="button" data-camera-state-remove="${state.state_id}">Eliminar</button></div></article>`;
+      return `<article class="test-camera-state-card ${state.state_id === cameraStateReferenceId ? "is-reference" : ""}"><strong>CAMERA STATE · ${assisted ? "ASSISTED" : "DIRECT"}</strong><small>${stateFrameText(state)} · ${projectionModelLabel(state.projection_model)}<br>${provenance}</small>${humanDescriptorMarkup(state)}<div><button class="button button-secondary" type="button" data-camera-state-reference="${state.state_id}" ${state.state_id === cameraStateReferenceId ? "disabled" : ""}>Usar como referencia</button><button class="button button-secondary" type="button" data-camera-state-remove="${state.state_id}">Eliminar</button></div></article>`;
     }).join("") || "<p>Guarda solves anisotrópicos de fotogramas fijos para iniciar el experimento.</p>";
     cameraStateList.querySelectorAll("[data-camera-state-reference]").forEach((button) => button.addEventListener("click", () => setCameraStateReference(button.dataset.cameraStateReference)));
     cameraStateList.querySelectorAll("[data-camera-state-remove]").forEach((button) => button.addEventListener("click", () => removeHumanState(button.dataset.cameraStateRemove)));
+    humanAtlasElement.hidden = !hasStates;
+    humanAtlasElement.innerHTML = humanAtlasMarkup();
     cameraStateAnalysisElement.hidden = !cameraStateAnalysis;
     cameraStateAnalysisElement.innerHTML = analysisMarkup(cameraStateAnalysis);
     renderViewTransform();

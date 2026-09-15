@@ -40,6 +40,11 @@ from supervisor.field.derived_refinement import (
     DerivedRefinementError,
     refine_derived_projection_payload,
 )
+from supervisor.field.human_view_descriptor import (
+    HumanViewDescriptorError,
+    describe_human_view_payload,
+    summarize_human_atlas_payload,
+)
 
 
 BASE_DIR = Path(__file__).parent
@@ -169,6 +174,22 @@ def probe_field_camera_states(payload: dict = Body()) -> dict:
     try:
         return probe_camera_states_payload(payload)
     except (CameraStateProbeError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/field/human-view/describe")
+def describe_field_human_view(payload: dict = Body()) -> dict:
+    try:
+        return describe_human_view_payload(payload)
+    except (HumanViewDescriptorError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/field/human-atlas/summarize")
+def summarize_field_human_atlas(payload: dict = Body()) -> dict:
+    try:
+        return summarize_human_atlas_payload(payload)
+    except (HumanViewDescriptorError, ValueError, TypeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
