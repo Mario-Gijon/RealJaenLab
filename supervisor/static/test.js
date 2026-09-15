@@ -24,10 +24,12 @@
   const pitchWidthInput = document.querySelector("#test-pitch-width");
   const cameraStateProfile = document.querySelector("#test-camera-state-profile");
   const saveHumanButton = document.querySelector("#test-save-human");
+  const evaluateCameraStateCoverageButton = document.querySelector("#test-evaluate-camera-state-coverage");
   const analyzeCameraStatesButton = document.querySelector("#test-analyze-camera-states");
   const resetCameraStatesButton = document.querySelector("#test-reset-camera-states");
   const cameraStateList = document.querySelector("#test-camera-state-list");
   const humanAtlasElement = document.querySelector("#test-human-atlas");
+  const cameraStateCoverageElement = document.querySelector("#test-camera-state-coverage");
   const cameraStateAnalysisElement = document.querySelector("#test-camera-state-analysis");
   const propagateHumanButton = document.querySelector("#test-propagate-human");
   const viewTransformModes = document.querySelector("#test-view-transform-modes");
@@ -69,6 +71,10 @@
   let humanAtlasError = null;
   let nextHumanDescriptorRequestId = 0;
   let humanAtlasRequestId = 0;
+  let cameraStateCoverageTarget = null;
+  let cameraStateCoverageError = null;
+  let cameraStateCoverageRequestId = 0;
+  let cameraStateCoverageRunning = false;
   let viewTransformPropagation = null;
   let viewTransformModel = null;
   let derivedRefinement = null;
@@ -134,9 +140,26 @@
       && fixedFrame !== source.frame_index && matchesExperimentField(source)
       && selectedRefinedGeometry());
   };
+  const cameraStateCoverageAnchors = () => humanStates.filter((state) => (
+    Number.isInteger(state.frame_index)
+    && humanGeometry(state)
+    && matchesExperimentField(state)
+  ));
+  const cameraStateCoverageReady = () => {
+    const selected = window.SupervisorWorkspace?.getSelectedVideo();
+    return Boolean(selected?.assetId && frameLocked && Number.isInteger(fixedFrame)
+      && cameraStateFieldProfile && cameraStateVideoAssetId === selected.assetId
+      && cameraStateCoverageAnchors().some((state) => state.frame_index !== fixedFrame));
+  };
 
   function clearCameraStateAnalysis() {
     cameraStateAnalysis = null;
+  }
+  function invalidateCameraStateCoverageTarget() {
+    cameraStateCoverageRequestId += 1;
+    cameraStateCoverageTarget = null;
+    cameraStateCoverageError = null;
+    cameraStateCoverageRunning = false;
   }
   function clearViewTransformPropagation() {
     viewTransformPropagation = null;
@@ -156,6 +179,7 @@
     humanAtlasSummary = null;
     humanAtlasError = null;
     humanAtlasRequestId += 1;
+    invalidateCameraStateCoverageTarget();
     clearViewTransformPropagation();
     renderCameraStateExperiment();
   }
@@ -214,6 +238,7 @@
       if (!current || current.view_descriptor_request_id !== requestId) return;
       current.view_descriptor = descriptor;
       current.view_descriptor_error = null;
+      invalidateCameraStateCoverageTarget();
       refreshHumanAtlas();
       renderCameraStateExperiment();
     }).catch((error) => {
@@ -221,6 +246,7 @@
       if (!current || current.view_descriptor_request_id !== requestId) return;
       current.view_descriptor = null;
       current.view_descriptor_error = error.message;
+      invalidateCameraStateCoverageTarget();
       refreshHumanAtlas();
       renderCameraStateExperiment();
     });
@@ -228,6 +254,7 @@
   function upsertHumanState(state) {
     const existing = humanStates.findIndex((candidate) => candidate.state_id === state.state_id);
     if (existing >= 0) humanStates.splice(existing, 1, state); else humanStates.push(state);
+    invalidateCameraStateCoverageTarget();
     requestHumanViewDescriptor(state);
     refreshHumanAtlas();
   }
@@ -305,6 +332,7 @@
   }
   function removeHumanState(stateId) {
     humanStates = humanStates.filter((state) => state.state_id !== stateId);
+    invalidateCameraStateCoverageTarget();
     if (cameraStateReferenceId === stateId) cameraStateReferenceId = humanStates[0]?.state_id || null;
     if (!humanStates.length) {
       cameraStateFieldProfile = null;
@@ -426,6 +454,44 @@
     }).join("");
     return `<h3>Human Atlas · Cobertura FIELD</h3><dl><div><dt>HUMAN total / descriptor válido</dt><dd>${humanStates.length} / ${descriptorStates.length}</dd></div><div><dt>Cobertura FIELD acumulada</dt><dd>${numberText(humanAtlasSummary.accumulated_field_coverage_percent, 1)}%</dd></div><div><dt>Muestras cubiertas / total</dt><dd>${grid.covered_sample_count ?? "—"} / ${grid.total_sample_count ?? "—"}</dd></div></dl>${marginal}<p class="test-diagnostic-caption">La cobertura FIELD mide qué superficie canónica del campo aparece en al menos un HUMAN. No mide todavía la cobertura de estados de cámara.</p>`;
   }
+  function cameraStateCoverageMarkup() {
+    const heading = "<h3>Camera-State Coverage · Target</h3>";
+    if (cameraStateCoverageRunning) {
+      return `${heading}<p>Comparando target ${fixedFrame ?? "—"} con ${cameraStateCoverageAnchors().filter((state) => state.frame_index !== fixedFrame).length} HUMAN…</p>`;
+    }
+    if (cameraStateCoverageError) {
+      return `${heading}<p class="test-camera-state-warning">No se pudo evaluar el target: ${cameraStateCoverageError}</p>`;
+    }
+    if (!cameraStateCoverageTarget) {
+      return `${heading}<p>Evalúa si el fotograma fijado está representado por los HUMAN actuales. No necesita anotaciones del target.</p>`;
+    }
+    const coverage = cameraStateCoverageTarget;
+    const best = coverage.best_candidate || {};
+    const probe = best.probe_summary || {};
+    const predicted = best.predicted_descriptor || {};
+    const predictedCoverage = predicted.coverage || {};
+    const predictedCenter = predictedCoverage.view_center_normalized || [];
+    const predictedScale = predicted.effective_view_scale || {};
+    const predictedApproximation = predicted.approximation?.residual_summary || {};
+    const candidateById = new Map((coverage.candidates || []).map((candidate) => [candidate.anchor_id, candidate]));
+    const ranking = (coverage.candidates || []).slice(0, 3).map((candidate) => `<small>Frame ${candidate.anchor_frame_index ?? candidate.anchor_id} · evidencia ${numberText(candidate.evidence_score)} · distancia ${numberText(candidate.state_distance)} · score ${numberText(candidate.candidate_score)}</small>`).join("");
+    const consensus = coverage.coverage_mode === "multi_anchor_consensus" && coverage.consensus
+      ? `<small>Consenso: ${(coverage.consensus.anchor_ids || []).map((id) => { const candidate = candidateById.get(id); return `frame ${candidate?.anchor_frame_index ?? id}`; }).join(" + ")} · desacuerdo ${numberText(coverage.consensus.prediction_disagreement)}</small><p class="test-diagnostic-caption">Dos predicciones HUMAN concuerdan sobre el estado del target; no se interpola ningún estado.</p>`
+      : "";
+    const failures = coverage.probe_failures?.length
+      ? `<p class="test-camera-state-warning">${coverage.probe_failures.length} HUMAN no pudieron compararse visualmente.</p>`
+      : "";
+    const statusCopy = {
+      covered: "El target está representado conservadoramente por el Atlas HUMAN.",
+      uncertain: "El target está cerca del límite del Atlas; aún no cuenta como cobertura estricta.",
+      uncovered: "Hay evidencia visual, pero ningún HUMAN representa este estado con suficiente confianza.",
+      unobservable: "No hay evidencia visual suficiente para decidir si falta un estado.",
+    }[coverage.status] || "Diagnóstico sin clasificación.";
+    const predictedMarkup = best.predicted_descriptor
+      ? `<h3>Predicción transportada</h3><dl><div><dt>Centro x / y</dt><dd>${numberText(predictedCenter[0])} / ${numberText(predictedCenter[1])}</dd></div><div><dt>Escala geométrica</dt><dd>${numberText(predictedScale.scale_geometric_px_per_m, 1)} px/m</dd></div><div><dt>FIELD visible</dt><dd>${numberText(predictedCoverage.visible_field_percent, 1)}%</dd></div><div><dt>Approx P95</dt><dd>${metricText(predictedApproximation.p95_px)}</dd></div></dl><p class="test-diagnostic-caption">Predicción transportada desde el HUMAN; no es ground truth del target.</p>`
+      : "";
+    return `${heading}<div class="test-camera-state-coverage-status is-${coverage.status || "unobservable"}">${String(coverage.status || "unobservable").toUpperCase()}</div><p>${statusCopy}</p><dl><div><dt>Target</dt><dd>Fotograma ${coverage.target_frame_index ?? "—"}</dd></div><div><dt>Modo</dt><dd>${coverage.coverage_mode || "—"}</dd></div><div><dt>Mejor HUMAN</dt><dd>Frame ${best.anchor_frame_index ?? coverage.best_anchor_id ?? "—"} · ${best.anchor_type === "assisted" ? "ASSISTED" : best.anchor_type === "direct" ? "DIRECT" : "—"}</dd></div><div><dt>Score / evidencia</dt><dd>${numberText(best.candidate_score)} / ${numberText(best.evidence_score)}</dd></div><div><dt>Distancia de estado</dt><dd>${numberText(best.state_distance)}</dd></div><div><dt>Transform recomendado</dt><dd>${cameraStateModelLabel(best.recommended_model)}</dd></div><div><dt>Inliers / ratio</dt><dd>${probe.consensus_inlier_count ?? "—"} / ${numberText(probe.consensus_inlier_ratio)}</dd></div><div><dt>Cobertura fuente / target</dt><dd>${numberText(probe.source_spatial_coverage)} / ${numberText(probe.target_spatial_coverage)}</dd></div><div><dt>View Transform P95</dt><dd>${metricText(probe.p95_px)}</dd></div><div><dt>Matches mutuos</dt><dd>${probe.mutual_match_count ?? "—"}</dd></div></dl>${predictedMarkup}${ranking ? `<h3>Top HUMAN candidatos</h3>${ranking}` : ""}${consensus}${failures}`;
+  }
   function renderDerivedRefinement() {
     refineDerivedButton.disabled = !refinementReady();
     saveAssistedHumanButton.disabled = !assistedHumanReady();
@@ -450,6 +516,7 @@
       ? `Perfil FIELD bloqueado: ${numberText(cameraStateFieldProfile?.length, 1)} × ${numberText(cameraStateFieldProfile?.width, 1)} m · ${humanStates.length} HUMAN.${assistedCount ? ` ${assistedCount} ASSISTED no participa en análisis Camera State.` : ""}`
       : "Sin experimento HUMAN. Las dimensiones del campo siguen editables.";
     saveHumanButton.disabled = !frameLocked || !Number.isInteger(fixedFrame) || !anisotropicGeometryAvailable();
+    evaluateCameraStateCoverageButton.disabled = !cameraStateCoverageReady() || cameraStateCoverageRunning;
     analyzeCameraStatesButton.disabled = directStates.length < 2;
     resetCameraStatesButton.disabled = !hasStates;
     cameraStateList.innerHTML = humanStates.map((state) => {
@@ -461,6 +528,8 @@
     cameraStateList.querySelectorAll("[data-camera-state-remove]").forEach((button) => button.addEventListener("click", () => removeHumanState(button.dataset.cameraStateRemove)));
     humanAtlasElement.hidden = !hasStates;
     humanAtlasElement.innerHTML = humanAtlasMarkup();
+    cameraStateCoverageElement.hidden = !hasStates;
+    cameraStateCoverageElement.innerHTML = cameraStateCoverageMarkup();
     cameraStateAnalysisElement.hidden = !cameraStateAnalysis;
     cameraStateAnalysisElement.innerHTML = analysisMarkup(cameraStateAnalysis);
     renderViewTransform();
@@ -646,6 +715,7 @@
   function clearOverlay() { context.clearRect(0, 0, canvas.width, canvas.height); }
   function unlockFrame() {
     if (!frameLocked) return;
+    invalidateCameraStateCoverageTarget();
     frameLocked = false; fixedTimestamp = null; fixedFrame = null; selectedName = null; clearViewTransformPropagation(); resetAnnotations(); clearOverlay(); frameInfo.textContent = "Navega por el vídeo y fija un fotograma para anotar."; updateUI();
   }
   function lockFrame() {
@@ -671,8 +741,9 @@
   }
   function initialiseVideo() {
     const selected = window.SupervisorWorkspace?.getSelectedVideo(); const sourceVideo = window.SupervisorWorkspace?.getVideo();
-    if (!selected) { testVideo.removeAttribute("src"); testVideo.load(); setEmpty("Abre un vídeo desde Biblioteca para comenzar."); return; }
+    if (!selected) { invalidateCameraStateCoverageTarget(); testVideo.removeAttribute("src"); testVideo.load(); setEmpty("Abre un vídeo desde Biblioteca para comenzar."); return; }
     const sourceChanged = testVideo.dataset.assetId !== selected.assetId;
+    if (sourceChanged) invalidateCameraStateCoverageTarget();
     if (sourceChanged && cameraStateVideoAssetId && cameraStateVideoAssetId !== selected.assetId) resetCameraStateExperiment();
     pendingStartTime = sourceVideo?.currentTime || 0;
     if (sourceChanged) { unlockFrame(); testVideo.dataset.assetId = selected.assetId; testVideo.src = selected.playbackUrl; testVideo.load(); setEmpty("Cargando vídeo…"); }
@@ -794,6 +865,44 @@
   saveHumanButton.addEventListener("click", saveCurrentHumanState);
   saveAssistedHumanButton.addEventListener("click", saveAssistedHumanState);
   resetCameraStatesButton.addEventListener("click", resetCameraStateExperiment);
+  evaluateCameraStateCoverageButton.addEventListener("click", async () => {
+    const selected = window.SupervisorWorkspace?.getSelectedVideo();
+    const anchors = cameraStateCoverageAnchors();
+    if (!cameraStateCoverageReady() || !selected || !anchors.length) return;
+    const requestId = ++cameraStateCoverageRequestId;
+    cameraStateCoverageTarget = null;
+    cameraStateCoverageError = null;
+    cameraStateCoverageRunning = true;
+    renderCameraStateExperiment();
+    try {
+      const coverage = await api("/api/field/camera-state/coverage/target", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asset_id: selected.assetId,
+          target_frame_index: fixedFrame,
+          target_timestamp_seconds: fixedTimestamp,
+          anchors: anchors.map((state) => ({
+            anchor_id: state.state_id,
+            asset_id: selected.assetId,
+            anchor_frame_index: state.frame_index,
+            anchor_type: state.anchor_type,
+            projected_geometry: cloneJson(humanGeometry(state)),
+            field_profile: cloneJson(state.field_profile),
+            anchor_descriptor: state.view_descriptor ? cloneJson(state.view_descriptor) : null,
+          })),
+        }),
+      });
+      if (requestId !== cameraStateCoverageRequestId) return;
+      cameraStateCoverageTarget = coverage;
+      cameraStateCoverageRunning = false;
+    } catch (error) {
+      if (requestId !== cameraStateCoverageRequestId) return;
+      cameraStateCoverageError = error.message;
+      cameraStateCoverageRunning = false;
+    }
+    renderCameraStateExperiment();
+  });
   analyzeCameraStatesButton.addEventListener("click", async () => {
     const states = directHumanStates();
     const referenceStateId = states.some((state) => state.state_id === cameraStateReferenceId)

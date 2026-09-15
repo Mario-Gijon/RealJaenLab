@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 from pathlib import Path
 
@@ -44,6 +45,10 @@ from supervisor.field.human_view_descriptor import (
     HumanViewDescriptorError,
     describe_human_view_payload,
     summarize_human_atlas_payload,
+)
+from supervisor.field.camera_state_coverage import (
+    CameraStateCoverageError,
+    evaluate_target_camera_state,
 )
 
 
@@ -190,6 +195,106 @@ def summarize_field_human_atlas(payload: dict = Body()) -> dict:
     try:
         return summarize_human_atlas_payload(payload)
     except (HumanViewDescriptorError, ValueError, TypeError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/field/camera-state/coverage/target")
+def evaluate_field_camera_state_coverage_target(payload: dict = Body()) -> dict:
+    """Compare one fixed target frame with every usable HUMAN atlas anchor."""
+
+    try:
+        asset_id = payload.get("asset_id")
+        if not isinstance(asset_id, str) or not asset_id.strip():
+            raise ValueError("asset_id is required.")
+        target_frame_index = int(payload.get("target_frame_index"))
+        if target_frame_index < 0:
+            raise ValueError("target_frame_index must be non-negative.")
+        target_timestamp_seconds = payload.get("target_timestamp_seconds")
+        if target_timestamp_seconds is not None:
+            target_timestamp_seconds = float(target_timestamp_seconds)
+            if not math.isfinite(target_timestamp_seconds):
+                raise ValueError("target_timestamp_seconds must be finite.")
+        anchors = payload.get("anchors")
+        if not isinstance(anchors, list) or not anchors:
+            raise ValueError("anchors must be a non-empty array.")
+
+        validated_anchors: list[dict] = []
+        fixed_profile: tuple[float, float] | None = None
+        for raw_anchor in anchors:
+            if not isinstance(raw_anchor, dict):
+                raise ValueError("Each anchor must be an object.")
+            anchor_id = raw_anchor.get("anchor_id")
+            if not isinstance(anchor_id, str) or not anchor_id.strip():
+                raise ValueError("Each anchor requires anchor_id.")
+            if raw_anchor.get("asset_id") not in (None, asset_id):
+                raise ValueError(f"{anchor_id}: anchor belongs to a different asset.")
+            anchor_frame_index = int(raw_anchor.get("anchor_frame_index"))
+            if anchor_frame_index < 0:
+                raise ValueError(f"{anchor_id}: anchor_frame_index must be non-negative.")
+            if not isinstance(raw_anchor.get("projected_geometry"), dict):
+                raise ValueError(f"{anchor_id}: projected_geometry must be an object.")
+            profile = raw_anchor.get("field_profile")
+            if not isinstance(profile, dict):
+                raise ValueError(f"{anchor_id}: field_profile must be an object.")
+            pitch = PitchModel(length=float(profile.get("length")), width=float(profile.get("width")))
+            profile_key = (pitch.length, pitch.width)
+            if fixed_profile is None:
+                fixed_profile = profile_key
+            elif any(abs(a - b) > 1e-6 for a, b in zip(fixed_profile, profile_key)):
+                raise ValueError("All anchors must share one fixed FieldProfile.")
+            validated_anchors.append({
+                "anchor_id": anchor_id,
+                "anchor_frame_index": anchor_frame_index,
+                "anchor_type": raw_anchor.get("anchor_type"),
+                "projected_geometry": raw_anchor["projected_geometry"],
+                "field_profile": {"length": pitch.length, "width": pitch.width},
+                "anchor_descriptor": raw_anchor.get("anchor_descriptor"),
+            })
+
+        eligible = [
+            anchor for anchor in validated_anchors
+            if anchor["anchor_frame_index"] != target_frame_index
+        ]
+        skipped_anchor_ids = [
+            anchor["anchor_id"] for anchor in validated_anchors
+            if anchor["anchor_frame_index"] == target_frame_index
+        ]
+        if not eligible:
+            raise ValueError("No HUMAN anchor remains after excluding the target frame.")
+
+        video_path = media_library().resolve_asset_path(asset_id)
+        candidates: list[dict] = []
+        probe_failures: list[dict[str, str]] = []
+        for anchor in eligible:
+            try:
+                probe = probe_video_frames(
+                    video_path,
+                    anchor["anchor_frame_index"],
+                    target_frame_index,
+                )
+                probe.pop("video_path", None)
+                candidates.append({**anchor, "probe": probe})
+            except Exception as error:  # One failed HUMAN must not hide useful peers.
+                probe_failures.append({"anchor_id": anchor["anchor_id"], "error": str(error)})
+
+        if not candidates:
+            raise ViewTransformProbeError("No HUMAN anchor produced a usable visual relation to this target.")
+        result = evaluate_target_camera_state(
+            candidates,
+            target_frame_index=target_frame_index,
+            target_timestamp_seconds=target_timestamp_seconds,
+        )
+        result["candidate_failures"] = probe_failures + list(result.get("candidate_failures") or [])
+        result["probe_failures"] = probe_failures
+        result["asset_id"] = asset_id
+        result["anchor_count"] = len(validated_anchors)
+        result["eligible_anchor_count"] = len(eligible)
+        result["successful_probe_count"] = len(candidates)
+        result["skipped_anchor_ids"] = skipped_anchor_ids
+        return result
+    except MediaLibraryError as error:
+        raise media_library_error(error) from error
+    except (CameraStateCoverageError, ViewTransformProbeError, ValueError, TypeError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
